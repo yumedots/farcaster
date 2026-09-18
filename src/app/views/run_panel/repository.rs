@@ -15,7 +15,7 @@ use crate::{
     app::ui::{
         assets::AppIcon,
         file_icons::file_icon,
-        primitives::{AppIconSize, AppTooltip as _, activates_button, app_icon},
+        primitives::{AppIconSize, AppTooltip as _, SearchField, activates_button, app_icon},
     },
     repository::{RepositoryEdit, RepositoryKind, WorkingCopyChange, WorkingCopySnapshot},
 };
@@ -29,7 +29,6 @@ use super::{
     change_tree::{self, TreeRow},
 };
 use crate::app::RunPanelView;
-use gpui_component::input::Input;
 
 impl FarcasterApp {
     pub(super) fn render_repository(
@@ -114,11 +113,8 @@ impl FarcasterApp {
             .when_some(snapshot, |section, snapshot| {
                 section
                     .child(
-                        Input::new(browser.search)
-                            .bg(gpui::rgba(0))
-                            .border_color(gpui::rgba(0))
-                            .aria_label("Filter changed files")
-                            .prefix(app_icon(AppIcon::MagnifyingGlass, AppIconSize::Inline)),
+                        SearchField::new("repository-search", browser.search)
+                            .accessible_label("Filter changed files"),
                     )
                     .child(self.repository_changes(
                         snapshot,
