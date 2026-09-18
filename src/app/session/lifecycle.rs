@@ -269,6 +269,7 @@ impl FarcasterApp {
         if let Some(folder) = folder {
             self.assign_session_folder(draft.app_session_id, Some(folder), cx);
         }
+        self.sync_project_folders(cx);
         self.save_project_registry();
         self.send_project_command(
             &project,
