@@ -74,8 +74,8 @@ impl FarcasterApp {
             .py(theme().size(3.0))
             .flex()
             .items_stretch()
-            .hover(|card| card.bg(theme().colors.surface))
-            .focus(|card| card.bg(theme().colors.surface))
+            .hover(|card| card.bg(theme().colors.highlight))
+            .focus(|card| card.bg(theme().colors.highlight))
             .cursor_pointer()
             .on_click(move |_, window, cx| {
                 let _ = entity.update(cx, |this, cx| {

@@ -1,15 +1,14 @@
 use gpui::{
     AnyElement, Entity, FontWeight, InteractiveElement as _, IntoElement as _, ParentElement as _,
-    StatefulInteractiveElement as _, Styled as _, WeakEntity, div, prelude::FluentBuilder as _,
+    Styled as _, WeakEntity, div, prelude::FluentBuilder as _,
 };
-use gpui_component::{
-    text::{TextViewState, TextViewStyle},
-    tooltip::Tooltip,
-};
+use gpui_component::text::{TextViewState, TextViewStyle};
 
 use crate::{
     app::{
-        FarcasterApp, composer::prompt_fragments::invocation_token, ui::theme::theme,
+        FarcasterApp,
+        composer::prompt_fragments::invocation_token,
+        ui::{primitives::AppTooltip as _, theme::theme},
         views::transcript::attachments::render_attachments,
     },
     conversation::{TranscriptItem, TranscriptKind},
@@ -48,9 +47,7 @@ pub(super) fn render_invocation(
                 theme().colors.accent
             }),
         )
-        .when_some(tooltip, |row, tooltip| {
-            row.tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
-        })
+        .when_some(tooltip, |row, tooltip| row.app_tooltip(tooltip.clone()))
         .into_any_element()
 }
 
@@ -200,14 +197,12 @@ pub(super) fn render_message(
         .when(user, |row| {
             row.mt(theme().space.sm)
                 .py(theme().space.md)
-                .bg(theme().colors.selection)
+                .bg(theme().colors.highlight)
         })
         .when(follows_tool, |row| {
             row.mt(theme().space.md).pt(theme().space.sm)
         })
-        .when_some(tooltip, |row, tooltip| {
-            row.tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
-        })
+        .when_some(tooltip, |row, tooltip| row.app_tooltip(tooltip.clone()))
         .when(
             item.kind == TranscriptKind::PeerMessage || (user && !item.label.is_empty()),
             |row| row.child(peer_label(font_scale, &item.label)),
@@ -248,7 +243,7 @@ pub(super) fn render_message_chunk(
         .id(format!("transcript-row-{key}-{block}"))
         .w_full()
         .px(theme().size(18.0))
-        .when(user, |row| row.bg(theme().colors.selection))
+        .when(user, |row| row.bg(theme().colors.highlight))
         .when(first, |row| row.pt(theme().space.sm))
         .when(first && user, |row| {
             row.mt(theme().space.sm).pt(theme().space.md)

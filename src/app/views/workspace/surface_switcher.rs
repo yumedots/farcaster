@@ -1,15 +1,13 @@
+use crate::{
+    app::ui::assets::AppIcon,
+    app::ui::primitives::{AppIconSize, AppTooltip as _, app_icon, icon_control},
+    app::ui::theme::theme,
+    app::{AppSurface, FarcasterApp, views::session_rail::project_label},
+};
 use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _,
     StatefulInteractiveElement as _, Styled as _, WeakEntity, Window, div,
     prelude::FluentBuilder as _,
-};
-use gpui_component::tooltip::Tooltip;
-
-use crate::{
-    app::ui::assets::AppIcon,
-    app::ui::primitives::{AppIconSize, app_icon, icon_control},
-    app::ui::theme::theme,
-    app::{AppSurface, FarcasterApp, views::session_rail::project_label},
 };
 
 impl FarcasterApp {
@@ -83,9 +81,7 @@ impl FarcasterApp {
                             .text_color(theme().colors.muted)
                             .hover(|link| link.text_color(theme().colors.text))
                             .focus_visible(|link| link.text_color(theme().colors.indicator))
-                            .tooltip(move |window, cx| {
-                                Tooltip::new(project_hint.clone()).build(window, cx)
-                            })
+                            .app_tooltip(project_hint.clone())
                             .child(project)
                             .on_click(move |_, window, cx| {
                                 let _ = project_entity.update(cx, |app, cx| {
@@ -187,7 +183,7 @@ fn surface_control(
         .w(theme().size(34.0))
         .h_full()
         .rounded_none()
-        .hover(|control| control.bg(theme().colors.surface))
+        .hover(|control| control.bg(theme().colors.highlight))
         .when(active, |control| {
             control.text_color(theme().colors.indicator).child(
                 div()

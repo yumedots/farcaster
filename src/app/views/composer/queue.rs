@@ -86,8 +86,8 @@ fn queued_message_group(
                 .px(theme().space.sm)
                 .py(theme().space.xs)
                 .bg(match kind {
-                    QueuedMessageKind::Peer | QueuedMessageKind::Steer => theme().colors.selection,
-                    QueuedMessageKind::FollowUp => theme().colors.hover,
+                    QueuedMessageKind::Peer | QueuedMessageKind::Steer => theme().colors.highlight,
+                    QueuedMessageKind::FollowUp => theme().colors.highlight,
                 })
                 .text_size(theme().type_scale.caption)
                 .font_weight(FontWeight::SEMIBOLD)
@@ -170,7 +170,7 @@ pub(super) fn render_pending_receipts(receipts: &[PendingReceipt]) -> Option<Any
                 div()
                     .px(theme().space.sm)
                     .py(theme().space.xs)
-                    .bg(theme().colors.hover)
+                    .bg(theme().colors.highlight)
                     .text_size(theme().type_scale.caption)
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_color(theme().colors.subtle)

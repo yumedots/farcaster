@@ -259,7 +259,10 @@ mod primitives {
     pub(crate) use crate::bench_content::*;
     pub(crate) use crate::bench_context_menu::*;
     pub(crate) use crate::bench_disclosure::*;
+    pub(crate) use crate::bench_highlight as highlight;
+    pub(crate) use crate::bench_highlight::*;
     pub(crate) use crate::bench_icon::*;
+    pub(crate) use crate::bench_tooltip::AppTooltip;
 }
 #[path = "../src/app/ui/primitives/button.rs"]
 mod bench_button;
@@ -269,8 +272,13 @@ mod bench_content;
 mod bench_context_menu;
 #[path = "../src/app/ui/primitives/disclosure.rs"]
 mod bench_disclosure;
+#[path = "../src/app/ui/primitives/highlight.rs"]
+mod bench_highlight;
 #[path = "../src/app/ui/primitives/icon.rs"]
 mod bench_icon;
+#[path = "../src/app/ui/primitives/tooltip.rs"]
+mod bench_tooltip;
+pub(crate) use bench_tooltip::AppTooltip;
 use primitives::{AppIconSize, activates_button, app_icon, icon_control, preserve_pointer_focus};
 #[path = "../src/app/ui/change_tree.rs"]
 pub(crate) mod change_tree;

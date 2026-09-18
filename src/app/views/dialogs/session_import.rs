@@ -1,12 +1,5 @@
 use std::rc::Rc;
 
-use gpui::{
-    AnyElement, App, CursorStyle, ElementId, FontWeight, InteractiveElement as _, IntoElement as _,
-    MouseButton, ParentElement as _, Role, SharedString, Stateful, StatefulInteractiveElement as _,
-    Styled as _, WeakEntity, Window, div, prelude::FluentBuilder as _,
-};
-use gpui_component::tooltip::Tooltip;
-
 use crate::app::FarcasterApp;
 use crate::{
     agents,
@@ -15,12 +8,17 @@ use crate::{
     app::ui::{
         assets::AppIcon,
         primitives::{
-            AppIconSize, ButtonTone, FeedbackTone, activates_button, app_icon, button, feedback,
-            icon_control, modal,
+            AppIconSize, AppTooltip as _, ButtonTone, FeedbackTone, activates_button, app_icon,
+            button, feedback, icon_control, modal,
         },
         theme::theme,
     },
     sessions::SessionSummary,
+};
+use gpui::{
+    AnyElement, App, CursorStyle, ElementId, FontWeight, InteractiveElement as _, IntoElement as _,
+    MouseButton, ParentElement as _, Role, SharedString, Stateful, StatefulInteractiveElement as _,
+    Styled as _, WeakEntity, Window, div, prelude::FluentBuilder as _,
 };
 
 pub(in crate::app::views) fn render(
@@ -236,7 +234,7 @@ fn candidate_row(
         .role(Role::Button)
         .aria_label(accessible)
         .aria_selected(checked)
-        .tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
+        .app_tooltip(tooltip.clone())
         .tab_index(0)
         .on_mouse_down(
             MouseButton::Left,
@@ -247,22 +245,16 @@ fn candidate_row(
         .relative()
         .px(theme().space.sm)
         .py(theme().space.xs)
-        .rounded(theme().size(2.0))
+        .rounded(theme().radius)
         .flex()
         .items_center()
         .gap(theme().space.sm)
         .bg(if checked {
-            theme().colors.session_selection
+            theme().colors.highlight
         } else {
             theme().colors.panel
         })
-        .hover(move |row| {
-            row.bg(if checked {
-                theme().colors.session_selection
-            } else {
-                theme().colors.surface
-            })
-        })
+        .hover(|row| row.bg(theme().colors.highlight))
         .when(checked, |row| {
             row.child(
                 div()
@@ -384,7 +376,7 @@ fn selection_checkbox(
                 .size(theme().size(14.0))
                 .border(theme().border)
                 .border_color(theme().colors.muted)
-                .rounded(theme().size(2.0))
+                .rounded(theme().radius)
                 .flex()
                 .items_center()
                 .justify_center()
