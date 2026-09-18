@@ -1,5 +1,4 @@
 :root[data-theme="White"][data-appearance="light"] {
-  /* palette */
   --canvas: #ffffff;
   --panel: #f6f6f3;
   --inspector: #f3f3ef;
@@ -28,7 +27,6 @@
   --backdrop: #00000059;
   --indicator: #6a655c;
 
-  /* metrics */
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 16px;
@@ -67,7 +65,6 @@
   --layout-session-row-height: 49px;
   --layout-status-row-height: 24px;
 
-  /* sizes */
   --size-1: 1px;
   --size-2: 2px;
   --size-3: 3px;
@@ -163,7 +160,6 @@
   --size-1920: 1920px;
   --size-2000: 2000px;
 
-  /* file icons (Material Icon Theme brand colors, --icon-<name>) */
   --icon-bash: #ff7043;
   --icon-c: #0288d1;
   --icon-config: #42a5f5;
@@ -193,7 +189,6 @@
   --icon-vuejs: #41b883;
   --icon-yaml: #ff5252;
 
-  /* code highlighting */
   --attribute: #8a5f00;
   --boolean: #8a5f00;
   --comment: #8a8478;

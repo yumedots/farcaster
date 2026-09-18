@@ -1,6 +1,4 @@
-/* Farcaster ships this theme. Duplicate it in Settings to make your own. */
 :root[data-theme="Farcaster"][data-appearance="dark"] {
-  /* palette */
   --canvas: #1b1f20;
   --panel: #222321;
   --inspector: #202221;
@@ -29,7 +27,6 @@
   --backdrop: #000000b3;
   --indicator: #9c9280;
 
-  /* metrics */
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 16px;
@@ -68,7 +65,6 @@
   --layout-session-row-height: 49px;
   --layout-status-row-height: 24px;
 
-  /* sizes */
   --size-1: 1px;
   --size-2: 2px;
   --size-3: 3px;
@@ -164,7 +160,6 @@
   --size-1920: 1920px;
   --size-2000: 2000px;
 
-  /* file icons (Material Icon Theme brand colors, --icon-<name>) */
   --icon-bash: #ff7043;
   --icon-c: #0288d1;
   --icon-config: #42a5f5;
@@ -194,7 +189,6 @@
   --icon-vuejs: #41b883;
   --icon-yaml: #ff5252;
 
-  /* code highlighting */
   --attribute: #dca21e;
   --boolean: #dca21e;
   --comment: #80786b;
