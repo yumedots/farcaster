@@ -4,11 +4,13 @@ use gpui::{
 };
 
 use super::super::super::{FarcasterApp, RunPanelView};
-use super::super::session_rail::{session_hover_details, session_hover_panel, status_visual};
+use super::super::session_rail::{session_hover_details, session_tooltip_content, status_visual};
 use crate::{
     agent_activity::{AgentActivity, AgentLifecycle, AgentOutcome},
     app::ui::assets::AppIcon,
-    app::ui::primitives::{AppIconSize, activates_button, app_icon, disclosure_button},
+    app::ui::primitives::{
+        AppIconSize, AppTooltip as _, activates_button, app_icon, disclosure_button,
+    },
     app::ui::theme::theme,
 };
 
@@ -31,7 +33,6 @@ impl FarcasterApp {
         let key_entity = entity.clone();
         let state = lifecycle_label(activity.lifecycle);
         let role = activity.role.clone();
-        let hover_id = format!("agent-hover-{activity_key}");
         let registry = crate::agents::CallerRegistry::shared();
         let caller = registry
             .session_caller(&session.project, session.harness, &session.id)
@@ -127,8 +128,9 @@ impl FarcasterApp {
                             .child(execution),
                     ),
             )
+            .app_tooltip_element(move |_, _| session_tooltip_content(&hover_details))
             .into_any_element();
-        Some(session_hover_panel(hover_id, hover_details, card))
+        Some(card)
     }
 }
 
