@@ -29,7 +29,7 @@ use super::super::{FarcasterApp, RunPanelView};
 use crate::{
     agent_activity::AgentActivity,
     app::ui::primitives::{ButtonTone, button, panel, section_heading},
-    app::ui::theme::THEME,
+    app::ui::theme::theme,
     sessions::{descendant_sessions_for_root, root_session_for_path},
 };
 
@@ -144,7 +144,7 @@ impl FarcasterApp {
             .overflow_y_scroll()
             .flex()
             .flex_col()
-            .gap(THEME.space.sm)
+            .gap(theme().space.sm)
             .child(self.views.workgraph_sidebar.clone())
             .when_some(
                 self.lifecycle
@@ -207,8 +207,8 @@ impl FarcasterApp {
                                 .when(completed.len() > MAX_VISIBLE_COMPLETED_AGENTS, |section| {
                                     section.child(
                                         div()
-                                            .text_size(THEME.type_scale.caption)
-                                            .text_color(THEME.colors.subtle)
+                                            .text_size(theme().type_scale.caption)
+                                            .text_color(theme().colors.subtle)
                                             .child(format!(
                                                 "Showing the {} most recent completed agents",
                                                 MAX_VISIBLE_COMPLETED_AGENTS
@@ -250,7 +250,7 @@ impl FarcasterApp {
             .pr(px(15.0))
             .pb(px(14.0))
             .pl(px(18.0))
-            .gap(THEME.space.md)
+            .gap(theme().space.md)
             .when_some(root, |run, root| {
                 let selected =
                     self.snapshot.selected_session.as_deref() == Some(root.path.as_path());
@@ -290,7 +290,7 @@ impl FarcasterApp {
             .size_full()
             .rounded_none()
             .border_0()
-            .bg(THEME.colors.inspector)
+            .bg(theme().colors.inspector)
             .child(body)
     }
 }

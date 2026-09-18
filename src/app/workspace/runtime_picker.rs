@@ -2,7 +2,7 @@ use super::*;
 mod layout;
 use crate::app::ui::{
     primitives::{ButtonTone, button, dropdown_button},
-    theme::THEME,
+    theme::theme,
 };
 use gpui::{
     InteractiveElement as _, IntoElement as _, ParentElement as _, StatefulInteractiveElement as _,
@@ -178,10 +178,10 @@ impl FarcasterApp {
             .overflow_y_scroll()
             .flex()
             .flex_col()
-            .bg(THEME.colors.panel)
-            .border(THEME.border)
-            .border_color(THEME.colors.border)
-            .rounded(THEME.radius)
+            .bg(theme().colors.panel)
+            .border(theme().border)
+            .border_color(theme().colors.border)
+            .rounded(theme().radius)
             .capture_key_down(move |event: &gpui::KeyDownEvent, window, cx| {
                 if event.keystroke.modifiers.modified()
                     || !search_focus.contains_focused(window, cx)
@@ -219,9 +219,9 @@ impl FarcasterApp {
                     .flex()
                     .items_center()
                     .justify_between()
-                    .gap(THEME.space.sm)
-                    .p(THEME.space.sm)
-                    .child(div().text_color(THEME.colors.muted).child("Provider"))
+                    .gap(theme().space.sm)
+                    .p(theme().space.sm)
+                    .child(div().text_color(theme().colors.muted).child("Provider"))
                     .child(
                         dropdown_button(
                             "runtime-provider",
@@ -265,14 +265,14 @@ impl FarcasterApp {
             .child(
                 div()
                     .flex_none()
-                    .px(THEME.space.sm)
-                    .pb(THEME.space.sm)
+                    .px(theme().space.sm)
+                    .pb(theme().space.sm)
                     .child(Input::new(search)),
             )
             .child(if models.is_empty() {
                 div()
-                    .p(THEME.space.sm)
-                    .text_color(THEME.colors.muted)
+                    .p(theme().space.sm)
+                    .text_color(theme().colors.muted)
                     .child(feedback)
                     .into_any_element()
             } else {
@@ -305,7 +305,7 @@ impl FarcasterApp {
                             .overflow_hidden()
                             .h(px(32.0))
                             .justify_start()
-                            .when(index == highlighted, |row| row.bg(THEME.colors.surface))
+                            .when(index == highlighted, |row| row.bg(theme().colors.surface))
                             .into_any_element()
                         })
                         .collect()
@@ -322,16 +322,16 @@ impl FarcasterApp {
                         .flex()
                         .items_center()
                         .justify_between()
-                        .gap(THEME.space.sm)
-                        .p(THEME.space.sm)
-                        .border_t(THEME.border)
-                        .border_color(THEME.colors.border)
+                        .gap(theme().space.sm)
+                        .p(theme().space.sm)
+                        .border_t(theme().border)
+                        .border_color(theme().colors.border)
                         .child(
                             div()
-                                .text_color(THEME.colors.muted)
+                                .text_color(theme().colors.muted)
                                 .child(crate::agents::effort_label(self.snapshot.harness)),
                         )
-                        .child(div().flex().flex_wrap().gap(THEME.space.xs).children(
+                        .child(div().flex().flex_wrap().gap(theme().space.xs).children(
                             levels.iter().cloned().enumerate().map(|(index, level)| {
                                 let entity = entity.clone();
                                 let current = identity.effort == level.as_deref();
@@ -361,12 +361,12 @@ impl FarcasterApp {
                         .flex()
                         .items_center()
                         .justify_between()
-                        .gap(THEME.space.sm)
-                        .p(THEME.space.sm)
-                        .border_t(THEME.border)
-                        .border_color(THEME.colors.border)
-                        .child(div().text_color(THEME.colors.muted).child("Service tier"))
-                        .child(div().flex().flex_wrap().gap(THEME.space.xs).children(
+                        .gap(theme().space.sm)
+                        .p(theme().space.sm)
+                        .border_t(theme().border)
+                        .border_color(theme().colors.border)
+                        .child(div().text_color(theme().colors.muted).child("Service tier"))
+                        .child(div().flex().flex_wrap().gap(theme().space.xs).children(
                             service_tiers.iter().enumerate().map(|(index, tier)| {
                                 let entity = entity.clone();
                                 let tier = tier.clone();

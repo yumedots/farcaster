@@ -5,7 +5,7 @@ use gpui::{
 
 use crate::{
     agents::PeerMessage,
-    app::ui::theme::THEME,
+    app::ui::theme::theme,
     conversation::{PendingReceipt, QueueState},
     protocol::PromptMode,
 };
@@ -78,34 +78,34 @@ fn queued_message_group(
     div()
         .when(separated, |group| {
             group
-                .border_t(THEME.border)
-                .border_color(THEME.colors.border)
+                .border_t(theme().border)
+                .border_color(theme().colors.border)
         })
         .child(
             div()
-                .px(THEME.space.sm)
-                .py(THEME.space.xs)
+                .px(theme().space.sm)
+                .py(theme().space.xs)
                 .bg(match kind {
-                    QueuedMessageKind::Peer | QueuedMessageKind::Steer => THEME.colors.selection,
-                    QueuedMessageKind::FollowUp => THEME.colors.hover,
+                    QueuedMessageKind::Peer | QueuedMessageKind::Steer => theme().colors.selection,
+                    QueuedMessageKind::FollowUp => theme().colors.hover,
                 })
-                .text_size(THEME.type_scale.caption)
+                .text_size(theme().type_scale.caption)
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(match kind {
-                    QueuedMessageKind::Peer | QueuedMessageKind::Steer => THEME.colors.accent,
-                    QueuedMessageKind::FollowUp => THEME.colors.subtle,
+                    QueuedMessageKind::Peer | QueuedMessageKind::Steer => theme().colors.accent,
+                    QueuedMessageKind::FollowUp => theme().colors.subtle,
                 })
                 .child(kind.label()),
         )
         .children(messages.iter().map(|message| {
             div()
                 .line_clamp(1)
-                .border_t(THEME.border)
-                .border_color(THEME.colors.border)
-                .px(THEME.space.sm)
-                .py(THEME.space.xs)
-                .text_size(THEME.type_scale.body)
-                .text_color(THEME.colors.text)
+                .border_t(theme().border)
+                .border_color(theme().colors.border)
+                .px(theme().space.sm)
+                .py(theme().space.xs)
+                .text_size(theme().type_scale.body)
+                .text_color(theme().colors.text)
                 .child(queued_message_preview(message))
         }))
         .into_any_element()
@@ -118,12 +118,12 @@ pub(super) fn render(queue: &QueueState) -> Option<AnyElement> {
     }
     Some(
         div()
-            .mb(THEME.space.sm)
-            .border(THEME.border)
-            .border_color(THEME.colors.border)
-            .rounded(THEME.radius)
+            .mb(theme().space.sm)
+            .border(theme().border)
+            .border_color(theme().colors.border)
+            .rounded(theme().radius)
             .overflow_hidden()
-            .bg(THEME.colors.surface)
+            .bg(theme().colors.surface)
             .children(
                 groups
                     .into_iter()
@@ -160,20 +160,20 @@ pub(super) fn render_pending_receipts(receipts: &[PendingReceipt]) -> Option<Any
     }
     Some(
         div()
-            .mb(THEME.space.sm)
-            .border(THEME.border)
-            .border_color(THEME.colors.border)
-            .rounded(THEME.radius)
+            .mb(theme().space.sm)
+            .border(theme().border)
+            .border_color(theme().colors.border)
+            .rounded(theme().radius)
             .overflow_hidden()
-            .bg(THEME.colors.surface)
+            .bg(theme().colors.surface)
             .child(
                 div()
-                    .px(THEME.space.sm)
-                    .py(THEME.space.xs)
-                    .bg(THEME.colors.hover)
-                    .text_size(THEME.type_scale.caption)
+                    .px(theme().space.sm)
+                    .py(theme().space.xs)
+                    .bg(theme().colors.hover)
+                    .text_size(theme().type_scale.caption)
                     .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(THEME.colors.subtle)
+                    .text_color(theme().colors.subtle)
                     .child("Saved pending messages"),
             )
             .children(receipts.iter().map(|receipt| {
@@ -182,21 +182,21 @@ pub(super) fn render_pending_receipts(receipts: &[PendingReceipt]) -> Option<Any
                         "pending-receipt-{}",
                         receipt.id
                     )))
-                    .border_t(THEME.border)
-                    .border_color(THEME.colors.border)
-                    .px(THEME.space.sm)
-                    .py(THEME.space.xs)
+                    .border_t(theme().border)
+                    .border_color(theme().colors.border)
+                    .px(theme().space.sm)
+                    .py(theme().space.xs)
                     .child(
                         div()
                             .line_clamp(1)
-                            .text_size(THEME.type_scale.body)
-                            .text_color(THEME.colors.text)
+                            .text_size(theme().type_scale.body)
+                            .text_color(theme().colors.text)
                             .child(queued_message_preview(&receipt.text)),
                     )
                     .child(
                         div()
-                            .text_size(THEME.type_scale.caption)
-                            .text_color(THEME.colors.subtle)
+                            .text_size(theme().type_scale.caption)
+                            .text_color(theme().colors.subtle)
                             .child(pending_receipt_label(receipt)),
                     )
             }))

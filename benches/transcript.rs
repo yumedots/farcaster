@@ -290,7 +290,7 @@ enum HarnessAccessMode {
 pub(crate) mod prompt_fragments;
 #[path = "../src/modules/agents/contract/extensions.rs"]
 mod protocol;
-#[path = "../src/app/ui/theme.rs"]
+#[path = "../src/app/ui/theme/mod.rs"]
 mod theme;
 
 use app::views::transcript::{

@@ -9,7 +9,7 @@ use crate::{
     agent_activity::{AgentActivity, AgentLifecycle, AgentOutcome},
     app::ui::assets::AppIcon,
     app::ui::primitives::{AppIconSize, activates_button, app_icon, disclosure_button},
-    app::ui::theme::THEME,
+    app::ui::theme::theme,
 };
 
 pub(super) const MAX_VISIBLE_COMPLETED_AGENTS: usize = 5;
@@ -74,8 +74,8 @@ impl FarcasterApp {
             .py(px(3.0))
             .flex()
             .items_stretch()
-            .hover(|card| card.bg(THEME.colors.surface))
-            .focus(|card| card.bg(THEME.colors.surface))
+            .hover(|card| card.bg(theme().colors.surface))
+            .focus(|card| card.bg(theme().colors.surface))
             .cursor_pointer()
             .on_click(move |_, window, cx| {
                 let _ = entity.update(cx, |this, cx| {
@@ -103,9 +103,9 @@ impl FarcasterApp {
                     .overflow_hidden()
                     .flex()
                     .items_center()
-                    .gap(THEME.space.xs)
-                    .text_size(THEME.type_scale.caption)
-                    .text_color(THEME.colors.muted)
+                    .gap(theme().space.xs)
+                    .text_size(theme().type_scale.caption)
+                    .text_color(theme().colors.muted)
                     .when_some(status_visual(state), |row, (icon, color)| {
                         row.child(
                             div()

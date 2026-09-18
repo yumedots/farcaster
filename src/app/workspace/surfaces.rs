@@ -722,6 +722,7 @@ impl FarcasterApp {
             self.workspace.worker_profile_editor.error = Some(error);
         }
         self.settings.mcp_error = None;
+        self.refresh_theme_editor(window, cx);
         self.open_sheet(AppSheet::Settings, window, cx);
     }
 

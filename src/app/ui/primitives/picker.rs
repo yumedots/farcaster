@@ -14,7 +14,7 @@ use crate::{
     app::RemoveProject,
     app::ui::assets::AppIcon,
     app::ui::primitives::{AppIconSize, app_icon, icon_control},
-    app::ui::theme::THEME,
+    app::ui::theme::theme,
 };
 
 #[derive(Clone)]
@@ -141,9 +141,9 @@ impl ListDelegate for PickerDelegate {
             ListItem::new(("picker-row", index.row))
                 .disabled(row.disabled)
                 .h(if row.detail.is_some() {
-                    THEME.controls.archived_preview_row
+                    theme().controls.archived_preview_row
                 } else {
-                    THEME.controls.utility_row
+                    theme().controls.utility_row
                 })
                 .child(
                     div()
@@ -151,7 +151,7 @@ impl ListDelegate for PickerDelegate {
                         .min_w_0()
                         .flex()
                         .items_center()
-                        .gap(THEME.space.sm)
+                        .gap(theme().space.sm)
                         .child(app_icon(row.icon, AppIconSize::Control))
                         .child(
                             div()
@@ -171,8 +171,8 @@ impl ListDelegate for PickerDelegate {
                                         .overflow_hidden()
                                         .whitespace_nowrap()
                                         .text_ellipsis()
-                                        .text_size(THEME.type_scale.caption)
-                                        .text_color(THEME.colors.subtle)
+                                        .text_size(theme().type_scale.caption)
+                                        .text_color(theme().colors.subtle)
                                         .child(detail)
                                 })),
                         )
@@ -181,7 +181,7 @@ impl ListDelegate for PickerDelegate {
                                 .flex()
                                 .flex_none()
                                 .items_center()
-                                .gap(THEME.space.xs)
+                                .gap(theme().space.xs)
                                 .children(shortcut.split_whitespace().map(|key| {
                                     Kbd::new(
                                         Keystroke::parse(key)
@@ -195,7 +195,7 @@ impl ListDelegate for PickerDelegate {
                                 ("remove-picker-project", index.row),
                                 format!("Remove {}", row.label),
                             )
-                            .hover(|button| button.bg(THEME.colors.hover))
+                            .hover(|button| button.bg(theme().colors.hover))
                             .child(app_icon(AppIcon::X, AppIconSize::Control))
                             .on_click(move |_, window, cx| {
                                 cx.stop_propagation();
@@ -217,8 +217,8 @@ impl ListDelegate for PickerDelegate {
         _: &mut Context<ListState<Self>>,
     ) -> impl gpui::IntoElement {
         div()
-            .p(THEME.space.md)
-            .text_color(THEME.colors.subtle)
+            .p(theme().space.md)
+            .text_color(theme().colors.subtle)
             .child("No matches")
     }
 

@@ -17,28 +17,28 @@ pub(super) fn render(app: &FarcasterApp, entity: WeakEntity<FarcasterApp>) -> An
     div()
         .flex()
         .flex_col()
-        .gap(THEME.space.md)
+        .gap(theme().space.md)
         .child(
             div()
                 .flex()
                 .items_center()
                 .justify_between()
-                .gap(THEME.space.md)
+                .gap(theme().space.md)
                 .child(
                     div()
                         .flex()
                         .flex_col()
-                        .gap(THEME.space.xs)
+                        .gap(theme().space.xs)
                         .child(
                             div()
-                                .text_size(THEME.type_scale.reading)
+                                .text_size(theme().type_scale.reading)
                                 .font_weight(gpui::FontWeight::SEMIBOLD)
                                 .child("Worker profiles"),
                         )
                         .child(
                             div()
-                                .text_size(THEME.type_scale.body_small)
-                                .text_color(THEME.colors.muted)
+                                .text_size(theme().type_scale.body_small)
+                                .text_color(theme().colors.muted)
                                 .child("Each profile uses the first available model in its list."),
                         ),
                 )
@@ -55,9 +55,14 @@ pub(super) fn render(app: &FarcasterApp, entity: WeakEntity<FarcasterApp>) -> An
         .child(
             div()
                 .flex()
-                .gap(THEME.space.md)
+                .gap(theme().space.md)
                 .child(profile_rail(app, entity.clone()))
-                .child(div().w(gpui::px(1.0)).bg(THEME.colors.surface).flex_none())
+                .child(
+                    div()
+                        .w(gpui::px(1.0))
+                        .bg(theme().colors.surface)
+                        .flex_none(),
+                )
                 .child(profile_detail(app, entity)),
         )
         .into_any_element()
@@ -70,7 +75,7 @@ fn profile_rail(app: &FarcasterApp, entity: WeakEntity<FarcasterApp>) -> AnyElem
     let mut rail = div()
         .flex()
         .flex_col()
-        .gap(THEME.space.xs)
+        .gap(theme().space.xs)
         .w(gpui::px(132.0))
         .flex_none();
     for (index, profile) in editor.profiles.iter().enumerate() {
@@ -120,7 +125,7 @@ fn profile_detail(app: &FarcasterApp, entity: WeakEntity<FarcasterApp>) -> AnyEl
         .min_w_0()
         .flex()
         .flex_col()
-        .gap(THEME.space.sm);
+        .gap(theme().space.sm);
     if let Some(edit @ WorkerProfileEdit::Name { .. }) = &editor.edit {
         detail = detail.child(edit_form(edit, entity.clone()));
     } else if let Some(profile) = editor.profiles.get(editor.selected) {
@@ -134,7 +139,7 @@ fn profile_detail(app: &FarcasterApp, entity: WeakEntity<FarcasterApp>) -> AnyEl
                 .justify_between()
                 .child(
                     div()
-                        .text_size(THEME.type_scale.body)
+                        .text_size(theme().type_scale.body)
                         .font_weight(gpui::FontWeight::SEMIBOLD)
                         .child(profile.name.clone()),
                 )
@@ -161,8 +166,8 @@ fn profile_detail(app: &FarcasterApp, entity: WeakEntity<FarcasterApp>) -> AnyEl
         );
         detail = detail.child(
             div()
-                .text_size(THEME.type_scale.body_small)
-                .text_color(THEME.colors.muted)
+                .text_size(theme().type_scale.body_small)
+                .text_color(theme().colors.muted)
                 .child(profile.description.clone()),
         );
         for (index, model) in profile.models.iter().enumerate() {
@@ -208,7 +213,7 @@ fn profile_detail(app: &FarcasterApp, entity: WeakEntity<FarcasterApp>) -> AnyEl
                 model: editor.selected_model,
             };
             detail = detail.child(
-                div().flex().gap(THEME.space.sm).children(
+                div().flex().gap(theme().space.sm).children(
                     [
                         (
                             "worker-model-add",
@@ -254,8 +259,8 @@ fn profile_detail(app: &FarcasterApp, entity: WeakEntity<FarcasterApp>) -> AnyEl
             );
             detail = detail.child(route(app, entity.clone(), target));
             if model.validate().is_err() {
-                detail = detail.child(div().text_size(THEME.type_scale.caption)
-                    .text_color(THEME.colors.muted)
+                detail = detail.child(div().text_size(theme().type_scale.caption)
+                    .text_color(theme().colors.muted)
                     .child("Not saved yet. Choose a provider and model; the previous route is still in use."));
             }
             if let Some(edit @ WorkerProfileEdit::Custom { target: edited, .. }) = &editor.edit
@@ -267,8 +272,8 @@ fn profile_detail(app: &FarcasterApp, entity: WeakEntity<FarcasterApp>) -> AnyEl
     } else {
         detail = detail.child(
             div()
-                .py(THEME.space.md)
-                .text_color(THEME.colors.muted)
+                .py(theme().space.md)
+                .text_color(theme().colors.muted)
                 .child(
                     "Add a profile to configure a worker. With no profiles, new workers cannot start.",
                 ),
@@ -361,32 +366,32 @@ fn route(
     let mut row = div()
         .flex()
         .flex_col()
-        .gap(THEME.space.sm)
-        .py(THEME.space.sm)
+        .gap(theme().space.sm)
+        .py(theme().space.sm)
         .border_t_1()
-        .border_color(THEME.colors.surface)
+        .border_color(theme().colors.surface)
         .child(
             div()
                 .flex()
                 .items_center()
                 .justify_between()
-                .gap(THEME.space.sm)
+                .gap(theme().space.sm)
                 .child(
                     div()
                         .min_w_0()
                         .flex()
                         .flex_col()
-                        .gap(THEME.space.xs)
+                        .gap(theme().space.xs)
                         .child(
                             div()
                                 .font_weight(gpui::FontWeight::MEDIUM)
-                                .text_color(THEME.colors.text)
+                                .text_color(theme().colors.text)
                                 .child(label),
                         )
                         .child(
                             div()
-                                .text_size(THEME.type_scale.caption)
-                                .text_color(THEME.colors.muted)
+                                .text_size(theme().type_scale.caption)
+                                .text_color(theme().colors.muted)
                                 .child(explanation),
                         ),
                 )
@@ -412,7 +417,7 @@ fn route(
                 ),
         )
         .child(
-            div().flex().gap(THEME.space.sm).children(
+            div().flex().gap(theme().space.sm).children(
                 [
                     (
                         "worker-harness",
@@ -453,13 +458,13 @@ fn route(
             ),
         );
     if catalog.models.is_empty() {
-        row = row.child(div().text_size(THEME.type_scale.caption).text_color(THEME.colors.subtle)
+        row = row.child(div().text_size(theme().type_scale.caption).text_color(theme().colors.subtle)
             .child("No catalog yet. Open a session with this harness, then reload choices, or use custom IDs."));
     } else if !route.model.is_empty() && selected_model.is_none() {
         row = row.child(
             div()
-                .text_size(THEME.type_scale.caption)
-                .text_color(THEME.colors.subtle)
+                .text_size(theme().type_scale.caption)
+                .text_color(theme().colors.subtle)
                 .child(
                     "This model is not in the saved catalog and will be skipped. Reload choices after refreshing the harness catalog, or choose a listed model.",
                 ),
@@ -488,11 +493,11 @@ fn route_menu(
         .min_w_0()
         .flex()
         .flex_col()
-        .gap(THEME.space.xs)
+        .gap(theme().space.xs)
         .child(
             div()
-                .text_size(THEME.type_scale.caption)
-                .text_color(THEME.colors.muted)
+                .text_size(theme().type_scale.caption)
+                .text_color(theme().colors.muted)
                 .child(field),
         )
         .child(
@@ -532,10 +537,10 @@ fn edit_form(edit: &WorkerProfileEdit, entity: WeakEntity<FarcasterApp>) -> AnyE
     let mut form = div()
         .flex()
         .flex_col()
-        .gap(THEME.space.sm)
-        .p(THEME.space.sm)
-        .bg(THEME.colors.surface)
-        .rounded(THEME.radius);
+        .gap(theme().space.sm)
+        .p(theme().space.sm)
+        .bg(theme().colors.surface)
+        .rounded(theme().radius);
     match edit {
         WorkerProfileEdit::Name {
             profile,
@@ -553,30 +558,37 @@ fn edit_form(edit: &WorkerProfileEdit, entity: WeakEntity<FarcasterApp>) -> AnyE
                 .child(Input::new(description))
                 .child(
                     div()
-                        .text_size(THEME.type_scale.caption)
-                        .text_color(THEME.colors.muted)
+                        .text_size(theme().type_scale.caption)
+                        .text_color(theme().colors.muted)
                         .child("Use letters, numbers, '-' or '_'."),
                 );
         }
         WorkerProfileEdit::Custom { inputs, .. } => {
             form = form.child(div().child("Custom IDs"))
-                .child(div().text_size(THEME.type_scale.caption).text_color(THEME.colors.muted).child("Use exact IDs for models not listed by the harness. Leave effort blank for its default."))
-                .child(div().flex().gap(THEME.space.sm).children(["Provider ID", "Model ID", "Effort"].into_iter().zip(inputs).map(|(label, input)| {
-                    div().flex_1().min_w_0().flex().flex_col().gap(THEME.space.xs)
-                        .child(div().text_size(THEME.type_scale.caption).text_color(THEME.colors.muted).child(label))
+                .child(div().text_size(theme().type_scale.caption).text_color(theme().colors.muted).child("Use exact IDs for models not listed by the harness. Leave effort blank for its default."))
+                .child(div().flex().gap(theme().space.sm).children(["Provider ID", "Model ID", "Effort"].into_iter().zip(inputs).map(|(label, input)| {
+                    div().flex_1().min_w_0().flex().flex_col().gap(theme().space.xs)
+                        .child(div().text_size(theme().type_scale.caption).text_color(theme().colors.muted).child(label))
                         .child(Input::new(input))
                 })));
         }
     };
-    form.child(div().flex().justify_end().gap(THEME.space.sm).child(button(
-        "finish-worker-edit",
-        "Done",
-        ButtonTone::Neutral,
-        true,
-        move |window, cx| {
-            let _ = entity.update(cx, |this, cx| this.finish_worker_profile_edit(window, cx));
-        },
-    )))
+    form.child(
+        div()
+            .flex()
+            .justify_end()
+            .gap(theme().space.sm)
+            .child(button(
+                "finish-worker-edit",
+                "Done",
+                ButtonTone::Neutral,
+                true,
+                move |window, cx| {
+                    let _ =
+                        entity.update(cx, |this, cx| this.finish_worker_profile_edit(window, cx));
+                },
+            )),
+    )
     .into_any_element()
 }
 

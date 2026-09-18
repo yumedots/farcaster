@@ -31,6 +31,7 @@ pub(in crate::app) struct TerminalState {
 }
 
 pub(in crate::app) struct SettingsState {
+    pub(in crate::app) themes: workspace::theme_settings::ThemeSettings,
     pub(in crate::app) network_proxy_input: Entity<InputState>,
     pub(in crate::app) network_proxy_error: Option<String>,
     pub(in crate::app) proxy_save: Option<Task<()>>,

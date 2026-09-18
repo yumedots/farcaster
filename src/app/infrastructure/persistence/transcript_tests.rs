@@ -5,7 +5,7 @@ fn transcript_font_size_survives_reopen_and_rejects_invalid_values() -> Result<(
     let temp = tempfile::tempdir().map_err(|error| error.to_string())?;
     let path = temp.path().join("state.sqlite3");
     let store = StateStore::open_at(&path)?;
-    let default = f32::from(THEME.type_scale.reading);
+    let default = f32::from(theme().type_scale.reading);
     assert_eq!(store.load_transcript_font_size()?, default);
     for size in [10.0, 19.0, 32.0, default] {
         store.save_transcript_font_size(size)?;

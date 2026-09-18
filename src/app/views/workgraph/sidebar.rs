@@ -17,7 +17,7 @@ use crate::{
     app::ui::primitives::{
         AppIconSize, ButtonTone, FeedbackTone, app_icon, button, feedback, section_heading,
     },
-    app::ui::theme::THEME,
+    app::ui::theme::theme,
 };
 use workgraph::load_plan;
 
@@ -151,11 +151,11 @@ impl Render for WorkGraphSidebarView {
                             .flex()
                             .items_center()
                             .justify_between()
-                            .gap(THEME.space.sm)
+                            .gap(theme().space.sm)
                             .child(
                                 div()
-                                    .text_size(THEME.type_scale.caption)
-                                    .text_color(THEME.colors.subtle)
+                                    .text_size(theme().type_scale.caption)
+                                    .text_color(theme().colors.subtle)
                                     .child("Plan unavailable"),
                             )
                             .child(button(
@@ -194,9 +194,9 @@ fn sidebar_visible(state: &PlanLoadState, has_session: bool) -> bool {
 fn render_sidebar_row(row: PlanRow, app: WeakEntity<FarcasterApp>) -> impl IntoElement {
     let number = row.node.number;
     let title_color = if row.reached {
-        THEME.colors.subtle
+        theme().colors.subtle
     } else {
-        THEME.colors.text
+        theme().colors.text
     };
     div()
         .id(("workgraph-sidebar-node", number))
@@ -213,7 +213,7 @@ fn render_sidebar_row(row: PlanRow, app: WeakEntity<FarcasterApp>) -> impl IntoE
         .flex()
         .items_start()
         .gap(px(7.0))
-        .hover(|row| row.bg(THEME.colors.surface))
+        .hover(|row| row.bg(theme().colors.surface))
         .on_click(move |_, window, cx| {
             let _ = app.update(cx, |app, cx| {
                 app.open_workgraph_node(number, window, cx);
@@ -228,11 +228,11 @@ fn render_sidebar_row(row: PlanRow, app: WeakEntity<FarcasterApp>) -> impl IntoE
                 .items_center()
                 .justify_center()
                 .text_color(if row.reached {
-                    THEME.colors.success
+                    theme().colors.success
                 } else if row.current {
-                    THEME.colors.accent
+                    theme().colors.accent
                 } else {
-                    THEME.colors.subtle
+                    theme().colors.subtle
                 })
                 .when(row.reached, |marker| {
                     marker.child(app_icon(AppIcon::CheckCircle, AppIconSize::Inline))
@@ -240,7 +240,7 @@ fn render_sidebar_row(row: PlanRow, app: WeakEntity<FarcasterApp>) -> impl IntoE
                 .when(!row.reached, |marker| {
                     marker.child(
                         div()
-                            .text_size(THEME.type_scale.caption)
+                            .text_size(theme().type_scale.caption)
                             .font_weight(FontWeight::SEMIBOLD)
                             .child(format!("{number}")),
                     )
@@ -256,7 +256,7 @@ fn render_sidebar_row(row: PlanRow, app: WeakEntity<FarcasterApp>) -> impl IntoE
                 .child(
                     div()
                         .line_clamp(2)
-                        .text_size(THEME.type_scale.body_small)
+                        .text_size(theme().type_scale.body_small)
                         .font_weight(if row.current {
                             FontWeight::SEMIBOLD
                         } else {
@@ -269,8 +269,8 @@ fn render_sidebar_row(row: PlanRow, app: WeakEntity<FarcasterApp>) -> impl IntoE
                 .when(!row.node.files.is_empty(), |content| {
                     content.child(
                         div()
-                            .text_size(THEME.type_scale.caption)
-                            .text_color(THEME.colors.subtle)
+                            .text_size(theme().type_scale.caption)
+                            .text_color(theme().colors.subtle)
                             .child(format!("{} path(s)", row.node.files.len())),
                     )
                 }),

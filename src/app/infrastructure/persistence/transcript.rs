@@ -1,11 +1,11 @@
 use super::StateStore;
-use crate::app::ui::theme::{THEME, TRANSCRIPT_FONT_SIZE_RANGE};
+use crate::app::ui::theme::{TRANSCRIPT_FONT_SIZE_RANGE, theme};
 
 impl StateStore {
     pub(crate) fn load_transcript_font_size(&self) -> Result<f32, String> {
         self.load_transcript_font_size_setting(
             &TRANSCRIPT_FONT_SIZE_RANGE,
-            f32::from(THEME.type_scale.reading),
+            f32::from(theme().type_scale.reading),
         )
     }
 

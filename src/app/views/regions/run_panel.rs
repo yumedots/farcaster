@@ -5,7 +5,7 @@ use gpui::{
 use gpui_component::input::{InputEvent, InputState};
 
 use super::super::FarcasterApp;
-use crate::app::ui::theme::THEME;
+use crate::app::ui::theme::theme;
 
 pub(crate) struct RunPanelView {
     app: WeakEntity<FarcasterApp>,
@@ -31,7 +31,7 @@ impl RunPanelView {
             search: None,
             search_subscription: None,
             search_project: None,
-            width: THEME.layout.run_panel,
+            width: theme().layout.run_panel,
             resize_start: None,
             scroll: ScrollHandle::new(),
             review_scroll: ScrollHandle::new(),
