@@ -206,14 +206,3 @@ pub(crate) fn session_family_for_path<'a>(
     );
     Some(family)
 }
-
-pub(crate) fn archived_root_family_for_path<'a>(
-    sessions: &'a [SessionSummary],
-    path: &Path,
-) -> Option<Vec<&'a SessionSummary>> {
-    let requested = sessions.iter().find(|session| session.path == path)?;
-    if requested.parent_session.is_some() || !requested.archived {
-        return None;
-    }
-    session_family_for_path(sessions, path)
-}
