@@ -2592,8 +2592,7 @@ dependencies = [
 [[package]]
 name = "gpui-libghostty"
 version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09fe26b452d598896996576fb4613e1c73a047a78d0122efe927cad4fd9629de"
+source = "git+https://github.com/yumedots/gpui-libghostty?rev=066bf0bd85dae8227a7215e8759896b616314353#066bf0bd85dae8227a7215e8759896b616314353"
 dependencies = [
  "async-channel",
  "gpui",

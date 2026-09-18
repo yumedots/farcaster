@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use gpui::{Context, FocusHandle, Focusable as _, Image, Window, actions};
+use gpui::{Context, FocusHandle, Focusable as _, Image, RenderImage, Window, actions};
 
 use super::{AppSurface, FarcasterApp, ImagePreview, PostRenderFocus};
 actions!(farcaster, [CycleWorkspaceForward, CycleWorkspaceBackward]);
@@ -204,20 +204,67 @@ impl FarcasterApp {
         if !self.workspace.native_surface_covered {
             self.workspace.native_surface_covered = self.native_workspace_surface_ready();
             if self.workspace.native_surface_covered {
-                self.workspace.native_surface_snapshot = match self.workspace.surface {
-                    AppSurface::Editor => self.workspace.editor.view.as_ref().and_then(|editor| {
-                        editor.update(cx, |editor, cx| editor.snapshot(cx)).ok()
-                    }),
-                    AppSurface::Terminal => {
-                        self.workspace.terminal.view.as_ref().and_then(|terminal| {
-                            terminal.update(cx, |terminal, _| terminal.snapshot()).ok()
-                        })
-                    }
-                    AppSurface::Chat | AppSurface::Work => None,
-                };
+                self.workspace.native_surface_snapshot =
+                    self.capture_workspace_surface_snapshot(cx);
             }
         }
         self.hide_native_workspace_surfaces(cx);
+    }
+
+    fn capture_workspace_surface_snapshot(
+        &self,
+        cx: &mut Context<Self>,
+    ) -> Option<Arc<RenderImage>> {
+        match self.workspace.surface {
+            AppSurface::Editor => self
+                .workspace
+                .editor
+                .view
+                .as_ref()
+                .and_then(|editor| editor.update(cx, |editor, cx| editor.snapshot(cx)).ok()),
+            AppSurface::Terminal => {
+                self.workspace.terminal.view.as_ref().and_then(|terminal| {
+                    terminal.update(cx, |terminal, _| terminal.snapshot()).ok()
+                })
+            }
+            AppSurface::Chat | AppSurface::Work => None,
+        }
+    }
+
+    /// Reads back the frame that stands in for a covered native surface, once
+    /// the surface has repainted behind it. The readback is retried until the
+    /// frame changes, so a covered terminal follows a theme change immediately.
+    pub(in crate::app) fn refresh_covered_workspace_snapshot(&mut self, cx: &mut Context<Self>) {
+        if !self.workspace.native_surface_covered {
+            return;
+        }
+        let previous = self.workspace.native_surface_snapshot.clone();
+        self.workspace.native_surface_refresh.take();
+        self.workspace.native_surface_refresh = Some(cx.spawn(async move |weak, cx| {
+            for delay in [16_u64, 32, 64] {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(delay))
+                    .await;
+                let refreshed = weak.update(cx, |this, cx| {
+                    if !this.workspace.native_surface_covered {
+                        return true;
+                    }
+                    let Some(snapshot) = this.capture_workspace_surface_snapshot(cx) else {
+                        return true;
+                    };
+                    let changed = previous
+                        .as_deref()
+                        .is_none_or(|before| !same_frame(before, &snapshot));
+                    this.workspace.native_surface_snapshot = Some(snapshot);
+                    cx.notify();
+                    changed
+                });
+                if refreshed.unwrap_or(true) {
+                    break;
+                }
+            }
+            let _ = weak.update(cx, |this, cx| this.set_terminal_hidden_rendering(false, cx));
+        }));
     }
 
     pub(in crate::app) fn restore_active_native_workspace_surface(
@@ -228,6 +275,7 @@ impl FarcasterApp {
         let overlay_active = self.native_surface_obscured(window, cx);
         if !overlay_active {
             self.workspace.native_surface_covered = false;
+            self.set_terminal_hidden_rendering(false, cx);
             if let Some(snapshot) = self.workspace.native_surface_snapshot.take() {
                 let _ = window.drop_image(snapshot);
             }
@@ -965,6 +1013,10 @@ impl FarcasterApp {
             self.cancel_dialog(window, cx);
         }
     }
+}
+
+fn same_frame(before: &RenderImage, after: &RenderImage) -> bool {
+    before.as_bytes(0) == after.as_bytes(0)
 }
 
 impl Drop for FarcasterApp {
