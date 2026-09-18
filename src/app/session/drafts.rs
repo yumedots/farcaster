@@ -193,46 +193,16 @@ impl FarcasterApp {
         cx.notify();
     }
 
-    /// Workspace processes may hold unsaved work even with an empty composer.
-    /// Keep this sticky for the draft's lifetime, not just while a surface is visible.
-    pub(in crate::app) fn retain_workspace_draft(&mut self, cx: &mut Context<Self>) {
+    pub(in crate::app) fn sync_current_draft(&mut self, target: &str) {
         let Some(id) = self.sessions.selected_draft.as_deref() else {
             return;
-        };
-        let target = self.composer.sessions.current_target().to_owned();
-        if target != draft_target(id) || !self.composer.sessions.retain_current() {
-            return;
-        }
-        let composer = self.composer.sessions.current();
-        self.sync_current_draft(&composer, &target);
-        self.notify_session_rail(cx);
-    }
-
-    pub(in crate::app) fn sync_current_draft(
-        &mut self,
-        composer: &crate::app::composer::sessions::ComposerSnapshot,
-        target: &str,
-    ) -> bool {
-        let Some(id) = self.sessions.selected_draft.as_deref() else {
-            return false;
         };
         if target != draft_target(id)
             || self.sessions.submitted_drafts.contains_key(id)
             || has_pending_submission(&self.composer.pending_submissions, target)
         {
-            return false;
+            return;
         }
-        let has_content = draft_has_content(composer)
-            || self
-                .composer
-                .images
-                .get(target)
-                .is_some_and(|images| !images.is_empty())
-            || self
-                .composer
-                .pastes
-                .get(target)
-                .is_some_and(|pastes| !pastes.is_empty());
         let app_session_id = self
             .sessions
             .draft_session_ids
@@ -246,23 +216,16 @@ impl FarcasterApp {
                     .map(|draft| draft.app_session_id)
             })
             .unwrap_or_default();
-        let retain = has_content || self.composer.sessions.is_retained(target);
         let changed = sync_materialized_draft(
             &mut self.sessions.drafts,
             id,
             app_session_id,
             &self.project.path,
             self.snapshot.harness,
-            retain,
         );
         if changed {
             self.save_project_registry();
         }
-        if !has_content {
-            self.composer.images.remove(target);
-            self.composer.pastes.remove(target);
-        }
-        !retain
     }
 
     pub(in crate::app) fn begin_draft_submission(&mut self, target: &str, prompt: &str) {
@@ -521,33 +484,20 @@ fn fill_session_association(
     association.clone()
 }
 
-fn draft_has_content(composer: &crate::app::composer::sessions::ComposerSnapshot) -> bool {
-    !composer.text.trim().is_empty()
-}
-
 fn sync_materialized_draft(
     drafts: &mut Vec<DraftSession>,
     id: &str,
     app_session_id: i64,
     project: &std::path::Path,
     harness: Option<Backend>,
-    retain: bool,
 ) -> bool {
-    let existing = drafts.iter().position(|draft| draft.id == id);
-    match (existing, retain) {
-        (None, true) => {
-            let mut draft =
-                DraftSession::with_id(harness.to_owned(), id.to_owned(), project.to_path_buf());
-            draft.app_session_id = app_session_id;
-            drafts.insert(0, draft);
-            true
-        }
-        (Some(index), false) => {
-            drafts.remove(index);
-            true
-        }
-        _ => false,
+    if drafts.iter().any(|draft| draft.id == id) {
+        return false;
     }
+    let mut draft = DraftSession::with_id(harness.to_owned(), id.to_owned(), project.to_path_buf());
+    draft.app_session_id = app_session_id;
+    drafts.insert(0, draft);
+    true
 }
 
 fn update_persisted_submission(
