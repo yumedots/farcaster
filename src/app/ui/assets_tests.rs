@@ -84,6 +84,7 @@ fn asset_source_serves_only_themeable_icons() {
         AppIcon::MagnifyingGlass,
         AppIcon::Neovim,
         AppIcon::OpenCode,
+        AppIcon::PaintRoller,
         AppIcon::Pi,
         AppIcon::Plus,
         AppIcon::Question,

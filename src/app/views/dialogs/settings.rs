@@ -1,3 +1,4 @@
+mod appearance;
 mod worker_tasks;
 use gpui::{
     AnyElement, InteractiveElement as _, IntoElement as _, ParentElement as _,
@@ -13,7 +14,7 @@ use super::super::FarcasterApp;
 use crate::{
     app::OVERLAY_KEY_CONTEXT,
     app::ui::primitives::{ButtonTone, FeedbackTone, button, feedback, modal},
-    app::ui::theme::THEME,
+    app::ui::theme::theme,
 };
 
 pub(in crate::app::views) fn render(
@@ -43,10 +44,10 @@ pub(in crate::app::views) fn render(
                     div()
                         .flex_none()
                         .px(gpui::px(24.0))
-                        .py(THEME.space.md)
+                        .py(theme().space.md)
                         .border_b_1()
-                        .border_color(THEME.colors.surface)
-                        .text_size(THEME.type_scale.display)
+                        .border_color(theme().colors.surface)
+                        .text_size(theme().type_scale.display)
                         .font_weight(gpui::FontWeight::SEMIBOLD)
                         .child("Settings"),
                 )
@@ -61,6 +62,7 @@ pub(in crate::app::views) fn render(
                         .gap(gpui::px(24.0))
                         .p(gpui::px(24.0))
                         .child(worker_tasks::render(app, entity.clone()))
+                        .child(appearance::render(app, entity.clone()))
                         .child(transcript_font_size(app.views.transcript.read(cx).font_size, entity.clone()))
                         .child(toggle_setting(
                             "transcript-folders-toggle",
@@ -79,10 +81,10 @@ pub(in crate::app::views) fn render(
                         })
                         .child(
                             div()
-                                .pt(THEME.space.md)
+                                .pt(theme().space.md)
                                 .border_t_1()
-                                .border_color(THEME.colors.surface)
-                                .text_size(THEME.type_scale.reading)
+                                .border_color(theme().colors.surface)
+                                .text_size(theme().type_scale.reading)
                                 .font_weight(gpui::FontWeight::SEMIBOLD)
                                 .child("Connections"),
                         )
@@ -105,7 +107,7 @@ pub(in crate::app::views) fn render(
                             div()
                                 .flex()
                                 .flex_col()
-                                .gap(THEME.space.sm)
+                                .gap(theme().space.sm)
                                 .child(setting_label(
                                     "Network proxy",
                                     "Used when the project environment has no HTTP or HTTPS proxy.",
@@ -114,7 +116,7 @@ pub(in crate::app::views) fn render(
                                     div()
                                         .flex()
                                         .items_center()
-                                        .gap(THEME.space.sm)
+                                        .gap(theme().space.sm)
                                         .child(
                                             div()
                                                 .flex_1()
@@ -147,15 +149,15 @@ pub(in crate::app::views) fn render(
                         .flex()
                         .items_center()
                         .justify_between()
-                        .gap(THEME.space.sm)
+                        .gap(theme().space.sm)
                         .px(gpui::px(24.0))
-                        .py(THEME.space.md)
+                        .py(theme().space.md)
                         .border_t_1()
-                        .border_color(THEME.colors.surface)
+                        .border_color(theme().colors.surface)
                         .child(
                             div()
-                                .text_size(THEME.type_scale.caption)
-                                .text_color(THEME.colors.muted)
+                                .text_size(theme().type_scale.caption)
+                                .text_color(theme().colors.muted)
                                 .child("Valid changes save automatically."),
                         )
                         .child(button(
@@ -185,7 +187,7 @@ fn toggle_setting(
         .flex()
         .items_center()
         .justify_between()
-        .gap(THEME.space.md)
+        .gap(theme().space.md)
         .child(setting_label(title, description))
         .child(
             Button::new(id)
@@ -207,18 +209,18 @@ fn setting_label(title: &'static str, description: &'static str) -> AnyElement {
         .max_w_full()
         .flex()
         .flex_col()
-        .gap(THEME.space.xs)
+        .gap(theme().space.xs)
         .child(
             div()
-                .text_size(THEME.type_scale.body)
+                .text_size(theme().type_scale.body)
                 .font_weight(gpui::FontWeight::MEDIUM)
-                .text_color(THEME.colors.text)
+                .text_color(theme().colors.text)
                 .child(title),
         )
         .child(
             div()
-                .text_size(THEME.type_scale.body_small)
-                .text_color(THEME.colors.muted)
+                .text_size(theme().type_scale.body_small)
+                .text_color(theme().colors.muted)
                 .child(description),
         )
         .into_any_element()
@@ -232,7 +234,7 @@ fn transcript_font_size(size: gpui::Pixels, entity: WeakEntity<FarcasterApp>) ->
         .flex()
         .items_center()
         .justify_between()
-        .gap(THEME.space.md)
+        .gap(theme().space.md)
         .child(setting_label(
             "Transcript font size",
             if cfg!(target_os = "macos") {
@@ -245,7 +247,7 @@ fn transcript_font_size(size: gpui::Pixels, entity: WeakEntity<FarcasterApp>) ->
             div()
                 .flex()
                 .items_center()
-                .gap(THEME.space.sm)
+                .gap(theme().space.sm)
                 .child(format!("{size} px"))
                 .children(
                     [
@@ -264,8 +266,8 @@ fn transcript_font_size(size: gpui::Pixels, entity: WeakEntity<FarcasterApp>) ->
                         (
                             "transcript-font-reset",
                             "Reset",
-                            f32::from(THEME.type_scale.reading),
-                            size != f32::from(THEME.type_scale.reading),
+                            f32::from(theme().type_scale.reading),
+                            size != f32::from(theme().type_scale.reading),
                         ),
                     ]
                     .into_iter()

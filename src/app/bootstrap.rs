@@ -80,6 +80,8 @@ impl FarcasterApp {
             submitted_drafts: HashMap::new(),
             saved_proxy: None,
             expand_transcript_folders: false,
+            theme_css: None,
+            active_theme: None,
         };
         Self::from_bootstrap_state(
             project,
@@ -241,6 +243,10 @@ impl FarcasterApp {
                 code_tasks: Default::default(),
             },
             settings: workspace::SettingsState {
+                themes: workspace::theme_settings::ThemeSettings::load(
+                    persisted.theme_css.as_deref(),
+                    persisted.active_theme.as_deref(),
+                ),
                 network_proxy_input: inputs.network_proxy,
                 network_proxy_error: None,
                 proxy_save: None,
@@ -295,6 +301,7 @@ impl FarcasterApp {
             },
             worker_notices: notice_board,
         };
+        this.activate_theme(cx);
         this.initialize_chat_navigation(window, cx);
         this.request_repository_refresh(cx);
         this
