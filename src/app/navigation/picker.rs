@@ -345,7 +345,7 @@ impl FarcasterApp {
                 },
                 |surface| {
                     surface
-                        .w(gpui::px(640.0))
+                        .w(theme().size(640.0))
                         .max_w_full()
                         .overflow_hidden()
                         .child(
@@ -368,7 +368,7 @@ impl FarcasterApp {
                                 .child(
                                     List::new(&list)
                                         .search_placeholder(picker.scope.placeholder())
-                                        .max_h(gpui::px(480.0)),
+                                        .max_h(theme().size(480.0)),
                                 )
                                 .child(
                                     div()

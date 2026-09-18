@@ -70,8 +70,8 @@ impl FarcasterApp {
                 crate::app::ui::primitives::preserve_pointer_focus,
             )
             .ml(px(depth.saturating_sub(1) as f32 * 8.0))
-            .px(px(2.0))
-            .py(px(3.0))
+            .px(theme().size(2.0))
+            .py(theme().size(3.0))
             .flex()
             .items_stretch()
             .hover(|card| card.bg(theme().colors.surface))

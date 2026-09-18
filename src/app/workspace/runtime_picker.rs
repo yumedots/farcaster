@@ -303,7 +303,7 @@ impl FarcasterApp {
                             .w_full()
                             .min_w(px(0.0))
                             .overflow_hidden()
-                            .h(px(32.0))
+                            .h(theme().size(32.0))
                             .justify_start()
                             .when(index == highlighted, |row| row.bg(theme().colors.surface))
                             .into_any_element()

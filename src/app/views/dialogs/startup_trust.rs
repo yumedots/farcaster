@@ -3,7 +3,7 @@ use std::{cell::RefCell, path::PathBuf, rc::Rc};
 use gpui::{
     AppContext as _, Context, Entity, FocusHandle, InteractiveElement as _, IntoElement as _,
     KeyDownEvent, ParentElement as _, Render, Role, StatefulInteractiveElement as _, Styled as _,
-    WeakEntity, Window, div, prelude::FluentBuilder as _, px,
+    WeakEntity, Window, div, prelude::FluentBuilder as _,
 };
 
 use crate::{
@@ -175,7 +175,7 @@ impl Render for ProjectTrustView {
                         }
                     }))
                     .w_full()
-                    .max_w(px(640.0))
+                    .max_w(theme().size(640.0))
                     .flex()
                     .flex_col()
                     .gap(theme().space.md)

@@ -12,7 +12,7 @@ mod tests;
 
 use gpui::{
     InteractiveElement as _, IntoElement, ParentElement as _, ScrollHandle,
-    StatefulInteractiveElement as _, Styled as _, WeakEntity, div, prelude::FluentBuilder as _, px,
+    StatefulInteractiveElement as _, Styled as _, WeakEntity, div, prelude::FluentBuilder as _,
 };
 
 pub(super) use resize::clamped_run_panel_width;
@@ -140,7 +140,7 @@ impl FarcasterApp {
             .id("run-panel-activity")
             .flex_none()
             .min_h_0()
-            .max_h(px(240.0))
+            .max_h(theme().size(240.0))
             .overflow_y_scroll()
             .flex()
             .flex_col()
@@ -246,10 +246,10 @@ impl FarcasterApp {
             .min_h_0()
             .flex()
             .flex_col()
-            .pt(px(17.0))
-            .pr(px(15.0))
-            .pb(px(14.0))
-            .pl(px(18.0))
+            .pt(theme().size(17.0))
+            .pr(theme().size(15.0))
+            .pb(theme().size(14.0))
+            .pl(theme().size(18.0))
             .gap(theme().space.md)
             .when_some(root, |run, root| {
                 let selected =
@@ -296,5 +296,5 @@ impl FarcasterApp {
 }
 
 fn inspector_section() -> gpui::Div {
-    div().flex().flex_col().gap(px(7.0))
+    div().flex().flex_col().gap(theme().size(7.0))
 }
