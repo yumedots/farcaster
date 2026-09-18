@@ -19,4 +19,4 @@ pub(crate) use core::{
 };
 #[cfg(test)]
 pub(crate) use folders::SessionFolder;
-pub(crate) use folders::{FolderDestination, SessionFolders};
+pub(crate) use folders::{FOLDER_COLOR_COUNT, FolderDestination, SessionFolders};
