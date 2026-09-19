@@ -2,6 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use gpui::{Context, FocusHandle, Focusable as _, Image, RenderImage, Window, actions};
 
+use super::covered_refresh::{CoveredRefresh, RefreshStep};
 use super::{AppSurface, FarcasterApp, ImagePreview, PostRenderFocus};
 actions!(farcaster, [CycleWorkspaceForward, CycleWorkspaceBackward]);
 
@@ -231,33 +232,51 @@ impl FarcasterApp {
         }
     }
 
+    /// Number of frames the covered native surface has drawn.
+    fn covered_surface_frame_count(&self, cx: &mut Context<Self>) -> u64 {
+        match self.workspace.surface {
+            AppSurface::Terminal => self
+                .workspace
+                .terminal
+                .view
+                .as_ref()
+                .map(|terminal| terminal.update(cx, |terminal, _| terminal.frame_count()))
+                .unwrap_or(0),
+            AppSurface::Editor | AppSurface::Chat | AppSurface::Work => 0,
+        }
+    }
+
     /// Reads back the frame that stands in for a covered native surface, once
     /// the surface has repainted behind it. The readback is retried until the
-    /// frame changes, so a covered terminal follows a theme change immediately.
+    /// surface reports a new frame, so a covered terminal follows a theme
+    /// change immediately instead of after a fixed delay.
     pub(in crate::app) fn refresh_covered_workspace_snapshot(&mut self, cx: &mut Context<Self>) {
         if !self.workspace.native_surface_covered {
             return;
         }
-        let previous = self.workspace.native_surface_snapshot.clone();
+        let baseline = self.covered_surface_frame_count(cx);
         self.workspace.native_surface_refresh.take();
         self.workspace.native_surface_refresh = Some(cx.spawn(async move |weak, cx| {
-            for delay in [16_u64, 32, 64] {
+            let mut refresh = CoveredRefresh::new(baseline);
+            loop {
                 cx.background_executor()
-                    .timer(std::time::Duration::from_millis(delay))
+                    .timer(CoveredRefresh::poll_interval())
                     .await;
                 let refreshed = weak.update(cx, |this, cx| {
                     if !this.workspace.native_surface_covered {
                         return true;
                     }
-                    let Some(snapshot) = this.capture_workspace_surface_snapshot(cx) else {
-                        return true;
-                    };
-                    let changed = previous
-                        .as_deref()
-                        .is_none_or(|before| !same_frame(before, &snapshot));
-                    this.workspace.native_surface_snapshot = Some(snapshot);
-                    cx.notify();
-                    changed
+                    let frames = this.covered_surface_frame_count(cx);
+                    match refresh.observe(frames) {
+                        RefreshStep::Wait => false,
+                        RefreshStep::Capture => {
+                            if let Some(snapshot) = this.capture_workspace_surface_snapshot(cx) {
+                                this.workspace.native_surface_snapshot = Some(snapshot);
+                                cx.notify();
+                            }
+                            true
+                        }
+                    }
                 });
                 if refreshed.unwrap_or(true) {
                     break;
@@ -1013,10 +1032,6 @@ impl FarcasterApp {
             self.cancel_dialog(window, cx);
         }
     }
-}
-
-fn same_frame(before: &RenderImage, after: &RenderImage) -> bool {
-    before.as_bytes(0) == after.as_bytes(0)
 }
 
 impl Drop for FarcasterApp {
