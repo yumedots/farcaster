@@ -163,7 +163,7 @@ fn streaming_rebuilds_only_the_changed_suffix_and_keeps_runs() -> Result<(), Str
 fn a_replay_that_later_regains_its_result_rehydrates_away() -> Result<(), String> {
     let temp = tempfile::tempdir().expect("project");
     let arguments = review_arguments();
-    let mut state = replayed_review_history(&arguments);
+    let state = replayed_review_history(&arguments);
     let mut snapshot = snapshot(temp.path(), state);
     snapshot.transcript_changed_from = Some(0);
     apply_snapshot(&mut snapshot);
