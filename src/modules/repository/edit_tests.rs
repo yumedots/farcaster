@@ -228,6 +228,9 @@ fn review_rejects_empty_selection_and_paths_outside_project() {
 
 #[test]
 fn jj_commit_selected_and_discard_keep_other_changes() {
+    if !jj_installed() {
+        return;
+    }
     let repo = EditRepo::new(RepositoryKind::Jujutsu);
     repo.base();
     repo.write("selected", "chosen\n");
@@ -255,6 +258,9 @@ fn jj_commit_selected_and_discard_keep_other_changes() {
 
 #[test]
 fn jj_review_rejects_changes_after_review() {
+    if !jj_installed() {
+        return;
+    }
     let repo = EditRepo::new(RepositoryKind::Jujutsu);
     repo.base();
     repo.write("selected", "reviewed\n");
