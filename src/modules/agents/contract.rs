@@ -388,8 +388,7 @@ pub(crate) struct SessionLaunch {
     pub(crate) wake: Option<thread::Thread>,
 }
 
-mod backend;
-pub(crate) use backend::Backend;
+pub(crate) use crate::modules::backend::Backend;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum CapabilitySupport {

@@ -2,7 +2,14 @@ use std::path::{Path, PathBuf};
 
 // Dependencies may point toward earlier modules, never back toward callers.
 // Agents use session data and project trust; sessions remain backend-neutral.
-const MODULE_ORDER: &[&str] = &["sessions", "access", "projects", "repository", "agents"];
+const MODULE_ORDER: &[&str] = &[
+    "backend",
+    "sessions",
+    "access",
+    "projects",
+    "repository",
+    "agents",
+];
 
 #[test]
 fn capability_modules_do_not_form_dependency_cycles() -> Result<(), Box<dyn std::error::Error>> {

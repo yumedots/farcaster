@@ -10,7 +10,7 @@ use std::{
 use gpui::{IntoElement as _, Render, TestApp, WeakEntity};
 use serde_json::{Value, json};
 
-#[path = "../src/modules/agents/contract/backend.rs"]
+#[path = "../src/modules/backend/mod.rs"]
 mod backend;
 #[path = "../src/modules/reviews.rs"]
 mod reviews;
