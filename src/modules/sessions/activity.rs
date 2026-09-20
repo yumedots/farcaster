@@ -85,23 +85,10 @@ impl AgentActivity {
 
     pub(crate) fn from_worker_snapshot(
         session: &SessionSummary,
-        snapshot: &crate::agents::WorkerSnapshot,
+        lifecycle: AgentLifecycle,
     ) -> Self {
         let mut activity = Self::limited_fallback(session);
-        activity.lifecycle = match snapshot.status {
-            crate::agents::WorkerStatus::Pending | crate::agents::WorkerStatus::Running => {
-                AgentLifecycle::Working
-            }
-            crate::agents::WorkerStatus::NeedsInput => AgentLifecycle::NeedsInput,
-            crate::agents::WorkerStatus::Idle if snapshot.output.is_some() => {
-                AgentLifecycle::Completed(AgentOutcome::Complete)
-            }
-            crate::agents::WorkerStatus::Idle => AgentLifecycle::Unknown,
-            crate::agents::WorkerStatus::Failed => AgentLifecycle::Completed(AgentOutcome::Failed),
-            crate::agents::WorkerStatus::Stopped => {
-                AgentLifecycle::Completed(AgentOutcome::Incomplete)
-            }
-        };
+        activity.lifecycle = lifecycle;
         activity.explicit_outcome = matches!(activity.lifecycle, AgentLifecycle::Completed(_));
         if matches!(activity.lifecycle, AgentLifecycle::Completed(_)) {
             activity.ended = Some(session.modified);

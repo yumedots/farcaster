@@ -1,4 +1,5 @@
 use crate::agents::Backend;
+use crate::modules::sessions::activity::{AgentLifecycle, AgentOutcome};
 use std::path::PathBuf;
 
 use serde::Serialize;
@@ -95,6 +96,21 @@ pub(crate) struct WorkerSnapshot {
     pub(crate) output: Option<String>,
     pub(crate) error: Option<String>,
     pub(crate) pending_input: Option<WorkerInput>,
+}
+
+impl WorkerSnapshot {
+    pub(crate) fn lifecycle(&self) -> AgentLifecycle {
+        match self.status {
+            WorkerStatus::Pending | WorkerStatus::Running => AgentLifecycle::Working,
+            WorkerStatus::NeedsInput => AgentLifecycle::NeedsInput,
+            WorkerStatus::Idle if self.output.is_some() => {
+                AgentLifecycle::Completed(AgentOutcome::Complete)
+            }
+            WorkerStatus::Idle => AgentLifecycle::Unknown,
+            WorkerStatus::Failed => AgentLifecycle::Completed(AgentOutcome::Failed),
+            WorkerStatus::Stopped => AgentLifecycle::Completed(AgentOutcome::Incomplete),
+        }
+    }
 }
 
 #[cfg(test)]

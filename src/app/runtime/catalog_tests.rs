@@ -71,7 +71,7 @@ fn pool_snapshot_maps_to_persisted_child_and_projects_needs_input() {
     let sessions = [parent, child.clone()];
     let matched = session_for_worker_snapshot(&sessions, &snapshot)
         .expect("pool child should match its catalog row");
-    let activity = AgentActivity::from_worker_snapshot(matched, &snapshot);
+    let activity = AgentActivity::from_worker_snapshot(matched, snapshot.lifecycle());
 
     assert_eq!(matched.id, child.id);
     assert_eq!(
@@ -100,7 +100,7 @@ fn pool_snapshot_native_id_can_match_a_synthetic_child_locator() {
 
     let matched = session_for_worker_snapshot(std::slice::from_ref(&child), &snapshot)
         .expect("native id should match the stored backend id");
-    let activity = AgentActivity::from_worker_snapshot(matched, &snapshot);
+    let activity = AgentActivity::from_worker_snapshot(matched, snapshot.lifecycle());
 
     assert_eq!(
         activity.lifecycle,
@@ -158,7 +158,7 @@ fn idle_pool_snapshot_without_a_settled_output_stays_unknown() {
         pending_input: None,
     };
 
-    let activity = AgentActivity::from_worker_snapshot(&child, &snapshot);
+    let activity = AgentActivity::from_worker_snapshot(&child, snapshot.lifecycle());
 
     assert_eq!(
         activity.lifecycle,

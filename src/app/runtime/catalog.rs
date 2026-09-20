@@ -243,7 +243,7 @@ fn worker_activities(
             let session = session_for_worker_snapshot(sessions, &snapshot)?;
             Some((
                 crate::agent_activity::agent_activity_key(&session.path),
-                AgentActivity::from_worker_snapshot(session, &snapshot),
+                AgentActivity::from_worker_snapshot(session, snapshot.lifecycle()),
             ))
         })
         .collect()
