@@ -10,12 +10,14 @@ use super::icon::{AppIconSize, app_icon, icon_control};
 
 /// The one trash control in the app. Rows that hide it until hover pass the
 /// group they belong to so the affordance is identical everywhere.
+type DeleteAction = Box<dyn Fn(&mut Window, &mut App) + 'static>;
+
 #[derive(IntoElement)]
 pub(crate) struct DeleteButton {
     id: ElementId,
     label: SharedString,
     reveal_group: Option<SharedString>,
-    action: Option<Box<dyn Fn(&mut Window, &mut App) + 'static>>,
+    action: Option<DeleteAction>,
 }
 
 impl DeleteButton {

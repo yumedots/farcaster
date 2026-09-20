@@ -63,8 +63,9 @@ static NATIVE_COLORS: LazyLock<Vec<Rgba>> = LazyLock::new(|| {
         .collect()
 });
 
-static IMAGES: LazyLock<Mutex<HashMap<(usize, String), Arc<Image>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+type ImageCache = LazyLock<Mutex<HashMap<(usize, String), Arc<Image>>>>;
+
+static IMAGES: ImageCache = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub(super) fn load(path: &str) -> Option<Cow<'static, [u8]>> {
     ASSETS

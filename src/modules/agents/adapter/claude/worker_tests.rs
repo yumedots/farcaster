@@ -183,7 +183,7 @@ IFS= read -r line
 id=$(printf '%s' "$line" | sed -n 's/.*"request_id":"\([^"]*\)".*/\1/p')
 printf '{"type":"control_response","response":{"subtype":"error","request_id":"%s","error":"Sandbox unavailable"}}\n' "$id"
 exit 1
-"#).unwrap();
+"#).expect("write sandbox script");
     for access in [HarnessAccessMode::Sandboxed, HarnessAccessMode::Auto] {
         command.access_mode = access;
         let launch = SessionLaunch {
@@ -419,8 +419,8 @@ fn cli_launch_and_image_envelopes_are_source_typed() {
         let settings = args
             .windows(2)
             .find(|args| args[0] == "--settings")
-            .unwrap()[1];
-        let settings: serde_json::Value = serde_json::from_str(settings).unwrap();
+            .expect("--settings flag")[1];
+        let settings: serde_json::Value = serde_json::from_str(settings).expect("settings json");
         assert_eq!(
             settings["sandbox"]["enabled"],
             access != HarnessAccessMode::Full

@@ -85,6 +85,7 @@ impl FarcasterApp {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn open_delete_confirmation(
         &mut self,
         roots: Vec<PathBuf>,

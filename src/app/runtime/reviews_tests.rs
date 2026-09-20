@@ -180,7 +180,7 @@ fn a_replay_that_later_regains_its_result_rehydrates_away() -> Result<(), String
     details.result = Some(
         json!({"content":[{"type":"text","text":serde_json::to_string(&json!({
         "farcaster_review":{"id":"late","version":1,"project":temp.path(),"review":{"title":"Review README","items":[{"path":"README.md","note":"Inspect"}]}}
-    })).unwrap()}]}),
+    })).expect("late review payload")}]}),
     );
     details.state = crate::conversation::ToolExecutionState::Succeeded;
     Arc::make_mut(&mut snapshot.conversation)

@@ -207,14 +207,14 @@ async fn review_success_is_durable_before_response_and_storage_failure_is_report
             serde_json::from_value(serde_json::json!({
                 "title":"Review", "items":[{"path":"README.md","note":"Inspect"}]
             }))
-            .unwrap(),
+            .expect("parameters"),
         )
     };
     let parts = || {
         let request = axum::http::Request::builder()
             .header(CALLER_HEADER, caller.token())
             .body(())
-            .unwrap();
+            .expect("request");
         Extension(request.into_parts().0)
     };
     let revision = crate::reviews::delivery::revision();
@@ -223,19 +223,21 @@ async fn review_success_is_durable_before_response_and_storage_failure_is_report
         .await
         .expect("submit");
     assert!(crate::reviews::delivery::revision() > revision);
-    let store = crate::app::persistence::StateStore::open_at(&database).unwrap();
+    let store = crate::app::persistence::StateStore::open_at(&database).expect("state store");
     drop(store);
-    let connection = rusqlite::Connection::open(&database).unwrap();
+    let connection = rusqlite::Connection::open(&database).expect("connection");
     let saved: String = connection
         .query_row("SELECT artifact FROM session_reviews", [], |r| r.get(0))
-        .unwrap();
+        .expect("saved review");
     assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&saved).unwrap(),
+        serde_json::from_str::<serde_json::Value>(&saved).expect("saved json"),
         serde_json::Value::Object(result)
     );
-    rusqlite::Connection::open(&database).unwrap().execute_batch(
+    rusqlite::Connection::open(&database)
+        .expect("connection")
+        .execute_batch(
         "CREATE TRIGGER reject_review BEFORE INSERT ON session_reviews BEGIN SELECT RAISE(FAIL,'disk failure'); END;"
-    ).unwrap();
+    ).expect("trigger");
     let error = server
         .submit_review(params(), parts())
         .await
@@ -247,7 +249,7 @@ async fn review_success_is_durable_before_response_and_storage_failure_is_report
             .query_row("SELECT count(*) FROM session_reviews", [], |r| {
                 r.get::<_, i64>(0)
             })
-            .unwrap(),
+            .expect("count"),
         1
     );
 }

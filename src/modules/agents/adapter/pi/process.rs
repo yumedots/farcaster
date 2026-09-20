@@ -147,6 +147,7 @@ fn apply_farcaster_tools(command: &mut std::process::Command, caller_token: Opti
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn prepare_rpc(
     command: &AgentLaunchConfig,
     project: &Path,

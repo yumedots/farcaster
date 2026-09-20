@@ -20,11 +20,8 @@ fn frames_drawn_before_the_change_never_capture() {
 fn a_surface_that_never_draws_still_captures_within_the_budget() {
     let mut refresh = CoveredRefresh::new(3);
     let mut waits = 0;
-    loop {
-        match refresh.observe(3) {
-            RefreshStep::Wait => waits += 1,
-            RefreshStep::Capture => break,
-        }
+    while refresh.observe(3) == RefreshStep::Wait {
+        waits += 1;
         assert!(waits <= MAX_FRAME_POLLS);
     }
     assert_eq!(waits, MAX_FRAME_POLLS - 1);

@@ -39,7 +39,7 @@ fn history_uses_the_conversation_working_directory_from_the_stored_meta() {
         Some(std::path::PathBuf::from("/saved/project"))
     );
     assert_eq!(conversation_project_in(home.path(), "missing"), None);
-    std::fs::write(conversations.join("broken.meta"), b"not json".to_vec())
+    std::fs::write(conversations.join("broken.meta"), b"not json")
         .expect("test operation should succeed");
     assert_eq!(conversation_project_in(home.path(), "broken"), None);
 }

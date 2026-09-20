@@ -7,6 +7,7 @@ use std::net::TcpStream;
 use std::time::Duration;
 
 #[test]
+#[allow(clippy::print_stdout)]
 fn steering_client_sequence_handshakes() {
     let project = tempfile::tempdir().expect("project");
     let caller = crate::agents::CallerRegistry::shared().issue(

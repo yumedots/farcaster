@@ -233,10 +233,10 @@ impl<T: OpenCodeHttpTransport> OpenCodeClient<T> {
             let page: OpenCodeMessagePage = serde_json::from_slice(&response.body)
                 .map_err(|error| format!("{operation}: decode OpenCode response: {error}"))?;
             for message in page.data {
-                if let Some(id) = message.get("id").and_then(Value::as_str) {
-                    if !seen_ids.insert(id.to_owned()) {
-                        continue;
-                    }
+                if let Some(id) = message.get("id").and_then(Value::as_str)
+                    && !seen_ids.insert(id.to_owned())
+                {
+                    continue;
                 }
                 messages.push(message);
             }

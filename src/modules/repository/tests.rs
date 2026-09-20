@@ -605,6 +605,7 @@ fn run_git(repository: &Path, home: &Path, config: &Path, arguments: &[&str]) {
     );
 }
 
+#[allow(clippy::print_stderr)]
 fn jj_installed() -> bool {
     if Command::new("jj").arg("--version").output().is_err() {
         eprintln!("jj not installed, skipping");

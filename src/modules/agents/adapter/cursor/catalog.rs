@@ -31,10 +31,10 @@ fn session_roots() -> Result<Vec<PathBuf>, String> {
     };
     let mut roots = Vec::new();
     let mut push = |root: Option<PathBuf>| {
-        if let Some(root) = root {
-            if !roots.contains(&root) {
-                roots.push(root);
-            }
+        if let Some(root) = root
+            && !roots.contains(&root)
+        {
+            roots.push(root);
         }
     };
     // Cursor's own precedence first, then the common XDG default that other
@@ -281,7 +281,9 @@ fn decode_hex(value: &str) -> Option<Vec<u8>> {
         return None;
     }
     bytes
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| Some((hex(pair[0])? << 4) | hex(pair[1])?))
         .collect()
 }
