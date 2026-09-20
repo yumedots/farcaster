@@ -26,6 +26,7 @@ fn registry_round_trips_unique_existing_projects() -> Result<(), Box<dyn std::er
                 submitted: true,
                 session_path: Some(second.clone()),
                 title: None,
+                archived: false,
             }],
         },
     )?;
@@ -44,6 +45,7 @@ fn registry_round_trips_unique_existing_projects() -> Result<(), Box<dyn std::er
                 submitted: true,
                 session_path: Some(second.canonicalize()?),
                 title: None,
+                archived: false,
             }],
         }
     );
@@ -68,6 +70,7 @@ fn registry_ignores_projects_that_no_longer_exist() -> Result<(), Box<dyn std::e
                 submitted: false,
                 session_path: None,
                 title: None,
+                archived: false,
             }],
         },
     )?;

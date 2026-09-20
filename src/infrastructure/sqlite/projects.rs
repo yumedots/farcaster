@@ -55,7 +55,7 @@ impl StateStore {
             .connection
             .prepare(
                 "SELECT s.id, s.client_key, s.harness, p.path, s.created_ms, s.locator,
-                        s.title, s.submitted
+                        s.title, s.submitted, s.archived_at IS NOT NULL
                    FROM sessions s
                    JOIN projects p ON p.id = s.project_id
                   WHERE s.client_key IS NOT NULL
@@ -73,11 +73,12 @@ impl StateStore {
                     row.get::<_, Option<String>>(5)?,
                     row.get::<_, String>(6)?,
                     row.get::<_, bool>(7)?,
+                    row.get::<_, bool>(8)?,
                 ))
             })
             .map_err(|error| format!("query drafts: {error}"))?;
         for row in rows {
-            let (id, client_key, harness, project, created_ms, locator, title, submitted) =
+            let (id, client_key, harness, project, created_ms, locator, title, submitted, archived) =
                 row.map_err(|error| error.to_string())?;
             drafts.push(DraftSession {
                 id: client_key,
@@ -94,6 +95,7 @@ impl StateStore {
                     .map(PathBuf::from)
                     .map(|path| crate::sessions::normalize_session_path(&path)),
                 title: (!title.is_empty()).then_some(title),
+                archived,
             });
         }
         Ok(Registry {
@@ -197,13 +199,16 @@ fn save_draft(tx: &Transaction<'_>, draft: &DraftSession) -> Result<i64, String>
         .map_err(|error| format!("find draft {}: {error}", draft.id))?;
     let id = existing.or((draft.app_session_id > 0).then_some(draft.app_session_id));
     tx.execute(
-        "INSERT INTO sessions(id,project_id,harness,client_key,title,modified_ms,created_ms,submitted)
-         VALUES(?1,?2,?3,?4,?5,?6,?6,?7)
+        "INSERT INTO sessions(id,project_id,harness,client_key,title,modified_ms,created_ms,submitted,archived_at)
+         VALUES(?1,?2,?3,?4,?5,?6,?6,?7,?8)
          ON CONFLICT(id) DO UPDATE SET
            project_id=excluded.project_id, harness=excluded.harness, client_key=excluded.client_key,
-           title=COALESCE(NULLIF(excluded.title,''),sessions.title), submitted=excluded.submitted",
+           title=COALESCE(NULLIF(excluded.title,''),sessions.title), submitted=excluded.submitted,
+           archived_at=CASE WHEN excluded.archived_at IS NULL THEN NULL
+                            ELSE COALESCE(sessions.archived_at, excluded.archived_at) END",
         params![id,project_id,draft.harness.map(Backend::as_str).unwrap_or(""),draft.id,draft.title.as_deref().unwrap_or(""),
-                u64_to_i64(draft.created_ms),draft.submitted],
+                u64_to_i64(draft.created_ms),draft.submitted,
+                draft.archived.then(|| u64_to_i64(now_ms()))],
     ).map_err(|error| format!("save draft {}: {error}", draft.id))?;
     let id = id.unwrap_or_else(|| tx.last_insert_rowid());
     if let Some(locator) = &draft.session_path {

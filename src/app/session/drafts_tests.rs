@@ -186,6 +186,7 @@ fn submitted_pathless_drafts_keep_their_pending_identity() {
         submitted: true,
         session_path: None,
         title: Some("Pending session".into()),
+        archived: false,
     };
 
     assert_eq!(
@@ -283,6 +284,7 @@ fn accepted_draft_with_exact_path_reconciles_after_store_reopen()
         submitted: false,
         session_path: None,
         title: None,
+        archived: false,
     }];
     let mut submitted = HashMap::new();
 
@@ -343,6 +345,7 @@ fn accepted_draft_without_a_path_is_never_durable() {
         submitted: false,
         session_path: None,
         title: None,
+        archived: false,
     }];
     let mut submitted = HashMap::new();
 

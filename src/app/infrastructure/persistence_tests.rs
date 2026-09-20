@@ -641,6 +641,7 @@ fn registry_composer_and_outbox_survive_reopen() -> Result<(), Box<dyn std::erro
         submitted: true,
         session_path: Some(session_path.clone()),
         title: Some("Provisional title".into()),
+        archived: false,
     };
     {
         let mut store = StateStore::open_at(&database)?;
@@ -1167,6 +1168,35 @@ fn draft_harness_survives_the_registry() -> Result<(), Box<dyn std::error::Error
 }
 
 #[test]
+fn archiving_a_chat_survives_the_registry_before_anything_is_sent()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let project = temp.path().join("project");
+    fs::create_dir(&project)?;
+    let draft = DraftSession::new(Some(Backend::Pi), "draft".into(), 1, project.clone(), 1);
+    let mut store = StateStore::open_at(&temp.path().join("gui.sqlite3"))?;
+    let registry = |draft: DraftSession| Registry {
+        projects: vec![project.clone()],
+        excluded_projects: Vec::new(),
+        drafts: vec![draft],
+    };
+
+    projects::save_registry(&mut store, &registry(draft.clone()))?;
+    assert!(!projects::load_registry(&store)?.drafts[0].archived);
+
+    let mut archived = draft;
+    assert!(archived.set_archived(true));
+    projects::save_registry(&mut store, &registry(archived))?;
+    assert!(projects::load_registry(&store)?.drafts[0].archived);
+
+    let mut restored = projects::load_registry(&store)?.drafts.remove(0);
+    assert!(restored.set_archived(false));
+    projects::save_registry(&mut store, &registry(restored))?;
+    assert!(!projects::load_registry(&store)?.drafts[0].archived);
+    Ok(())
+}
+
+#[test]
 fn prompt_completion_persists_draft_session_association_atomically()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
@@ -1187,6 +1217,7 @@ fn prompt_completion_persists_draft_session_association_atomically()
             submitted: false,
             session_path: None,
             title: None,
+            archived: false,
         }],
     })?;
     let summary = SessionSummary::from_cached(
@@ -1306,6 +1337,7 @@ fn schema_v1_migrates_to_current_with_defaults_and_outbox_preserved()
             submitted: false,
             session_path: None,
             title: None,
+            archived: false,
         }]
     );
     let queued = store.queued_prompts()?;
@@ -1341,6 +1373,7 @@ fn schema_v2_migrates_to_current_with_defaults_and_outbox_preserved()
             submitted: false,
             session_path: None,
             title: None,
+            archived: false,
         }]
     );
     let queued = store.queued_prompts()?;
@@ -1620,6 +1653,7 @@ fn submitted_draft_without_session_path_survives_reopen() -> Result<(), Box<dyn 
             submitted: true,
             session_path: None,
             title: Some("Pending session".into()),
+            archived: false,
         }],
     })?;
     drop(store);
