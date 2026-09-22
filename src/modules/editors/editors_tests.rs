@@ -114,6 +114,27 @@ fn only_editors_that_accept_a_line_argument_claim_one() {
 }
 
 #[test]
+fn only_editors_that_open_a_directory_are_handed_one() {
+    for (command, expected) in [
+        ("nvim", true),
+        ("vim", true),
+        ("vi", true),
+        ("hx", true),
+        ("kak", true),
+        ("emacs", true),
+        ("micro", false),
+        ("nano", false),
+        ("my-editor", true),
+    ] {
+        assert_eq!(
+            parse(command).supports_directory_argument(),
+            expected,
+            "{command}"
+        );
+    }
+}
+
+#[test]
 fn command_line_round_trips_through_parse() {
     let command = parse("micro -p");
     assert_eq!(command.command_line(), "micro -p");

@@ -327,11 +327,14 @@ fn target_arguments(
     {
         arguments.push(format!("+{line}").into());
     }
-    arguments.push(
-        file.map(|file| file.path.clone())
-            .unwrap_or_else(|| project.to_path_buf())
-            .into_os_string(),
-    );
+    let target = file.map(|file| file.path.clone()).or_else(|| {
+        command
+            .supports_directory_argument()
+            .then(|| project.to_path_buf())
+    });
+    if let Some(target) = target {
+        arguments.push(target.into_os_string());
+    }
     arguments
 }
 

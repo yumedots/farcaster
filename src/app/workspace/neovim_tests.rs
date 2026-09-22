@@ -305,16 +305,23 @@ fn launch_arguments_carry_the_file_and_the_line_when_the_editor_takes_one() {
 }
 
 #[test]
-fn launch_arguments_fall_back_to_the_project_when_there_is_no_file() {
-    let arguments = target_arguments(
-        &EditorCommand::parse("micro").expect("parses"),
-        None,
-        Path::new("/tmp/project"),
-    )
-    .into_iter()
-    .map(|argument| argument.to_string_lossy().into_owned())
-    .collect::<Vec<_>>();
-    assert_eq!(arguments, vec!["/tmp/project".to_owned()]);
+fn launch_arguments_hand_the_project_only_to_editors_that_open_a_directory() {
+    let arguments = |program: &str| {
+        target_arguments(
+            &EditorCommand::parse(program).expect("parses"),
+            None,
+            Path::new("/tmp/project"),
+        )
+        .into_iter()
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(arguments("nvim"), vec!["/tmp/project".to_owned()]);
+    assert_eq!(arguments("vim"), vec!["/tmp/project".to_owned()]);
+    assert_eq!(arguments("emacs"), vec!["/tmp/project".to_owned()]);
+    assert_eq!(arguments("my-editor"), vec!["/tmp/project".to_owned()]);
+    assert!(arguments("micro").is_empty());
+    assert!(arguments("nano").is_empty());
 }
 
 #[test]

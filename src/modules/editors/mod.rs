@@ -9,6 +9,7 @@ pub(crate) struct TextEditor {
     pub(crate) program: &'static str,
     pub(crate) icon: EditorIcon,
     pub(crate) line_argument: bool,
+    pub(crate) directory_argument: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -29,6 +30,7 @@ pub(crate) const TEXT_EDITORS: [TextEditor; 8] = [
         program: "nvim",
         icon: EditorIcon::Neovim,
         line_argument: true,
+        directory_argument: true,
     },
     TextEditor {
         id: "vim",
@@ -36,6 +38,7 @@ pub(crate) const TEXT_EDITORS: [TextEditor; 8] = [
         program: "vim",
         icon: EditorIcon::Vim,
         line_argument: true,
+        directory_argument: true,
     },
     TextEditor {
         id: "helix",
@@ -43,6 +46,7 @@ pub(crate) const TEXT_EDITORS: [TextEditor; 8] = [
         program: "hx",
         icon: EditorIcon::Helix,
         line_argument: false,
+        directory_argument: true,
     },
     TextEditor {
         id: "micro",
@@ -50,6 +54,7 @@ pub(crate) const TEXT_EDITORS: [TextEditor; 8] = [
         program: "micro",
         icon: EditorIcon::Micro,
         line_argument: true,
+        directory_argument: false,
     },
     TextEditor {
         id: "vi",
@@ -57,6 +62,7 @@ pub(crate) const TEXT_EDITORS: [TextEditor; 8] = [
         program: "vi",
         icon: EditorIcon::Vim,
         line_argument: true,
+        directory_argument: true,
     },
     TextEditor {
         id: "kakoune",
@@ -64,6 +70,7 @@ pub(crate) const TEXT_EDITORS: [TextEditor; 8] = [
         program: "kak",
         icon: EditorIcon::Generic,
         line_argument: false,
+        directory_argument: true,
     },
     TextEditor {
         id: "emacs",
@@ -71,6 +78,7 @@ pub(crate) const TEXT_EDITORS: [TextEditor; 8] = [
         program: "emacs",
         icon: EditorIcon::Emacs,
         line_argument: true,
+        directory_argument: true,
     },
     TextEditor {
         id: "nano",
@@ -78,6 +86,7 @@ pub(crate) const TEXT_EDITORS: [TextEditor; 8] = [
         program: "nano",
         icon: EditorIcon::Nano,
         line_argument: true,
+        directory_argument: false,
     },
 ];
 
@@ -137,6 +146,10 @@ impl EditorCommand {
 
     pub(crate) fn supports_line_argument(&self) -> bool {
         text_editor(&self.program_name()).is_some_and(|editor| editor.line_argument)
+    }
+
+    pub(crate) fn supports_directory_argument(&self) -> bool {
+        text_editor(&self.program_name()).is_none_or(|editor| editor.directory_argument)
     }
 
     pub(crate) fn available(&self) -> bool {
