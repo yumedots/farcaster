@@ -4,8 +4,10 @@ use gpui::{AppContext as _, Context, Window};
 
 use super::{
     AppSurface, FarcasterApp,
-    neovim::{EditorTarget, NvimEditor, new_session_tab},
+    editor_session::{EditorFile, EditorSession, EditorTarget, new_session_tab},
 };
+use crate::app::ui::assets::AppIcon;
+use crate::editors::EditorCommand;
 
 impl FarcasterApp {
     pub(crate) fn open_file_editor(
@@ -42,7 +44,7 @@ impl FarcasterApp {
         let path = match resolve_editor_path(&project, &path) {
             Ok(path) => path,
             Err(error) => {
-                self.notify_workspace_error("Neovim", error, cx);
+                self.notify_workspace_error("Editor", error, cx);
                 return;
             }
         };
@@ -99,14 +101,28 @@ impl FarcasterApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !self.project.repository.execution_allowed {
+        let command = match self.editor_command(cx) {
+            Some(command) => command,
+            None => return,
+        };
+        let name = command.name();
+        if !self.workspace_trusted() {
             self.notify_workspace_error(
-                "Neovim",
-                "Trust this project before opening Neovim.".to_owned(),
+                &name,
+                format!("Trust this project before opening {name}."),
                 cx,
             );
             return;
         }
+        let neovim = command.is_neovim();
+        let Some(editor_target) = editor_target_for_editor(neovim, editor_target) else {
+            self.notify_workspace_error(
+                &name,
+                format!("{name} cannot open this view. Choose Neovim in Settings to open it here."),
+                cx,
+            );
+            return;
+        };
         self.workspace.editor.request_generation =
             self.workspace.editor.request_generation.wrapping_add(1);
 
@@ -118,14 +134,22 @@ impl FarcasterApp {
             .session_tabs
             .entry(target.clone())
             .or_insert_with(new_session_tab);
+        let file = if neovim { None } else { editor_target.file() };
+        let resume = matches!(editor_target, EditorTarget::Resume);
+        let key = (project.clone(), tab);
         let Some(editor) = self
             .workspace
             .editor
             .project_editors
-            .get(&(project.clone(), tab))
-            .filter(|editor| editor.read(cx).is_alive(cx))
+            .get(&key)
+            .filter(|editor| {
+                let editor = editor.read(cx);
+                editor.is_alive(cx)
+                    && editor.command() == &command
+                    && (resume || editor.file() == file.as_ref())
+            })
             .cloned()
-            .or_else(|| self.spawn_editor(project.clone(), tab, window, cx))
+            .or_else(|| self.spawn_editor(project.clone(), tab, command, file, window, cx))
         else {
             return;
         };
@@ -165,6 +189,11 @@ impl FarcasterApp {
                 }
             }
             _ => {}
+        }
+        if !neovim {
+            self.notify_run_panel(cx);
+            cx.notify();
+            return;
         }
         let opened = editor.update(cx, |editor, cx| editor.activate_tab(tab, editor_target, cx));
         cx.spawn_in(window, async move |weak, cx| {
@@ -219,10 +248,12 @@ impl FarcasterApp {
         &mut self,
         project: PathBuf,
         tab: u64,
+        command: EditorCommand,
+        file: Option<EditorFile>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Option<gpui::Entity<NvimEditor>> {
-        match NvimEditor::spawn(project.clone(), window, cx) {
+    ) -> Option<gpui::Entity<EditorSession>> {
+        match EditorSession::spawn(project.clone(), command, file, window, cx) {
             Ok(editor) => {
                 let editor = cx.new(|_| editor);
                 let key = (project, tab);
@@ -266,10 +297,62 @@ impl FarcasterApp {
                 Some(editor)
             }
             Err(error) => {
-                self.notify_workspace_error("Neovim", error, cx);
+                self.notify_workspace_error("Editor", error, cx);
                 None
             }
         }
+    }
+
+    fn editor_command(&mut self, cx: &mut Context<Self>) -> Option<EditorCommand> {
+        let command = match self.text_editor_command() {
+            Ok(command) => command,
+            Err(error) => {
+                self.notify_workspace_error("Editor", error, cx);
+                return None;
+            }
+        };
+        if command.available() {
+            return Some(command);
+        }
+        self.notify_workspace_error(
+            "Editor",
+            format!(
+                "{} was not found. Install it or set an editor command in Settings.",
+                command.program
+            ),
+            cx,
+        );
+        None
+    }
+
+    fn workspace_trusted(&self) -> bool {
+        self.project.repository.execution_allowed
+    }
+
+    pub(in crate::app) fn text_editor_command(&self) -> Result<EditorCommand, String> {
+        crate::editors::resolve_text_editor(self.settings.text_editor.as_deref())
+    }
+
+    pub(in crate::app) fn text_editor_name(&self) -> String {
+        self.text_editor_command()
+            .map_or_else(|_| "Editor".to_owned(), |command| command.name())
+    }
+
+    pub(in crate::app) fn text_editor_icon(&self) -> AppIcon {
+        self.text_editor_command()
+            .map_or(AppIcon::Code, |command| AppIcon::for_editor(command.icon()))
+    }
+
+    pub(in crate::app) fn reset_editor_sessions(&mut self, cx: &mut Context<Self>) {
+        if self.workspace.editor.project_editors.is_empty() && self.workspace.editor.view.is_none()
+        {
+            return;
+        }
+        if self.workspace.editor.view.is_some() {
+            self.close_editor(cx);
+        }
+        self.workspace.editor.project_editors.clear();
+        self.workspace.editor.session_tabs.clear();
     }
 
     pub(in crate::app) fn hide_editor(&self, cx: &mut Context<Self>) {
@@ -299,6 +382,19 @@ impl FarcasterApp {
             .unwrap_or_else(|| self.chat_composer_focus(cx));
         self.enter_chat_surface(focus, cx);
         self.request_repository_refresh(cx);
+    }
+}
+
+fn editor_target_for_editor(neovim: bool, target: EditorTarget) -> Option<EditorTarget> {
+    if neovim {
+        return Some(target);
+    }
+    match target {
+        EditorTarget::Resume | EditorTarget::File(..) => Some(target),
+        EditorTarget::Diff(path, line) => Some(EditorTarget::File(path, line)),
+        EditorTarget::Transcript(_)
+        | EditorTarget::Review(_)
+        | EditorTarget::ReviewLocation { .. } => None,
     }
 }
 

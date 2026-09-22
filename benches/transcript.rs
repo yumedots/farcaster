@@ -177,6 +177,15 @@ mod app {
 
 mod agents {
     pub(crate) use crate::backend::Backend;
+
+    pub(crate) fn program_available(_: &std::path::Path) -> bool {
+        false
+    }
+
+    pub(crate) fn program_available_in(_: &std::path::Path, _: Option<&std::ffi::OsStr>) -> bool {
+        false
+    }
+
     mod tool {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -244,6 +253,8 @@ mod sessions {
 mod assets;
 #[path = "../src/app/views/attachments.rs"]
 pub(crate) mod attachment_cards;
+#[path = "../src/modules/editors/mod.rs"]
+mod editors;
 #[path = "../src/app/infrastructure/performance.rs"]
 mod performance;
 #[path = "../src/modules/utility/persistent_vec.rs"]

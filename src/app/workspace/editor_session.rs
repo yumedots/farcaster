@@ -10,10 +10,12 @@ use std::{
 };
 
 use gpui::{App, Context, Entity, IntoElement, Render, RenderImage, Task, Window};
-use gpui_libghostty::{Terminal, TerminalOptions};
+use gpui_libghostty::Terminal;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher as _};
 
-use crate::app::infrastructure::neovim_launch;
+use super::spawn_workspace_terminal;
+use crate::app::infrastructure::editor_launch;
+use crate::editors::EditorCommand;
 
 static NEXT_TAB: AtomicU64 = AtomicU64::new(1);
 const REMOTE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -50,13 +52,35 @@ pub(super) enum EditorTarget {
     },
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::app) struct EditorFile {
+    pub(in crate::app) path: PathBuf,
+    pub(in crate::app) line: Option<u64>,
+}
+
+impl EditorFile {
+    pub(in crate::app) fn new(path: PathBuf, line: Option<u64>) -> Self {
+        Self { path, line }
+    }
+}
+
+impl EditorTarget {
+    pub(super) fn file(&self) -> Option<EditorFile> {
+        match self {
+            Self::File(path, line) => Some(EditorFile::new(path.clone(), *line)),
+            _ => None,
+        }
+    }
+}
+
 pub(super) fn new_session_tab() -> u64 {
     NEXT_TAB.fetch_add(1, Ordering::Relaxed)
 }
 
-pub(in crate::app) struct NvimEditor {
+pub(in crate::app) struct EditorSession {
     project: PathBuf,
-    executable: PathBuf,
+    command: EditorCommand,
+    file: Option<EditorFile>,
     socket_dir: Arc<tempfile::TempDir>,
     terminal: Entity<Terminal>,
     pending: Option<Task<()>>,
@@ -127,7 +151,7 @@ impl ReviewSelectionWatcher {
     }
 }
 
-impl NvimEditor {
+impl EditorSession {
     pub(super) fn capture_code(
         &mut self,
         cx: &mut Context<Self>,
@@ -139,51 +163,65 @@ impl NvimEditor {
 
     pub(super) fn spawn<T: 'static>(
         project: PathBuf,
+        command: EditorCommand,
+        file: Option<EditorFile>,
         window: &mut Window,
         cx: &mut Context<T>,
     ) -> Result<Self, String> {
-        let executable = nvim_executable();
         let socket_dir = Arc::new(
             tempfile::Builder::new()
-                .prefix("farcaster-neovim-")
+                .prefix("farcaster-editor-")
                 .tempdir()
-                .map_err(|error| format!("create Neovim socket directory: {error}"))?,
+                .map_err(|error| format!("create editor state directory: {error}"))?,
         );
-        let review_selection = ReviewSelectionWatcher::start(socket_dir.path())
-            .inspect_err(|error| {
-                zlog::warn!("{error}");
+        let neovim = command.is_neovim();
+        let review_selection = neovim
+            .then(|| {
+                ReviewSelectionWatcher::start(socket_dir.path())
+                    .inspect_err(|error| {
+                        zlog::warn!("{error}");
+                    })
+                    .ok()
             })
-            .ok();
-        let launch_file = socket_dir.path().join("launch.json");
-        neovim_launch::prepare(
-            &launch_file,
-            executable.clone(),
-            vec![
+            .flatten();
+        let mut arguments = command
+            .arguments
+            .iter()
+            .map(std::ffi::OsString::from)
+            .collect::<Vec<_>>();
+        if neovim {
+            arguments.extend([
                 "-i".into(),
                 socket_dir.path().join("shada").into_os_string(),
                 "--cmd".into(),
                 state_setup(socket_dir.path()).into(),
                 "--listen".into(),
                 socket_dir.path().join("nvim.sock").into_os_string(),
-                "--".into(),
-                project.clone().into_os_string(),
-            ],
+            ]);
+        }
+        arguments.extend(target_arguments(&command, file.as_ref(), &project));
+        let launch_file = socket_dir.path().join("launch.json");
+        editor_launch::prepare(
+            &launch_file,
+            PathBuf::from(&command.program),
+            arguments,
             project.clone(),
         )?;
-        let command = format!(
+        let command_line = format!(
             "{} {} {}",
             shell_quote(
                 &std::env::current_exe()
-                    .map_err(|error| format!("resolve Neovim launcher: {error}"))?
+                    .map_err(|error| format!("resolve the editor launcher: {error}"))?
             ),
-            neovim_launch::ARGUMENT,
+            editor_launch::ARGUMENT,
             shell_quote(&launch_file),
         );
-        let terminal = Terminal::spawn(TerminalOptions::new(command, project.clone()), window, cx)?;
+        let terminal = spawn_workspace_terminal(command_line, project.clone(), window, cx)?;
         terminal.update(cx, |terminal, _| terminal.set_visible(false));
         Ok(Self {
             project,
-            executable,
+            command,
+            file,
             socket_dir,
             terminal,
             pending: None,
@@ -209,6 +247,11 @@ impl NvimEditor {
         self.terminal.update(cx, |terminal, _| terminal.snapshot())
     }
 
+    pub(super) fn frame_count(&mut self, cx: &mut Context<Self>) -> u64 {
+        self.terminal
+            .update(cx, |terminal, _| terminal.frame_count())
+    }
+
     pub(super) fn activate_tab(
         &mut self,
         tab: u64,
@@ -220,6 +263,23 @@ impl NvimEditor {
         })
     }
 
+    pub(super) fn command(&self) -> &EditorCommand {
+        &self.command
+    }
+
+    pub(super) fn file(&self) -> Option<&EditorFile> {
+        self.file.as_ref()
+    }
+
+    pub(super) fn update_theme<T>(&mut self, cx: &mut Context<T>) {
+        let theme = crate::app::ui::theme::terminal_theme();
+        self.terminal.update(cx, |terminal, _| {
+            if terminal.is_alive() {
+                let _ = terminal.update_theme(theme);
+            }
+        });
+    }
+
     pub(super) fn take_review_selection(&self) -> Option<ReviewSelection> {
         self.review_selection.as_ref()?.take_latest()
     }
@@ -229,7 +289,7 @@ impl NvimEditor {
         cx: &mut Context<Self>,
         request: impl FnOnce(&Path, &Path, &Path) -> Result<T, String> + Send + 'static,
     ) -> Task<Result<T, String>> {
-        let executable = self.executable.clone();
+        let executable = PathBuf::from(&self.command.program);
         let project = self.project.clone();
         let socket_dir = self.socket_dir.clone();
         let previous = self.pending.take();
@@ -250,17 +310,29 @@ impl NvimEditor {
     }
 }
 
-impl Render for NvimEditor {
+impl Render for EditorSession {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         self.terminal.clone()
     }
 }
 
-fn nvim_executable() -> PathBuf {
-    std::env::var_os("FARCASTER_NVIM")
-        .or_else(|| std::env::var_os("GPUI_NVIM"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("nvim"))
+fn target_arguments(
+    command: &EditorCommand,
+    file: Option<&EditorFile>,
+    project: &Path,
+) -> Vec<std::ffi::OsString> {
+    let mut arguments = Vec::new();
+    if let Some(line) = file.and_then(|file| file.line)
+        && command.supports_line_argument()
+    {
+        arguments.push(format!("+{line}").into());
+    }
+    arguments.push(
+        file.map(|file| file.path.clone())
+            .unwrap_or_else(|| project.to_path_buf())
+            .into_os_string(),
+    );
+    arguments
 }
 
 fn shell_quote(path: &Path) -> String {

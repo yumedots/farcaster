@@ -7,6 +7,7 @@ pub(in crate::app) struct WorkspaceState {
     pub(in crate::app) native_surface_covered: bool,
     pub(in crate::app) native_surface_refresh: Option<Task<()>>,
     pub(in crate::app) tooltip_watch: Option<Subscription>,
+    pub(in crate::app) bar_hovered: bool,
     pub(in crate::app) surface: AppSurface,
     pub(in crate::app) session_surfaces: HashMap<String, AppSurface>,
     pub(in crate::app) worker_profile_editor: workspace::worker_tasks::WorkerProfileEditor,
@@ -17,9 +18,9 @@ pub(in crate::app) struct WorkspaceState {
 }
 
 pub(in crate::app) struct EditorState {
-    pub(in crate::app) view: Option<Entity<NvimEditor>>,
+    pub(in crate::app) view: Option<Entity<EditorSession>>,
     pub(in crate::app) active_review: Option<workspace::review::ActiveReview>,
-    pub(in crate::app) project_editors: HashMap<(PathBuf, u64), Entity<NvimEditor>>,
+    pub(in crate::app) project_editors: HashMap<(PathBuf, u64), Entity<EditorSession>>,
     pub(in crate::app) session_tabs: HashMap<String, u64>,
     pub(in crate::app) ready: bool,
     pub(in crate::app) request_generation: u64,
@@ -36,9 +37,13 @@ pub(in crate::app) struct SettingsState {
     pub(in crate::app) themes: workspace::theme_settings::ThemeSettings,
     pub(in crate::app) network_proxy_input: Entity<InputState>,
     pub(in crate::app) network_proxy_error: Option<String>,
+    pub(in crate::app) text_editor: Option<String>,
+    pub(in crate::app) text_editor_input: Entity<InputState>,
+    pub(in crate::app) text_editor_error: Option<String>,
     pub(in crate::app) proxy_save: Option<Task<()>>,
     pub(in crate::app) mcp_error: Option<String>,
     pub(in crate::app) expand_transcript_folders: bool,
     pub(in crate::app) transcript_error: Option<String>,
     pub(in crate::app) _network_proxy_subscription: Subscription,
+    pub(in crate::app) _text_editor_subscription: Subscription,
 }

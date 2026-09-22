@@ -1,6 +1,8 @@
 use crate::{
     app::ui::assets::AppIcon,
-    app::ui::primitives::{AppIconSize, AppTooltip as _, app_icon, icon_control},
+    app::ui::primitives::{
+        AppIconSize, AppTooltip as _, IndicatorEdge, app_icon, icon_control, line_indicator,
+    },
     app::ui::theme::theme,
     app::{AppSurface, FarcasterApp, views::session_rail::project_label},
 };
@@ -47,7 +49,9 @@ impl FarcasterApp {
                 .and_then(|draft| draft.title.clone())
         });
 
+        let bar_entity = entity.clone();
         div()
+            .id("workspace-bar")
             .h(theme().size(38.0))
             .flex_none()
             .flex()
@@ -57,6 +61,11 @@ impl FarcasterApp {
             .border_b(theme().border)
             .border_color(theme().colors.surface)
             .bg(theme().colors.canvas)
+            .on_hover(move |hovered, _window, cx| {
+                let _ = bar_entity.update(cx, |app, cx| {
+                    app.set_workspace_bar_hovered(*hovered, cx);
+                });
+            })
             .child(
                 div()
                     .min_w_0()
@@ -142,12 +151,13 @@ impl FarcasterApp {
             .child(surface_control(
                 "show-editor-surface",
                 format!(
-                    "Neovim ({modifier}+E in app views; {} anywhere)",
+                    "{} ({modifier}+E in app views; {} anywhere)",
+                    self.text_editor_name(),
                     crate::app::ui::navigation::command_key(
                         crate::app::ui::navigation::Command::Editor
                     )
                 ),
-                AppIcon::Neovim,
+                self.text_editor_icon(),
                 self.workspace.surface == AppSurface::Editor,
                 entity.clone(),
                 FarcasterApp::show_editor_surface,
@@ -183,17 +193,17 @@ fn surface_control(
         .w(theme().size(34.0))
         .h_full()
         .rounded_none()
+        .text_color(if active {
+            theme().colors.text
+        } else {
+            theme().colors.muted
+        })
         .hover(|control| control.bg(theme().colors.highlight))
         .when(active, |control| {
-            control.text_color(theme().colors.indicator).child(
-                div()
-                    .absolute()
-                    .bottom_0()
-                    .left_0()
-                    .right_0()
-                    .h(theme().size(2.0))
-                    .bg(theme().colors.indicator),
-            )
+            control.child(line_indicator(
+                IndicatorEdge::Bottom,
+                theme().colors.indicator,
+            ))
         })
         .child(app_icon(icon, AppIconSize::Control))
         .on_click(move |_, window, cx| {

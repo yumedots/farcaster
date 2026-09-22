@@ -51,7 +51,7 @@ use gpui::{
 };
 use gpui_component::input::{InputEvent, InputState, TextareaState};
 use gpui_libghostty::Terminal;
-use workspace::neovim::NvimEditor;
+use workspace::editor_session::EditorSession;
 
 use crate::{
     agent_activity::AgentActivity,
