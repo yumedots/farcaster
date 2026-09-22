@@ -7,6 +7,7 @@ pub(super) struct BootstrapInputs {
     pub(super) search_focus: FocusHandle,
     pub(super) session_title: Entity<InputState>,
     pub(super) network_proxy: Entity<InputState>,
+    pub(super) text_editor: Entity<InputState>,
     pub(super) dialog: Entity<TextareaState>,
     pub(super) dialog_focus: FocusHandle,
 }
@@ -14,6 +15,7 @@ pub(super) struct BootstrapInputs {
 pub(super) fn create(
     composer_sessions: &ComposerSessions,
     saved_proxy: Option<&str>,
+    saved_text_editor: Option<&str>,
     window: &mut Window,
     cx: &mut Context<FarcasterApp>,
 ) -> BootstrapInputs {
@@ -38,6 +40,11 @@ pub(super) fn create(
             .placeholder("http://127.0.0.1:8080")
             .default_value(saved_proxy.unwrap_or_default())
     });
+    let text_editor = cx.new(|cx| {
+        InputState::new(window, cx)
+            .placeholder("micro")
+            .default_value(saved_text_editor.unwrap_or_default())
+    });
     let dialog = cx.new(|cx| {
         TextareaState::new(window, cx)
             .auto_grow(2, 12)
@@ -51,6 +58,7 @@ pub(super) fn create(
         search_focus,
         session_title,
         network_proxy,
+        text_editor,
         dialog,
         dialog_focus: cx.focus_handle(),
     }

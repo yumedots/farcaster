@@ -13,6 +13,7 @@ pub(super) struct PersistedState {
     pub(super) submitted_drafts: HashMap<String, Option<PathBuf>>,
     pub(super) saved_proxy: Option<String>,
     pub(super) expand_transcript_folders: bool,
+    pub(super) text_editor: Option<String>,
     pub(super) theme_css: Option<String>,
     pub(super) active_theme: Option<String>,
 }
@@ -118,6 +119,13 @@ pub(super) fn load(project: &Path) -> PersistedState {
             false
         });
 
+    let text_editor = crate::app::infrastructure::persistence::StateStore::open()
+        .and_then(|store| store.load_text_editor())
+        .unwrap_or_else(|load_error| {
+            error.get_or_insert(load_error);
+            None
+        });
+
     let theme_css = crate::app::infrastructure::persistence::StateStore::open()
         .and_then(|store| store.load_theme_css())
         .unwrap_or_else(|load_error| {
@@ -143,6 +151,7 @@ pub(super) fn load(project: &Path) -> PersistedState {
         submitted_drafts,
         saved_proxy,
         expand_transcript_folders,
+        text_editor,
         theme_css,
         active_theme,
     }

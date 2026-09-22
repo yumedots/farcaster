@@ -1,4 +1,5 @@
 mod appearance;
+mod editor;
 mod worker_tasks;
 use gpui::{
     AnyElement, InteractiveElement as _, IntoElement as _, ParentElement as _,
@@ -79,6 +80,7 @@ pub(in crate::app::views) fn render(
                                 FeedbackTone::Error,
                             ))
                         })
+                        .child(editor::render(app, entity.clone()))
                         .child(
                             div()
                                 .pt(theme().space.md)

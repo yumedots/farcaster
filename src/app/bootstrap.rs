@@ -80,6 +80,7 @@ impl FarcasterApp {
             submitted_drafts: HashMap::new(),
             saved_proxy: None,
             expand_transcript_folders: false,
+            text_editor: None,
             theme_css: None,
             active_theme: None,
         };
@@ -111,6 +112,7 @@ impl FarcasterApp {
         let inputs = inputs::create(
             &persisted.composer_sessions,
             persisted.saved_proxy.as_deref(),
+            persisted.text_editor.as_deref(),
             window,
             cx,
         );
@@ -236,6 +238,7 @@ impl FarcasterApp {
                 native_surface_refresh: None,
                 native_surface_covered: false,
                 tooltip_watch: None,
+                bar_hovered: false,
                 surface: AppSurface::Chat,
                 session_surfaces: HashMap::new(),
                 worker_profile_editor: workspace::worker_tasks::WorkerProfileEditor::default(),
@@ -251,11 +254,15 @@ impl FarcasterApp {
                 ),
                 network_proxy_input: inputs.network_proxy,
                 network_proxy_error: None,
+                text_editor: persisted.text_editor,
+                text_editor_input: inputs.text_editor,
+                text_editor_error: None,
                 proxy_save: None,
                 mcp_error: None,
                 expand_transcript_folders: persisted.expand_transcript_folders,
                 transcript_error: None,
                 _network_proxy_subscription: subscriptions.network_proxy,
+                _text_editor_subscription: subscriptions.text_editor,
             },
             extensions: extensions::ExtensionState {
                 active: ExtensionUiState::default(),
