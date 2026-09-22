@@ -16,6 +16,7 @@ pub(super) struct PersistedState {
     pub(super) text_editor: Option<String>,
     pub(super) theme_css: Option<String>,
     pub(super) active_theme: Option<String>,
+    pub(super) panel_layout: crate::app::infrastructure::persistence::PanelLayout,
 }
 
 pub(super) fn load(project: &Path) -> PersistedState {
@@ -139,6 +140,14 @@ pub(super) fn load(project: &Path) -> PersistedState {
             None
         });
 
+    let panel_layout = crate::app::infrastructure::persistence::StateStore::open()
+        .and_then(|store| store.load_panel_layout())
+        .unwrap_or_else(|load_error| {
+            error.get_or_insert(load_error);
+            None
+        })
+        .unwrap_or_default();
+
     PersistedState {
         registry,
         error,
@@ -154,5 +163,6 @@ pub(super) fn load(project: &Path) -> PersistedState {
         text_editor,
         theme_css,
         active_theme,
+        panel_layout,
     }
 }
