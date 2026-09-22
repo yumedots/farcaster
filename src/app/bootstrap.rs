@@ -239,6 +239,8 @@ impl FarcasterApp {
                 native_surface_covered: false,
                 tooltip_watch: None,
                 bar_hovered: false,
+                session_rail_hidden: false,
+                run_panel_hidden: false,
                 surface: AppSurface::Chat,
                 session_surfaces: HashMap::new(),
                 worker_profile_editor: workspace::worker_tasks::WorkerProfileEditor::default(),
