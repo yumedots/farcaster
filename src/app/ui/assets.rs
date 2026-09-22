@@ -5,7 +5,7 @@ use gpui::{App, AssetSource, Result, SharedString};
 use gpui_component::IconNamed;
 
 const ICON_ROOT: &str = "icons/phosphor";
-const ICON_PATHS: [&str; 55] = [
+const ICON_PATHS: [&str; 60] = [
     "icons/phosphor/archive.svg",
     "icons/phosphor/arrows-clockwise.svg",
     "icons/phosphor/arrows-out.svg",
@@ -57,10 +57,15 @@ const ICON_PATHS: [&str; 55] = [
     "icons/workbench/claude.svg",
     "icons/workbench/codex.svg",
     "icons/workbench/cursor.svg",
+    "icons/workbench/emacs.svg",
     "icons/workbench/ghostty.svg",
+    "icons/workbench/helix.svg",
+    "icons/workbench/micro.svg",
+    "icons/workbench/nano.svg",
     "icons/workbench/neovim.svg",
     "icons/workbench/opencode.svg",
     "icons/workbench/pi.svg",
+    "icons/workbench/vim.svg",
 ];
 
 pub(crate) struct AppAssets;
@@ -275,9 +280,21 @@ impl AssetSource for AppAssets {
             "icons/workbench/antigravity.svg" => Some(include_bytes!(
                 "../../../assets/workbench-icons/antigravity.svg"
             )),
+            "icons/workbench/emacs.svg" => {
+                Some(include_bytes!("../../../assets/workbench-icons/emacs.svg"))
+            }
             "icons/workbench/ghostty.svg" => Some(include_bytes!(
                 "../../../assets/workbench-icons/ghostty.svg"
             )),
+            "icons/workbench/helix.svg" => {
+                Some(include_bytes!("../../../assets/workbench-icons/helix.svg"))
+            }
+            "icons/workbench/micro.svg" => {
+                Some(include_bytes!("../../../assets/workbench-icons/micro.svg"))
+            }
+            "icons/workbench/nano.svg" => {
+                Some(include_bytes!("../../../assets/workbench-icons/nano.svg"))
+            }
             "icons/workbench/neovim.svg" => {
                 Some(include_bytes!("../../../assets/workbench-icons/neovim.svg"))
             }
@@ -286,6 +303,9 @@ impl AssetSource for AppAssets {
             )),
             "icons/workbench/pi.svg" => {
                 Some(include_bytes!("../../../assets/workbench-icons/pi.svg"))
+            }
+            "icons/workbench/vim.svg" => {
+                Some(include_bytes!("../../../assets/workbench-icons/vim.svg"))
             }
             _ => None,
         };
@@ -323,15 +343,19 @@ pub(crate) enum AppIcon {
     Codex,
     Copy,
     Cursor,
+    Emacs,
     Eye,
     Folder,
     FolderPlus,
     Ghostty,
     GitFork,
+    Helix,
     Hourglass,
     Key,
     List,
     MagnifyingGlass,
+    Micro,
+    Nano,
     Neovim,
     OpenCode,
     PaintRoller,
@@ -342,12 +366,26 @@ pub(crate) enum AppIcon {
     SpinnerGap,
     Stop,
     Trash,
+    Vim,
     WarningCircle,
     X,
     XCircle,
 }
 
 impl AppIcon {
+    pub(crate) fn for_editor(icon: crate::editors::EditorIcon) -> Self {
+        use crate::editors::EditorIcon;
+        match icon {
+            EditorIcon::Neovim => Self::Neovim,
+            EditorIcon::Vim => Self::Vim,
+            EditorIcon::Helix => Self::Helix,
+            EditorIcon::Micro => Self::Micro,
+            EditorIcon::Emacs => Self::Emacs,
+            EditorIcon::Nano => Self::Nano,
+            EditorIcon::Generic => Self::Code,
+        }
+    }
+
     pub(crate) fn for_harness(harness: impl Into<Option<Backend>>) -> Self {
         let Some(harness) = harness.into() else {
             return Self::Code;
@@ -385,15 +423,19 @@ impl IconNamed for AppIcon {
             Self::Codex => return "icons/workbench/codex.svg".into(),
             Self::Copy => "copy",
             Self::Cursor => return "icons/workbench/cursor.svg".into(),
+            Self::Emacs => return "icons/workbench/emacs.svg".into(),
             Self::Eye => "eye",
             Self::Folder => "folder",
             Self::FolderPlus => "folder-plus",
             Self::Ghostty => return "icons/workbench/ghostty.svg".into(),
             Self::GitFork => "git-fork",
+            Self::Helix => return "icons/workbench/helix.svg".into(),
             Self::Hourglass => "hourglass",
             Self::Key => "key",
             Self::List => "list",
             Self::MagnifyingGlass => "magnifying-glass",
+            Self::Micro => return "icons/workbench/micro.svg".into(),
+            Self::Nano => return "icons/workbench/nano.svg".into(),
             Self::Neovim => return "icons/workbench/neovim.svg".into(),
             Self::OpenCode => return "icons/workbench/opencode.svg".into(),
             Self::PaintRoller => "paint-roller",
@@ -404,6 +446,7 @@ impl IconNamed for AppIcon {
             Self::SpinnerGap => "spinner-gap",
             Self::Stop => "stop",
             Self::Trash => "trash",
+            Self::Vim => return "icons/workbench/vim.svg".into(),
             Self::WarningCircle => "warning-circle",
             Self::X => "x",
             Self::XCircle => "x-circle",
