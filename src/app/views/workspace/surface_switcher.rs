@@ -1,13 +1,15 @@
 use crate::{
     app::ui::assets::AppIcon,
+    app::ui::layout::{TRAFFIC_LIGHT_INSET, shows_left_inline},
     app::ui::primitives::{
-        AppIconSize, AppTooltip as _, IndicatorEdge, app_icon, icon_control, line_indicator,
+        AppIconSize, AppTooltip as _, ButtonTone, IndicatorEdge, app_icon, icon_button,
+        icon_control, line_indicator,
     },
     app::ui::theme::theme,
     app::{AppSurface, FarcasterApp, views::session_rail::project_label},
 };
 use gpui::{
-    Context, InteractiveElement as _, IntoElement, ParentElement as _,
+    Context, InteractiveElement as _, IntoElement, MouseButton, ParentElement as _,
     StatefulInteractiveElement as _, Styled as _, WeakEntity, Window, div,
     prelude::FluentBuilder as _,
 };
@@ -50,6 +52,7 @@ impl FarcasterApp {
         });
 
         let bar_entity = entity.clone();
+        let rail_toggle = entity.clone();
         div()
             .id("workspace-bar")
             .h(theme().size(38.0))
@@ -58,6 +61,11 @@ impl FarcasterApp {
             .items_center()
             .gap(theme().space.sm)
             .px(theme().size(12.0))
+            .when(
+                cfg!(target_os = "macos")
+                    && (!shows_left_inline(mode) || self.workspace.session_rail_hidden),
+                |bar| bar.pl(theme().size(TRAFFIC_LIGHT_INSET)),
+            )
             .border_b(theme().border)
             .border_color(theme().colors.surface)
             .bg(theme().colors.canvas)
@@ -66,6 +74,20 @@ impl FarcasterApp {
                     app.set_workspace_bar_hovered(*hovered, cx);
                 });
             })
+            .when(
+                shows_left_inline(mode) && self.workspace.session_rail_hidden,
+                |bar| {
+                    bar.child(icon_button(
+                        "toggle-session-rail",
+                        AppIcon::SidebarLeft,
+                        "Show sessions",
+                        ButtonTone::Quiet,
+                        move |_, cx| {
+                            let _ = rail_toggle.update(cx, |this, cx| this.toggle_session_rail(cx));
+                        },
+                    ))
+                },
+            )
             .child(
                 div()
                     .min_w_0()
@@ -110,7 +132,15 @@ impl FarcasterApp {
                                     .text_color(theme().colors.text)
                                     .child(title),
                             )
-                    }),
+                    })
+                    .child(
+                        div()
+                            .flex_1()
+                            .h_full()
+                            .on_mouse_down(MouseButton::Left, |_, window, _| {
+                                window.start_window_move()
+                            }),
+                    ),
             )
             .child(self.render_workspace_panels(mode, entity.clone()))
             .child(
