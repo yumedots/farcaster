@@ -36,7 +36,7 @@ impl FarcasterApp {
         );
         drop(runtime_timing);
 
-        Self::from_bootstrap_state(
+        let mut app = Self::from_bootstrap_state(
             project,
             repository_execution_allowed,
             workgraph_updates,
@@ -46,7 +46,9 @@ impl FarcasterApp {
             runtime,
             window,
             cx,
-        )
+        );
+        app.warm_repository_observations(cx);
+        app
     }
 
     #[cfg(test)]
