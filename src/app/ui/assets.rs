@@ -5,7 +5,7 @@ use gpui::{App, AssetSource, Result, SharedString};
 use gpui_component::IconNamed;
 
 const ICON_ROOT: &str = "icons/phosphor";
-const ICON_PATHS: [&str; 60] = [
+const ICON_PATHS: [&str; 62] = [
     "icons/phosphor/archive.svg",
     "icons/phosphor/arrows-clockwise.svg",
     "icons/phosphor/arrows-out.svg",
@@ -29,6 +29,7 @@ const ICON_PATHS: [&str; 60] = [
     "icons/phosphor/eye-slash.svg",
     "icons/phosphor/folder.svg",
     "icons/phosphor/folder-plus.svg",
+    "icons/phosphor/git-branch.svg",
     "icons/phosphor/git-fork.svg",
     "icons/phosphor/globe.svg",
     "icons/phosphor/hammer.svg",
@@ -42,6 +43,7 @@ const ICON_PATHS: [&str; 60] = [
     "icons/phosphor/plus.svg",
     "icons/phosphor/question.svg",
     "icons/phosphor/shield.svg",
+    "icons/phosphor/sidebar-simple.svg",
     "icons/phosphor/sign-in.svg",
     "icons/phosphor/spinner-gap.svg",
     "icons/phosphor/stop.svg",
@@ -234,6 +236,9 @@ impl AssetSource for AppAssets {
             "icons/phosphor/shield.svg" => {
                 Some(include_bytes!("../../../assets/phosphor-icons/shield.svg"))
             }
+            "icons/phosphor/sidebar-simple.svg" => Some(include_bytes!(
+                "../../../assets/phosphor-icons/sidebar-simple.svg"
+            )),
             "icons/phosphor/sign-in.svg" => {
                 Some(include_bytes!("../../../assets/phosphor-icons/sign-in.svg"))
             }
@@ -348,6 +353,7 @@ pub(crate) enum AppIcon {
     Folder,
     FolderPlus,
     Ghostty,
+    GitBranch,
     GitFork,
     Helix,
     Hourglass,
@@ -363,6 +369,7 @@ pub(crate) enum AppIcon {
     Plus,
     Question,
     Shield,
+    SidebarLeft,
     SpinnerGap,
     Stop,
     Trash,
@@ -428,6 +435,7 @@ impl IconNamed for AppIcon {
             Self::Folder => "folder",
             Self::FolderPlus => "folder-plus",
             Self::Ghostty => return "icons/workbench/ghostty.svg".into(),
+            Self::GitBranch => "git-branch",
             Self::GitFork => "git-fork",
             Self::Helix => return "icons/workbench/helix.svg".into(),
             Self::Hourglass => "hourglass",
@@ -443,6 +451,7 @@ impl IconNamed for AppIcon {
             Self::Plus => "plus",
             Self::Question => "question",
             Self::Shield => "shield",
+            Self::SidebarLeft => "sidebar-simple",
             Self::SpinnerGap => "spinner-gap",
             Self::Stop => "stop",
             Self::Trash => "trash",
