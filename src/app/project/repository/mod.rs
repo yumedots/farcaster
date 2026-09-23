@@ -520,6 +520,29 @@ impl FarcasterApp {
         .detach();
     }
 
+    pub(in crate::app) fn prefetch_repository_observation(
+        &mut self,
+        project: PathBuf,
+        cx: &mut Context<Self>,
+    ) {
+        if project == self.project.repository.project {
+            return;
+        }
+        let preference = preference_for(&self.project.repository.preferences, &project);
+        let target = project.clone();
+        cx.spawn(async move |weak, cx| {
+            let scanned = cx
+                .background_spawn(async move { observe_project(&target, preference) })
+                .await;
+            let _ = weak.update(cx, |this, _| {
+                if let Some(observation) = RepositoryObservation::from_scan(preference, scanned) {
+                    this.project.repository.remember(project, observation);
+                }
+            });
+        })
+        .detach();
+    }
+
     pub(in crate::app) fn request_repository_sync(
         &mut self,
         action: RepositorySyncAction,
