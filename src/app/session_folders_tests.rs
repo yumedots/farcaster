@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::persistence::StateStore;
 
 fn folders() -> SessionFolders {
     SessionFolders {
