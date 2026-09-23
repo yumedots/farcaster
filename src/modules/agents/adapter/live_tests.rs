@@ -1280,7 +1280,7 @@ pub(crate) mod support {
     /// Returns a one-shot reply only when an installed client asks to run one
     /// of the exact project-local commands registered by this test.
     ///
-    /// This recognizes only the three observed permission forms.  In
+    /// This recognizes only the observed permission forms.  In
     /// particular, it never chooses an "always" option and never accepts a
     /// title which merely contains an allowed command.
     pub(crate) fn bounded_command_permission(
@@ -1327,13 +1327,29 @@ pub(crate) mod support {
             }
             "Allow"
         } else if options_are(&["Allow once", "Allow always", "Reject"]) {
-            let cursor_title_matches = exact_command(title)
+            let title_matches = exact_command(title)
                 || allowed_commands
                     .iter()
                     .any(|command| title == &format!("`{command}`"));
-            if !cursor_title_matches {
+            if !title_matches {
                 return Err(format!(
                     "E2E_BLOCKED: refusing Cursor command outside the registered project-local fixture: {title:?}"
+                ));
+            }
+            "Allow once"
+        } else if options_are(&["Allow once", "Always allow", "Decline"]) {
+            // OpenCode repeats the requested command on both sides of its prompt,
+            // so demanding both copies agree keeps the match exact.
+            let opencode_command = title
+                .strip_prefix("OpenCode requests permission for ")
+                .and_then(|rest| rest.split_once('\n').map(|(_, rest)| rest))
+                .and_then(|rest| rest.rsplit_once("\n\nTool "))
+                .and_then(|(command, tail)| tail.split_once('\n').map(|(_, tail)| (command, tail)));
+            let matches_fixture = opencode_command
+                .is_some_and(|(command, tail)| command == tail && exact_command(command));
+            if !matches_fixture {
+                return Err(format!(
+                    "E2E_BLOCKED: refusing OpenCode command outside the registered project-local fixture: {title:?}"
                 ));
             }
             "Allow once"
