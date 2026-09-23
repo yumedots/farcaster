@@ -239,7 +239,7 @@ pub(crate) struct RestoredQuestion {
     pub options: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct LoadedHistory {
     pub messages: Vec<Value>,
     pub model: Option<(String, String)>,
