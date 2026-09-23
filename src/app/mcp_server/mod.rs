@@ -26,6 +26,12 @@ use rmcp::{
 };
 
 const BIND_ADDRESS: &str = "127.0.0.1:8765";
+
+pub(super) fn bind_address() -> String {
+    crate::app::infrastructure::isolation::mcp_addr()
+        .unwrap_or(BIND_ADDRESS)
+        .to_owned()
+}
 const MCP_PATH: &str = "/mcp";
 const CALLER_HEADER: &str = "farcaster-caller";
 
