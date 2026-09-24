@@ -1,6 +1,10 @@
 use super::*;
 use crate::app::persistence::StateStore;
 
+#[cfg(test)]
+#[path = "writer_perf_tests.rs"]
+mod writer_perf_tests;
+
 impl FarcasterApp {
     pub(in crate::app) fn choose_project_folder(
         &mut self,
