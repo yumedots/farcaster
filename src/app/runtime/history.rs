@@ -234,6 +234,8 @@ impl RuntimeOwner {
         {
             zlog::error!("Reconcile saved prompt deliveries: {error}");
         }
+        let projection =
+            crate::app::infrastructure::performance::Timing::new("switch.project_history");
         annotate_history_presentations(self.state.as_ref(), &result.path, &mut history.messages);
         if self.parked_snapshot.is_none() {
             self.parked_snapshot = Some(std::mem::take(&mut self.snapshot));
@@ -249,6 +251,7 @@ impl RuntimeOwner {
             HarnessConfigurationStore::history_model(&models, history.model.as_ref());
         let mut conversation = ConversationState::default();
         conversation.replace_history(&history.messages);
+        drop(projection);
         self.transcript_changed_from = Some(0);
         self.snapshot = RuntimeSnapshot {
             connected: true,
