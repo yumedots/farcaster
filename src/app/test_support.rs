@@ -16,6 +16,25 @@ pub(crate) fn with_offline_app(
     with_isolated_app(
         test_name,
         cx,
+        |_| {},
+        move |_| runtime,
+        move |cx, app, project| test(cx, app, &test_runtime, project),
+    );
+}
+
+/// An offline app over a data directory the test fills in first, so a case can
+/// assert what the app knows before the runtime has answered at all.
+pub(crate) fn with_prepared_offline_app(
+    test_name: &str,
+    cx: &mut TestAppContext,
+    prepare: impl FnOnce(&Path),
+    test: impl FnOnce(&mut VisualTestContext, &Entity<FarcasterApp>, &TestRuntime, &Path),
+) {
+    let (runtime, test_runtime) = super::runtime::RuntimeHandle::offline_for_test();
+    with_isolated_app(
+        test_name,
+        cx,
+        prepare,
         move |_| runtime,
         move |cx, app, project| test(cx, app, &test_runtime, project),
     );
@@ -27,12 +46,13 @@ pub(crate) fn with_runtime_app(
     runtime: impl FnOnce(&Path) -> super::runtime::RuntimeHandle,
     test: impl FnOnce(&mut VisualTestContext, &Entity<FarcasterApp>, &Path),
 ) {
-    with_isolated_app(test_name, cx, runtime, test);
+    with_isolated_app(test_name, cx, |_| {}, runtime, test);
 }
 
 fn with_isolated_app(
     test_name: &str,
     cx: &mut TestAppContext,
+    prepare: impl FnOnce(&Path),
     runtime: impl FnOnce(&Path) -> super::runtime::RuntimeHandle,
     test: impl FnOnce(&mut VisualTestContext, &Entity<FarcasterApp>, &Path),
 ) {
@@ -45,6 +65,7 @@ fn with_isolated_app(
 
     let project = tempfile::tempdir().expect("isolated app project");
     let project_path = project.path().to_path_buf();
+    prepare(&project_path);
     cx.executor().allow_parking();
     cx.update(|cx| {
         gpui_component::init(cx);
