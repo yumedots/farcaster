@@ -14,4 +14,5 @@ pub(crate) mod persistence;
 #[cfg(test)]
 mod persistence_tests;
 pub(super) mod quit;
+pub(in crate::app) mod remembered;
 pub(crate) mod shell_environment;
