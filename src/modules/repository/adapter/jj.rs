@@ -5,8 +5,11 @@ use super::super::{
     RepositoryEdit, RepositoryEditReview, RepositoryError, RepositoryKind, SnapshotIdentity,
     SnapshotToken, WorkingCopySnapshot, change, command_failed,
     core::port::{CommandOutput, RepositoryOperations},
-    diff_result, require_complete_stdout,
+    require_complete_stdout,
 };
+
+#[cfg(test)]
+use super::super::diff_result;
 
 pub(super) struct JujutsuOperations;
 
@@ -42,12 +45,23 @@ impl RepositoryOperations for JujutsuOperations {
         snapshot(backend)
     }
 
+    #[cfg(test)]
     fn load_diff(
         &self,
         backend: &RepositoryBackend,
         target: DiffTarget,
     ) -> Result<DiffResult, RepositoryError> {
         load_diff(backend, target)
+    }
+
+    fn untracked_diff(
+        &self,
+        _backend: &RepositoryBackend,
+        _target: DiffTarget,
+    ) -> Result<DiffResult, RepositoryError> {
+        Err(RepositoryError::TargetMismatch(
+            "Jujutsu has no untracked layer".to_owned(),
+        ))
     }
 
     fn list_project_files(
@@ -155,6 +169,7 @@ pub(in crate::modules::repository) fn list_project_files(
     Ok(files)
 }
 
+#[cfg(test)]
 pub(in crate::modules::repository) fn load_diff(
     backend: &RepositoryBackend,
     target: DiffTarget,
@@ -339,6 +354,7 @@ fn scope_change_to_project(
     }
 }
 
+#[cfg(test)]
 fn diff_fileset(target: &DiffTarget) -> Result<String, RepositoryError> {
     let target_fileset = literal_fileset(&target.relative_path)?;
     if let Some(source) = target.original_relative_path.as_deref() {

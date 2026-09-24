@@ -119,7 +119,9 @@ impl RepositoryBackend {
                     .iter()
                     .filter(|change| change.layer == ChangeLayer::GitUntracked)
                 {
-                    let diff = self.operations.load_diff(self, change.target.clone())?;
+                    let diff = self
+                        .operations
+                        .untracked_diff(self, change.target.clone())?;
                     file_counts.insert(
                         (change.layer, change.relative_path.clone()),
                         diff.additions

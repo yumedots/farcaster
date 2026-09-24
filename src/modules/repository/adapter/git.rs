@@ -28,12 +28,21 @@ impl RepositoryOperations for GitOperations {
         snapshot(backend)
     }
 
+    #[cfg(test)]
     fn load_diff(
         &self,
         backend: &RepositoryBackend,
         target: DiffTarget,
     ) -> Result<DiffResult, RepositoryError> {
         load_diff(backend, target)
+    }
+
+    fn untracked_diff(
+        &self,
+        backend: &RepositoryBackend,
+        target: DiffTarget,
+    ) -> Result<DiffResult, RepositoryError> {
+        untracked_diff(backend, target)
     }
 
     fn list_project_files(
@@ -102,6 +111,7 @@ pub(in crate::modules::repository) fn list_project_files(
     Ok(files)
 }
 
+#[cfg(test)]
 pub(in crate::modules::repository) fn load_diff(
     backend: &RepositoryBackend,
     target: DiffTarget,
@@ -146,6 +156,28 @@ pub(in crate::modules::repository) fn load_diff(
     ))
 }
 
+pub(in crate::modules::repository) fn untracked_diff(
+    backend: &RepositoryBackend,
+    target: DiffTarget,
+) -> Result<DiffResult, RepositoryError> {
+    if target.layer != ChangeLayer::GitUntracked {
+        return Err(RepositoryError::TargetMismatch(
+            "only an untracked target skips the snapshot read".to_owned(),
+        ));
+    }
+    let mut arguments = untracked_diff_arguments();
+    arguments.push(target.relative_path.as_os_str().to_os_string());
+    let output = backend.run(&arguments)?;
+    if !output.status.success() && output.status.code() != Some(1) {
+        return Err(command_failed(backend.executable(), &output));
+    }
+    require_complete_stdout(backend.executable(), &output)?;
+    Ok(diff_result(
+        target,
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+    ))
+}
+
 fn status_output(backend: &RepositoryBackend) -> Result<CommandOutput, RepositoryError> {
     let mut arguments = [
         "--no-pager",
@@ -169,6 +201,7 @@ fn status_output(backend: &RepositoryBackend) -> Result<CommandOutput, Repositor
     Ok(output)
 }
 
+#[cfg(test)]
 fn diff_arguments(staged: bool) -> Vec<OsString> {
     let mut arguments = [
         "--no-pager",

@@ -45,7 +45,19 @@ pub(in crate::modules::repository) trait RepositoryOperations:
     fn snapshot(&self, backend: &RepositoryBackend)
     -> Result<WorkingCopySnapshot, RepositoryError>;
 
+    /// A diff of a snapshot the caller still holds, verified against the working
+    /// copy before and after it is read.
+    #[cfg(test)]
     fn load_diff(
+        &self,
+        backend: &RepositoryBackend,
+        target: DiffTarget,
+    ) -> Result<DiffResult, RepositoryError>;
+
+    /// The diff of an untracked file from the snapshot the caller just took. The
+    /// working copy is not read again to confirm a state the caller is already
+    /// holding, so this is not for a diff the caller will present on its own.
+    fn untracked_diff(
         &self,
         backend: &RepositoryBackend,
         target: DiffTarget,
