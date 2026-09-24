@@ -1,12 +1,14 @@
 use std::{ffi::OsString, path::PathBuf, sync::Arc, time::SystemTime};
 
 use super::super::{
-    ChangeKind, ChangeLayer, DiffResult, DiffTarget, GitIdentity, RepositoryBackend,
-    RepositoryError, RepositoryKind, SnapshotIdentity, SnapshotToken, WorkingCopySnapshot, change,
-    command_failed,
+    ChangeKind, ChangeLayer, GitIdentity, RepositoryBackend, RepositoryError, RepositoryKind,
+    SnapshotIdentity, SnapshotToken, WorkingCopySnapshot, change,
     core::port::{CommandOutput, RepositoryOperations},
-    diff_result, require_complete_stdout,
+    require_complete_stdout,
 };
+
+#[cfg(test)]
+use super::super::{DiffResult, DiffTarget, command_failed, diff_result};
 
 pub(super) struct GitOperations;
 
@@ -35,14 +37,6 @@ impl RepositoryOperations for GitOperations {
         target: DiffTarget,
     ) -> Result<DiffResult, RepositoryError> {
         load_diff(backend, target)
-    }
-
-    fn untracked_diff(
-        &self,
-        backend: &RepositoryBackend,
-        target: DiffTarget,
-    ) -> Result<DiffResult, RepositoryError> {
-        untracked_diff(backend, target)
     }
 
     fn list_project_files(
@@ -156,28 +150,6 @@ pub(in crate::modules::repository) fn load_diff(
     ))
 }
 
-pub(in crate::modules::repository) fn untracked_diff(
-    backend: &RepositoryBackend,
-    target: DiffTarget,
-) -> Result<DiffResult, RepositoryError> {
-    if target.layer != ChangeLayer::GitUntracked {
-        return Err(RepositoryError::TargetMismatch(
-            "only an untracked target skips the snapshot read".to_owned(),
-        ));
-    }
-    let mut arguments = untracked_diff_arguments();
-    arguments.push(target.relative_path.as_os_str().to_os_string());
-    let output = backend.run(&arguments)?;
-    if !output.status.success() && output.status.code() != Some(1) {
-        return Err(command_failed(backend.executable(), &output));
-    }
-    require_complete_stdout(backend.executable(), &output)?;
-    Ok(diff_result(
-        target,
-        String::from_utf8_lossy(&output.stdout).into_owned(),
-    ))
-}
-
 fn status_output(backend: &RepositoryBackend) -> Result<CommandOutput, RepositoryError> {
     let mut arguments = [
         "--no-pager",
@@ -224,6 +196,7 @@ fn diff_arguments(staged: bool) -> Vec<OsString> {
     arguments
 }
 
+#[cfg(test)]
 fn untracked_diff_arguments() -> Vec<OsString> {
     vec![
         OsString::from("--no-pager"),
@@ -237,12 +210,12 @@ fn untracked_diff_arguments() -> Vec<OsString> {
     ]
 }
 
-#[cfg(unix)]
+#[cfg(all(test, unix))]
 fn null_device() -> &'static str {
     "/dev/null"
 }
 
-#[cfg(windows)]
+#[cfg(all(test, windows))]
 fn null_device() -> &'static str {
     "NUL"
 }

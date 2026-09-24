@@ -1,15 +1,15 @@
 use std::{ffi::OsString, path::PathBuf, sync::Arc, time::SystemTime};
 
 use super::super::{
-    ChangeKind, ChangeLayer, DiffResult, DiffTarget, JujutsuIdentity, RepositoryBackend,
-    RepositoryEdit, RepositoryEditReview, RepositoryError, RepositoryKind, SnapshotIdentity,
-    SnapshotToken, WorkingCopySnapshot, change, command_failed,
+    ChangeKind, ChangeLayer, JujutsuIdentity, RepositoryBackend, RepositoryEdit,
+    RepositoryEditReview, RepositoryError, RepositoryKind, SnapshotIdentity, SnapshotToken,
+    WorkingCopySnapshot, change, command_failed,
     core::port::{CommandOutput, RepositoryOperations},
     require_complete_stdout,
 };
 
 #[cfg(test)]
-use super::super::diff_result;
+use super::super::{DiffResult, DiffTarget, diff_result};
 
 pub(super) struct JujutsuOperations;
 
@@ -52,16 +52,6 @@ impl RepositoryOperations for JujutsuOperations {
         target: DiffTarget,
     ) -> Result<DiffResult, RepositoryError> {
         load_diff(backend, target)
-    }
-
-    fn untracked_diff(
-        &self,
-        _backend: &RepositoryBackend,
-        _target: DiffTarget,
-    ) -> Result<DiffResult, RepositoryError> {
-        Err(RepositoryError::TargetMismatch(
-            "Jujutsu has no untracked layer".to_owned(),
-        ))
     }
 
     fn list_project_files(

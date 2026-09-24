@@ -174,6 +174,7 @@ pub(crate) struct WorkingCopySnapshot {
     pub(crate) captured_at: SystemTime,
 }
 
+#[cfg(test)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DiffResult {
     pub(crate) target: DiffTarget,

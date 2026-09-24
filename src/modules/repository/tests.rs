@@ -389,6 +389,74 @@ fn git_snapshot_and_lazy_diff_use_separate_layers() {
 }
 
 #[test]
+fn git_untracked_files_are_counted_from_their_contents() {
+    if Command::new("git").arg("--version").output().is_err() {
+        return;
+    }
+    let temp = TestDirectory::new("git-untracked-totals");
+    let repository = temp.path().join("repo");
+    let home = temp.path().join("home");
+    let config = temp.path().join("config");
+    fs::create_dir_all(&repository).expect("create repository directory");
+    fs::create_dir_all(&home).expect("create home directory");
+    fs::create_dir_all(&config).expect("create config directory");
+    run_git(&repository, &home, &config, &["init"]);
+    run_git(
+        &repository,
+        &home,
+        &config,
+        &["config", "user.name", "Pi Test"],
+    );
+    run_git(
+        &repository,
+        &home,
+        &config,
+        &["config", "user.email", "pi@example.invalid"],
+    );
+    fs::write(repository.join("file.txt"), "base\n").expect("write base");
+    run_git(&repository, &home, &config, &["add", "file.txt"]);
+    run_git(&repository, &home, &config, &["commit", "-m", "base"]);
+    fs::write(repository.join("new.txt"), "one\ntwo\n").expect("write untracked text");
+
+    let options = RepositoryOptions {
+        environment: isolated_environment(&home, &config),
+        ..RepositoryOptions::default()
+    };
+    let backend =
+        RepositoryBackend::discover_with_options(&repository, BackendPreference::Git, options)
+            .expect("discover Git")
+            .expect("Git repository");
+    let mut snapshot = backend.snapshot().expect("capture Git snapshot");
+    assert_eq!(
+        backend
+            .working_copy_totals(&mut snapshot)
+            .expect("count untracked text"),
+        (Some(2), Some(0))
+    );
+    let change = snapshot
+        .changes
+        .iter()
+        .find(|change| change.layer == ChangeLayer::GitUntracked)
+        .expect("untracked row");
+    assert_eq!(change.counts, Some((2, 0)));
+
+    fs::write(repository.join("blob.bin"), [0_u8, 1]).expect("write untracked binary");
+    let mut snapshot = backend.snapshot().expect("capture binary snapshot");
+    assert_eq!(
+        backend
+            .working_copy_totals(&mut snapshot)
+            .expect("count untracked binary"),
+        (None, None)
+    );
+    let change = snapshot
+        .changes
+        .iter()
+        .find(|change| change.relative_path.as_path() == Path::new("blob.bin"))
+        .expect("binary row");
+    assert_eq!(change.counts, None);
+}
+
+#[test]
 fn linked_git_worktree_is_an_independent_working_copy() {
     if Command::new("git").arg("--version").output().is_err() {
         return;

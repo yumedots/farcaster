@@ -1,8 +1,9 @@
 use std::{ffi::OsString, process::ExitStatus};
 
-use super::super::{
-    DiffResult, DiffTarget, RepositoryBackend, RepositoryError, WorkingCopySnapshot,
-};
+use super::super::{RepositoryBackend, RepositoryError, WorkingCopySnapshot};
+
+#[cfg(test)]
+use super::super::{DiffResult, DiffTarget};
 
 #[derive(Debug)]
 pub(in crate::modules::repository) struct CommandOutput {
@@ -49,15 +50,6 @@ pub(in crate::modules::repository) trait RepositoryOperations:
     /// copy before and after it is read.
     #[cfg(test)]
     fn load_diff(
-        &self,
-        backend: &RepositoryBackend,
-        target: DiffTarget,
-    ) -> Result<DiffResult, RepositoryError>;
-
-    /// The diff of an untracked file from the snapshot the caller just took. The
-    /// working copy is not read again to confirm a state the caller is already
-    /// holding, so this is not for a diff the caller will present on its own.
-    fn untracked_diff(
         &self,
         backend: &RepositoryBackend,
         target: DiffTarget,

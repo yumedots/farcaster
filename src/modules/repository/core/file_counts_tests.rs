@@ -18,3 +18,17 @@ fn file_totals_handle_nested_deleted_renamed_and_quoted_paths() {
         assert_eq!(counts.get(Path::new(path)), Some(&Some(expected)), "{path}");
     }
 }
+
+#[test]
+fn untracked_files_count_their_lines_and_leave_binaries_unknown() {
+    for (contents, expected) in [
+        (b"".as_slice(), (0, 0)),
+        (b"one\n".as_slice(), (1, 0)),
+        (b"one\ntwo\n".as_slice(), (2, 0)),
+        (b"one\ntwo".as_slice(), (2, 0)),
+        (b"\n".as_slice(), (1, 0)),
+    ] {
+        assert_eq!(untracked(contents), Some(expected), "{contents:?}");
+    }
+    assert_eq!(untracked(b"one\n\0two\n"), None);
+}

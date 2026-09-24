@@ -9,12 +9,15 @@ pub(crate) use preferences::{PreferenceStore, load as load_preferences, save as 
 
 use super::{
     contract::{
-        BackendPreference, ChangeKind, ChangeLayer, DiffResult, DiffTarget, DiffTargetKey,
-        RepositoryError, RepositoryKind, RepositoryLocation, SnapshotIdentity, WorkingCopyChange,
+        BackendPreference, ChangeKind, ChangeLayer, DiffTarget, DiffTargetKey, RepositoryError,
+        RepositoryKind, RepositoryLocation, SnapshotIdentity, WorkingCopyChange,
         WorkingCopySnapshot,
     },
     domain::SnapshotToken,
 };
+
+#[cfg(test)]
+use super::contract::DiffResult;
 
 use std::{
     ffi::OsString,
@@ -75,6 +78,8 @@ impl RepositoryBackend {
         }
         let _operation = repository_operation()?;
         let mut file_counts = std::collections::BTreeMap::new();
+        let mut untracked_binary = false;
+        let mut untracked_additions = 0_u64;
         let output = match &snapshot.identity {
             SnapshotIdentity::Git(_) => {
                 let mut patch = Vec::new();
@@ -119,16 +124,23 @@ impl RepositoryBackend {
                     .iter()
                     .filter(|change| change.layer == ChangeLayer::GitUntracked)
                 {
-                    let diff = self
-                        .operations
-                        .untracked_diff(self, change.target.clone())?;
-                    file_counts.insert(
-                        (change.layer, change.relative_path.clone()),
-                        diff.additions
-                            .zip(diff.deletions)
-                            .map(|(a, d)| (a as usize, d as usize)),
-                    );
-                    patch.extend(diff.patch.into_bytes());
+                    let contents =
+                        std::fs::read(change.target.absolute_path()).map_err(|source| {
+                            RepositoryError::Io {
+                                context: format!(
+                                    "read untracked file {}",
+                                    change.relative_path.display()
+                                ),
+                                source,
+                            }
+                        })?;
+                    let counts = file_counts::untracked(&contents);
+                    if let Some((additions, _)) = counts {
+                        untracked_additions = untracked_additions.saturating_add(additions as u64);
+                    } else {
+                        untracked_binary = true;
+                    }
+                    file_counts.insert((change.layer, change.relative_path.clone()), counts);
                 }
                 patch
             }
@@ -162,7 +174,14 @@ impl RepositoryBackend {
                 .copied()
                 .flatten();
         }
-        Ok(patch_counts(&patch))
+        if untracked_binary {
+            return Ok((None, None));
+        }
+        let (additions, deletions) = patch_counts(&patch);
+        Ok((
+            additions.map(|additions| additions.saturating_add(untracked_additions)),
+            deletions,
+        ))
     }
 
     #[cfg(test)]
@@ -451,6 +470,7 @@ pub(super) fn change(
     })
 }
 
+#[cfg(test)]
 pub(super) fn diff_result(target: DiffTarget, patch: String) -> DiffResult {
     let (additions, deletions) = patch_counts(&patch);
     let exists = target.absolute_path().exists();
