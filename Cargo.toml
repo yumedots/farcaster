@@ -89,13 +89,13 @@ gpui-libghostty = { git = "https://github.com/yumedots/gpui-libghostty", rev = "
 collections = { path = "third_party/gpui/crates/collections" }
 derive_refineable = { path = "third_party/gpui/crates/refineable/derive_refineable" }
 gpui = { path = "third_party/gpui/crates/gpui" }
+gpui_apple = { path = "third_party/gpui/crates/gpui_apple" }
 gpui_linux = { path = "third_party/gpui/crates/gpui_linux" }
 gpui_macos = { path = "third_party/gpui/crates/gpui_macos" }
 gpui_macros = { path = "third_party/gpui/crates/gpui_macros" }
 gpui_platform = { path = "third_party/gpui/crates/gpui_platform" }
 gpui_shared_string = { path = "third_party/gpui/crates/gpui_shared_string" }
 gpui_util = { path = "third_party/gpui/crates/gpui_util" }
-gpui_web = { path = "third_party/gpui/crates/gpui_web" }
 gpui_wgpu = { path = "third_party/gpui/crates/gpui_wgpu" }
 gpui_windows = { path = "third_party/gpui/crates/gpui_windows" }
 http_client = { path = "third_party/gpui/crates/http_client" }

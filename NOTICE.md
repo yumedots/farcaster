@@ -43,9 +43,12 @@ The upstream license is included at
 `THIRD_PARTY_LICENSES/GPUI-COMPONENT-APACHE-2.0.txt`; extraction details remain
 with the corresponding source under `third_party/gpui-component-bd83329`.
 
-The GPUI framework and its narrow Zed package closure are included from Zed
-commit `cc053a4a6fa2fd0e8793201ed9099466af1be0b1` under
-`third_party/gpui`. The included packages declare Apache-2.0 or
+The GPUI framework and its Zed package closure are included from Farcaster's
+`yumedots/gpui` fork at <https://github.com/yumedots/gpui> under
+`third_party/gpui`. The fork carries the fixes this repository used to hold in
+its own checkout; the earlier narrow Zed
+`cc053a4a6fa2fd0e8793201ed9099466af1be0b1` snapshot is kept on the fork's
+`farcaster/vendor` branch. The included packages declare Apache-2.0 or
 GPL-3.0-or-later licensing. Their license texts are included as
 `THIRD_PARTY_LICENSES/ZED-GPUI-APACHE-2.0.txt` and
 `THIRD_PARTY_LICENSES/ZED-GPUI-GPL-3.0.txt`; detailed provenance remains with

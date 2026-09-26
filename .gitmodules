@@ -1,4 +1,4 @@
 [submodule "third_party/gpui"]
 	path = third_party/gpui
 	url = https://github.com/yumedots/gpui.git
-	branch = farcaster/vendor
+	branch = master
