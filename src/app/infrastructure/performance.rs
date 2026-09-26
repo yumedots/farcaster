@@ -480,7 +480,10 @@ fn collect_summary(
     let frames = frames
         .collect_unseen()
         .into_iter()
-        .filter(|frame| frame.window_id == window_id)
+        .filter_map(|event| match event {
+            profiler::FrameEvent::Draw(timing) if timing.window_id == window_id => Some(timing),
+            profiler::FrameEvent::Draw(_) | profiler::FrameEvent::Present(_) => None,
+        })
         .collect::<Vec<_>>();
     let mut draw = frames
         .iter()
