@@ -45,7 +45,7 @@ with the corresponding source under `third_party/gpui-component-bd83329`.
 
 The GPUI framework and its narrow Zed package closure are included from Zed
 commit `cc053a4a6fa2fd0e8793201ed9099466af1be0b1` under
-`third_party/zed-gpui-cc053a4`. The included packages declare Apache-2.0 or
+`third_party/gpui`. The included packages declare Apache-2.0 or
 GPL-3.0-or-later licensing. Their license texts are included as
 `THIRD_PARTY_LICENSES/ZED-GPUI-APACHE-2.0.txt` and
 `THIRD_PARTY_LICENSES/ZED-GPUI-GPL-3.0.txt`; detailed provenance remains with

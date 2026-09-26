@@ -28,8 +28,8 @@ resources = [
     { src = "assets/lilex/OFL.txt", target = "THIRD_PARTY_LICENSES/LILEX-OFL.txt" },
     { src = "assets/vazirmatn/OFL.txt", target = "THIRD_PARTY_LICENSES/VAZIRMATN-OFL.txt" },
     { src = "third_party/gpui-component-bd83329/LICENSE-APACHE", target = "THIRD_PARTY_LICENSES/GPUI-COMPONENT-APACHE-2.0.txt" },
-    { src = "third_party/zed-gpui-cc053a4/LICENSE-APACHE", target = "THIRD_PARTY_LICENSES/ZED-GPUI-APACHE-2.0.txt" },
-    { src = "third_party/zed-gpui-cc053a4/LICENSE-GPL", target = "THIRD_PARTY_LICENSES/ZED-GPUI-GPL-3.0.txt" },
+    { src = "third_party/gpui/LICENSE-APACHE", target = "THIRD_PARTY_LICENSES/ZED-GPUI-APACHE-2.0.txt" },
+    { src = "third_party/gpui/LICENSE-GPL", target = "THIRD_PARTY_LICENSES/ZED-GPUI-GPL-3.0.txt" },
 ]
 binaries = [{ path = "farcaster", main = true }]
 before-packaging-command = "cargo build --release --locked --bin farcaster"
@@ -45,11 +45,11 @@ base64 = "0.22.1"
 blocking = "1.6.2"
 claude-sdk-types = { path = "crates/claude-sdk-types", features = ["cli-compat"] }
 futures = "0.3.32"
-gpui = { path = "third_party/zed-gpui-cc053a4/crates/gpui", features = ["profiler"] }
+gpui = { path = "third_party/gpui/crates/gpui", features = ["profiler"] }
 gpui-base = { path = "third_party/gpui-component-bd83329/base" }
 gpui-component = { path = "third_party/gpui-component-bd83329/ui" }
 gpui-libghostty = "0.2.5"
-gpui_platform = { path = "third_party/zed-gpui-cc053a4/crates/gpui_platform", features = ["font-kit", "runtime_shaders", "wayland", "x11"] }
+gpui_platform = { path = "third_party/gpui/crates/gpui_platform", features = ["font-kit", "runtime_shaders", "wayland", "x11"] }
 notify = "7.0.0"
 nucleo-matcher = "0.3.1"
 path-clean = "1.0.1"
@@ -58,7 +58,7 @@ rusqlite = { version = "0.37.0", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 sha2 = "0.10.9"
-sum_tree = { path = "third_party/zed-gpui-cc053a4/crates/sum_tree" }
+sum_tree = { path = "third_party/gpui/crates/sum_tree" }
 tempfile = "3.27.0"
 thiserror = "2.0.19"
 time = { version = "0.3.54", features = ["formatting", "parsing"] }
@@ -68,46 +68,46 @@ tpt-logfmt-parse = "0.3.0"
 url = "2.5.8"
 uuid = { version = "1.24.0", features = ["v4"] }
 workgraph = { path = "workgraph" }
-zlog = { path = "third_party/zed-gpui-cc053a4/crates/zlog" }
+zlog = { path = "third_party/gpui/crates/zlog" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 uzers = { version = "0.12.2", default-features = false }
 
 [dev-dependencies]
-gpui = { path = "third_party/zed-gpui-cc053a4/crates/gpui", features = ["test-support"] }
+gpui = { path = "third_party/gpui/crates/gpui", features = ["test-support"] }
 
 [[bench]]
 name = "transcript"
 harness = false
 
 [patch.crates-io]
-gpui = { path = "third_party/zed-gpui-cc053a4/crates/gpui" }
+gpui = { path = "third_party/gpui/crates/gpui" }
 gpui-libghostty = { git = "https://github.com/yumedots/gpui-libghostty", rev = "12a310c80a9686217288a199a3830fa2bc344c5d" }
 
 [patch."https://github.com/zed-industries/zed"]
-collections = { path = "third_party/zed-gpui-cc053a4/crates/collections" }
-derive_refineable = { path = "third_party/zed-gpui-cc053a4/crates/refineable/derive_refineable" }
-gpui = { path = "third_party/zed-gpui-cc053a4/crates/gpui" }
-gpui_linux = { path = "third_party/zed-gpui-cc053a4/crates/gpui_linux" }
-gpui_macos = { path = "third_party/zed-gpui-cc053a4/crates/gpui_macos" }
-gpui_macros = { path = "third_party/zed-gpui-cc053a4/crates/gpui_macros" }
-gpui_platform = { path = "third_party/zed-gpui-cc053a4/crates/gpui_platform" }
-gpui_shared_string = { path = "third_party/zed-gpui-cc053a4/crates/gpui_shared_string" }
-gpui_util = { path = "third_party/zed-gpui-cc053a4/crates/gpui_util" }
-gpui_web = { path = "third_party/zed-gpui-cc053a4/crates/gpui_web" }
-gpui_wgpu = { path = "third_party/zed-gpui-cc053a4/crates/gpui_wgpu" }
-gpui_windows = { path = "third_party/zed-gpui-cc053a4/crates/gpui_windows" }
-http_client = { path = "third_party/zed-gpui-cc053a4/crates/http_client" }
-media = { path = "third_party/zed-gpui-cc053a4/crates/media" }
-perf = { path = "third_party/zed-gpui-cc053a4/tooling/perf" }
-refineable = { path = "third_party/zed-gpui-cc053a4/crates/refineable" }
-scheduler = { path = "third_party/zed-gpui-cc053a4/crates/scheduler" }
-sum_tree = { path = "third_party/zed-gpui-cc053a4/crates/sum_tree" }
-util_macros = { path = "third_party/zed-gpui-cc053a4/crates/util_macros" }
-zlog = { path = "third_party/zed-gpui-cc053a4/crates/zlog" }
-ztracing = { path = "third_party/zed-gpui-cc053a4/crates/ztracing" }
-ztracing_macro = { path = "third_party/zed-gpui-cc053a4/crates/ztracing_macro" }
+collections = { path = "third_party/gpui/crates/collections" }
+derive_refineable = { path = "third_party/gpui/crates/refineable/derive_refineable" }
+gpui = { path = "third_party/gpui/crates/gpui" }
+gpui_linux = { path = "third_party/gpui/crates/gpui_linux" }
+gpui_macos = { path = "third_party/gpui/crates/gpui_macos" }
+gpui_macros = { path = "third_party/gpui/crates/gpui_macros" }
+gpui_platform = { path = "third_party/gpui/crates/gpui_platform" }
+gpui_shared_string = { path = "third_party/gpui/crates/gpui_shared_string" }
+gpui_util = { path = "third_party/gpui/crates/gpui_util" }
+gpui_web = { path = "third_party/gpui/crates/gpui_web" }
+gpui_wgpu = { path = "third_party/gpui/crates/gpui_wgpu" }
+gpui_windows = { path = "third_party/gpui/crates/gpui_windows" }
+http_client = { path = "third_party/gpui/crates/http_client" }
+media = { path = "third_party/gpui/crates/media" }
+perf = { path = "third_party/gpui/tooling/perf" }
+refineable = { path = "third_party/gpui/crates/refineable" }
+scheduler = { path = "third_party/gpui/crates/scheduler" }
+sum_tree = { path = "third_party/gpui/crates/sum_tree" }
+util_macros = { path = "third_party/gpui/crates/util_macros" }
+zlog = { path = "third_party/gpui/crates/zlog" }
+ztracing = { path = "third_party/gpui/crates/ztracing" }
+ztracing_macro = { path = "third_party/gpui/crates/ztracing_macro" }
 
 [profile.dev]
 debug = "line-tables-only"
