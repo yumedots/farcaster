@@ -3,7 +3,6 @@ use std::{ffi::OsString, path::PathBuf};
 use super::super::command_failed;
 use crate::repository::{
     ChangeLayer, RepositoryBackend, RepositoryEdit, RepositoryEditReview, RepositoryError,
-    SnapshotIdentity,
 };
 
 pub(super) fn apply(
@@ -17,8 +16,7 @@ pub(super) fn apply(
         .changes
         .iter()
         .filter(|change| {
-            change.layer == ChangeLayer::GitUntracked
-                && review.paths.contains(&change.relative_path)
+            change.layer == ChangeLayer::Untracked && review.paths.contains(&change.relative_path)
         })
         .map(|change| change.relative_path.clone())
         .collect::<Vec<_>>();
@@ -39,7 +37,7 @@ pub(super) fn apply(
                 .cloned()
                 .collect::<Vec<_>>();
             if !tracked.is_empty() {
-                let unborn = matches!(&review.snapshot.identity, SnapshotIdentity::Git(identity) if identity.head_oid.is_none());
+                let unborn = review.snapshot.identity.head_oid.is_none();
                 let args: &[&str] = if unborn {
                     &["rm", "-f"]
                 } else {

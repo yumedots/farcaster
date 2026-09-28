@@ -138,19 +138,17 @@ impl FarcasterApp {
             return;
         }
         self.composer.project_files_loading = Some(project.clone());
-        let preference = self.project.repository.preference;
         let task = cx.background_spawn(async move {
-            let files = file_mentions::project_files(&project, preference);
-            (project, preference, files)
+            let files = file_mentions::project_files(&project);
+            (project, files)
         });
         cx.spawn(async move |weak, cx| {
-            let (project, preference, files) = task.await;
+            let (project, files) = task.await;
             let _ = weak.update(cx, |this, cx| {
                 if this.composer.project_files_loading.as_ref() == Some(&project) {
                     this.composer.project_files_loading = None;
                 }
-                if this.project.path == project && this.project.repository.preference == preference
-                {
+                if this.project.path == project {
                     this.composer.project_files = files;
                     this.composer.project_files_project = Some(project);
                     this.notify_composer(cx);

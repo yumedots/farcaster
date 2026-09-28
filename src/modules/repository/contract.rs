@@ -1,54 +1,8 @@
 use std::{
     fmt,
     path::PathBuf,
-    str::FromStr,
     time::{Duration, SystemTime},
 };
-
-use super::domain::SnapshotToken;
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) enum BackendPreference {
-    #[default]
-    Auto,
-    Git,
-    Jujutsu,
-}
-
-impl BackendPreference {
-    pub(crate) const fn as_str(self) -> &'static str {
-        match self {
-            Self::Auto => "auto",
-            Self::Git => "git",
-            Self::Jujutsu => "jj",
-        }
-    }
-}
-
-impl fmt::Display for BackendPreference {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
-
-impl FromStr for BackendPreference {
-    type Err = String;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "auto" => Ok(Self::Auto),
-            "git" => Ok(Self::Git),
-            "jj" | "jujutsu" => Ok(Self::Jujutsu),
-            _ => Err(format!("unknown repository backend preference: {value}")),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum RepositoryKind {
-    Git,
-    Jujutsu,
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum RepositorySyncAction {
@@ -58,15 +12,8 @@ pub(crate) enum RepositorySyncAction {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RepositoryLocation {
-    pub(crate) kind: RepositoryKind,
     pub(crate) workspace_root: PathBuf,
     pub(crate) project_root: PathBuf,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum SnapshotIdentity {
-    Git(GitIdentity),
-    Jujutsu(JujutsuIdentity),
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -79,27 +26,12 @@ pub(crate) struct GitIdentity {
     pub(crate) behind: u64,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct JujutsuIdentity {
-    pub(crate) operation_id: String,
-    pub(crate) commit_id: String,
-    pub(crate) change_id: String,
-    pub(crate) description: String,
-    pub(crate) bookmarks: Vec<String>,
-    pub(crate) closest_bookmarks: Vec<String>,
-    pub(crate) ahead: u64,
-    pub(crate) conflicted_paths: Vec<PathBuf>,
-    pub(crate) conflicted: bool,
-    pub(crate) empty: bool,
-}
-
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) enum ChangeLayer {
-    GitIndex,
-    GitWorkingTree,
-    GitConflict,
-    GitUntracked,
-    JujutsuWorkingCopy,
+    Index,
+    WorkingTree,
+    Conflict,
+    Untracked,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -147,7 +79,7 @@ pub(crate) struct DiffTarget {
     pub(crate) layer: ChangeLayer,
     pub(crate) kind: ChangeKind,
     pub(crate) exists: bool,
-    pub(super) token: SnapshotToken,
+    pub(super) token: std::sync::Arc<[u8]>,
 }
 
 impl DiffTarget {
@@ -169,7 +101,7 @@ pub(crate) struct WorkingCopyChange {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkingCopySnapshot {
     pub(crate) location: RepositoryLocation,
-    pub(crate) identity: SnapshotIdentity,
+    pub(crate) identity: GitIdentity,
     pub(crate) changes: Vec<WorkingCopyChange>,
     pub(crate) captured_at: SystemTime,
 }
@@ -190,10 +122,6 @@ pub(crate) enum RepositoryError {
         context: String,
         source: std::io::Error,
     },
-    BackendUnavailable {
-        kind: RepositoryKind,
-        project: PathBuf,
-    },
     CommandTimedOut {
         program: String,
         timeout: Duration,
@@ -212,7 +140,6 @@ pub(crate) enum RepositoryError {
     },
     InvalidRepository(String),
     InvalidOutput {
-        backend: RepositoryKind,
         detail: String,
     },
     InvalidPath(PathBuf),
@@ -225,13 +152,6 @@ impl fmt::Display for RepositoryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io { context, source } => write!(formatter, "{context}: {source}"),
-            Self::BackendUnavailable { kind, project } => {
-                write!(
-                    formatter,
-                    "{kind:?} is not a repository at {}",
-                    project.display()
-                )
-            }
             Self::CommandTimedOut { program, timeout } => {
                 write!(formatter, "{program} timed out after {timeout:?}")
             }
@@ -259,9 +179,7 @@ impl fmt::Display for RepositoryError {
                 write!(formatter, "{program} output pipes did not close after exit")
             }
             Self::InvalidRepository(detail) => write!(formatter, "invalid repository: {detail}"),
-            Self::InvalidOutput { backend, detail } => {
-                write!(formatter, "invalid {backend:?} output: {detail}")
-            }
+            Self::InvalidOutput { detail } => write!(formatter, "invalid Git output: {detail}"),
             Self::InvalidPath(path) => {
                 write!(formatter, "invalid repository path: {}", path.display())
             }

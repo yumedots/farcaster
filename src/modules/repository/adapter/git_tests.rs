@@ -10,8 +10,8 @@ u UU N... 100644 100644 100644 100644 aaaaaa bbbbbb cccccc conflict.txt\0";
     let (identity, changes) = parse_status(input).expect("status should parse");
     assert_eq!((identity.ahead, identity.behind), (2, 1));
     assert_eq!(changes.len(), 5);
-    assert_eq!(changes[0].layer, ChangeLayer::GitIndex);
-    assert_eq!(changes[1].layer, ChangeLayer::GitWorkingTree);
+    assert_eq!(changes[0].layer, ChangeLayer::Index);
+    assert_eq!(changes[1].layer, ChangeLayer::WorkingTree);
     assert_eq!(changes[2].kind, ChangeKind::Renamed);
     assert_eq!(
         changes[2].original_relative_path,

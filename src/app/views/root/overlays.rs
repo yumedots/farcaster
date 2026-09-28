@@ -148,9 +148,6 @@ impl FarcasterApp {
             .when(self.sessions.import.is_some(), |root| {
                 root.child(dialogs::session_import::render(self, entity.clone()))
             })
-            .when(self.project.repository.pending_jj_init.is_some(), |root| {
-                root.child(dialogs::jj_init_confirmation::render(self, entity.clone()))
-            })
             .when(self.project.repository.edits.pending.is_some(), |root| {
                 root.child(dialogs::repository_edit::render(self, entity.clone(), cx))
             })

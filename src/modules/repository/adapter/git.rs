@@ -1,8 +1,8 @@
 use std::{ffi::OsString, path::PathBuf, sync::Arc, time::SystemTime};
 
 use super::super::{
-    ChangeKind, ChangeLayer, GitIdentity, RepositoryBackend, RepositoryError, RepositoryKind,
-    SnapshotIdentity, SnapshotToken, WorkingCopySnapshot, change,
+    ChangeKind, ChangeLayer, GitIdentity, RepositoryBackend, RepositoryError, WorkingCopySnapshot,
+    change,
     core::port::{CommandOutput, RepositoryOperations},
     require_complete_stdout,
 };
@@ -51,7 +51,7 @@ pub(in crate::modules::repository) fn snapshot(
     backend: &RepositoryBackend,
 ) -> Result<WorkingCopySnapshot, RepositoryError> {
     let output = status_output(backend)?;
-    let token = SnapshotToken::Git(Arc::from(output.stdout.clone()));
+    let token: Arc<[u8]> = Arc::from(output.stdout.clone());
     let (identity, parsed) = parse_status(&output.stdout)?;
     let changes = parsed
         .into_iter()
@@ -68,7 +68,7 @@ pub(in crate::modules::repository) fn snapshot(
         .collect::<Result<Vec<_>, _>>()?;
     Ok(WorkingCopySnapshot {
         location: backend.location.clone(),
-        identity: SnapshotIdentity::Git(identity),
+        identity,
         changes,
         captured_at: SystemTime::now(),
     })
@@ -110,25 +110,16 @@ pub(in crate::modules::repository) fn load_diff(
     backend: &RepositoryBackend,
     target: DiffTarget,
 ) -> Result<DiffResult, RepositoryError> {
-    let SnapshotToken::Git(expected_status) = &target.token else {
-        return Err(RepositoryError::TargetMismatch(
-            "Jujutsu snapshot token used with Git".to_owned(),
-        ));
-    };
+    let expected_status = &target.token;
     let current = status_output(backend)?;
     if current.stdout.as_slice() != expected_status.as_ref() {
         return Err(RepositoryError::StaleSnapshot);
     }
 
     let mut arguments = match target.layer {
-        ChangeLayer::GitIndex => diff_arguments(true),
-        ChangeLayer::GitWorkingTree | ChangeLayer::GitConflict => diff_arguments(false),
-        ChangeLayer::GitUntracked => untracked_diff_arguments(),
-        ChangeLayer::JujutsuWorkingCopy => {
-            return Err(RepositoryError::TargetMismatch(
-                "Jujutsu target used with Git".to_owned(),
-            ));
-        }
+        ChangeLayer::Index => diff_arguments(true),
+        ChangeLayer::WorkingTree | ChangeLayer::Conflict => diff_arguments(false),
+        ChangeLayer::Untracked => untracked_diff_arguments(),
     };
     if let Some(original) = &target.original_relative_path {
         arguments.push(original.as_os_str().to_os_string());
@@ -136,7 +127,7 @@ pub(in crate::modules::repository) fn load_diff(
     arguments.push(target.relative_path.as_os_str().to_os_string());
     let output = backend.run(&arguments)?;
     let success = output.status.success()
-        || (target.layer == ChangeLayer::GitUntracked && output.status.code() == Some(1));
+        || (target.layer == ChangeLayer::Untracked && output.status.code() == Some(1));
     if !success {
         return Err(command_failed(backend.executable(), &output));
     }
@@ -269,14 +260,14 @@ fn parse_status(input: &[u8]) -> Result<(GitIdentity, Vec<ParsedChange>), Reposi
                 changes.push(ParsedChange {
                     relative_path: path_from_bytes(fields[10]),
                     original_relative_path: None,
-                    layer: ChangeLayer::GitConflict,
+                    layer: ChangeLayer::Conflict,
                     kind: ChangeKind::Conflict,
                 });
             }
             Some(b'?') if record.get(1) == Some(&b' ') => changes.push(ParsedChange {
                 relative_path: path_from_bytes(&record[2..]),
                 original_relative_path: None,
-                layer: ChangeLayer::GitUntracked,
+                layer: ChangeLayer::Untracked,
                 kind: ChangeKind::Untracked,
             }),
             Some(b'!') => {}
@@ -354,7 +345,7 @@ fn push_xy_changes(
         changes.push(ParsedChange {
             relative_path: path.clone(),
             original_relative_path: rename_source(&kind, &original),
-            layer: ChangeLayer::GitIndex,
+            layer: ChangeLayer::Index,
             kind,
         });
     }
@@ -363,7 +354,7 @@ fn push_xy_changes(
         changes.push(ParsedChange {
             relative_path: path,
             original_relative_path: rename_source(&kind, &original),
-            layer: ChangeLayer::GitWorkingTree,
+            layer: ChangeLayer::WorkingTree,
             kind,
         });
     }
@@ -401,7 +392,6 @@ fn path_from_bytes(bytes: &[u8]) -> PathBuf {
 
 fn invalid(detail: impl Into<String>) -> RepositoryError {
     RepositoryError::InvalidOutput {
-        backend: RepositoryKind::Git,
         detail: detail.into(),
     }
 }

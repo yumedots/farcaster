@@ -14,10 +14,7 @@ use crate::{
             theme::{MONO_FONT_FAMILY, theme},
         },
     },
-    repository::{
-        BackendPreference, RepositoryBackend, RepositoryEdit, RepositoryKind, RepositorySyncAction,
-        SnapshotIdentity, WorkingCopySnapshot,
-    },
+    repository::{RepositoryEdit, RepositorySyncAction, WorkingCopySnapshot},
 };
 use gpui::{
     AnyElement, App, Div, ElementId, InteractiveElement as _, IntoElement, ParentElement as _,
@@ -209,9 +206,6 @@ fn repository_actions(
     let enabled = app.project.repository.execution_allowed;
     let syncing = app.project.repository.sync.action;
     let identity = snapshot.map(|snapshot| snapshot.identity.clone());
-    let kind = snapshot.map(|snapshot| snapshot.location.kind);
-    let (git, jj) = RepositoryBackend::available_backends();
-    let active = selected_backend(kind, app.project.repository.preference, git, jj);
     dropdown_button("repository-actions", "⋯", ButtonTone::Quiet, true)
         .dropdown_caret(false)
         .size(theme().controls.icon_button)
@@ -240,12 +234,9 @@ fn repository_actions(
                 RepositorySyncAction::Push,
             ] {
                 let entity = entity.clone();
-                let label = match (kind, action) {
-                    (Some(RepositoryKind::Jujutsu), RepositorySyncAction::PullOrFetch) => {
-                        "Fetch repository"
-                    }
-                    (_, RepositorySyncAction::PullOrFetch) => "Pull repository",
-                    (_, RepositorySyncAction::Push) => "Push repository",
+                let label = match action {
+                    RepositorySyncAction::PullOrFetch => "Pull repository",
+                    RepositorySyncAction::Push => "Push repository",
                 };
                 let available = enabled
                     && syncing.is_none()
@@ -259,43 +250,8 @@ fn repository_actions(
                     },
                 ));
             }
-            menu = menu.separator();
-            for (label, preference, available, kind) in [
-                ("Use Git", BackendPreference::Git, git, RepositoryKind::Git),
-                (
-                    "Use JJ",
-                    BackendPreference::Jujutsu,
-                    jj,
-                    RepositoryKind::Jujutsu,
-                ),
-            ] {
-                let entity = entity.clone();
-                menu = menu.item(
-                    PopupMenuItem::new(label)
-                        .checked(active == Some(kind))
-                        .disabled(!enabled || !available)
-                        .on_click(move |_, window, cx| {
-                            let _ = entity.update(cx, |this, cx| {
-                                this.set_repository_backend_preference(preference, window, cx)
-                            });
-                        }),
-                );
-            }
             menu
         })
-}
-
-pub(super) fn selected_backend(
-    discovered: Option<RepositoryKind>,
-    preference: BackendPreference,
-    git_available: bool,
-    jj_available: bool,
-) -> Option<RepositoryKind> {
-    discovered.or(match preference {
-        BackendPreference::Git if git_available => Some(RepositoryKind::Git),
-        BackendPreference::Jujutsu if jj_available => Some(RepositoryKind::Jujutsu),
-        BackendPreference::Auto | BackendPreference::Git | BackendPreference::Jujutsu => None,
-    })
 }
 
 fn working_copy_totals(additions: Option<u64>, deletions: Option<u64>) -> AnyElement {
@@ -318,16 +274,9 @@ fn working_copy_totals(additions: Option<u64>, deletions: Option<u64>) -> AnyEle
 }
 
 fn repository_identity_label(snapshot: &WorkingCopySnapshot) -> String {
-    match &snapshot.identity {
-        SnapshotIdentity::Git(identity) => git_identity(identity),
-        SnapshotIdentity::Jujutsu(identity) => identity.change_id.chars().take(8).collect(),
-    }
+    git_identity(&snapshot.identity)
 }
 
 fn compact_identity_label(snapshot: &WorkingCopySnapshot) -> String {
-    let backend = match snapshot.location.kind {
-        RepositoryKind::Git => "Git",
-        RepositoryKind::Jujutsu => "JJ",
-    };
-    format!("{backend} · {}", repository_identity_label(snapshot))
+    format!("Git · {}", repository_identity_label(snapshot))
 }

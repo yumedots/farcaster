@@ -101,8 +101,6 @@ impl FarcasterApp {
                     pending.focus.clone()
                 },
             )
-        } else if let Some(pending) = &self.project.repository.pending_jj_init {
-            Some(pending.focus.clone())
         } else if let Some(pending) = &self.sessions.pending_delete {
             Some(pending.focus.clone())
         } else if let Some(dialog) = &self.sessions.import {
@@ -482,7 +480,6 @@ impl FarcasterApp {
             || self.sessions.pending_delete.is_some()
             || self.sessions.import.is_some()
             || self.overlays.image_preview.is_some()
-            || self.project.repository.pending_jj_init.is_some()
             || self.project.repository.edits.pending.is_some()
     }
 
@@ -1097,8 +1094,6 @@ impl FarcasterApp {
             self.close_image_preview(window, cx);
         } else if self.project.repository.edits.pending.is_some() {
             self.close_repository_edit(window, cx);
-        } else if self.project.repository.pending_jj_init.is_some() {
-            self.close_jj_init_confirmation(window, cx);
         } else if self.sessions.pending_delete.is_some() {
             self.close_delete_confirmation(window, cx);
         } else if self.sessions.import.is_some() {

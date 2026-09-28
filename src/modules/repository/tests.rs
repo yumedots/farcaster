@@ -39,24 +39,25 @@ impl Drop for TestDirectory {
 }
 
 #[test]
-fn auto_uses_deepest_marker_and_jj_wins_only_a_tie() {
+fn discovery_uses_the_deepest_marker() {
     let temp = TestDirectory::new("discovery");
     fs::create_dir(temp.path().join(".git")).expect("create Git marker");
-    fs::create_dir(temp.path().join(".jj")).expect("create JJ marker");
     let nested = temp.path().join("nested/project");
     fs::create_dir_all(&nested).expect("create nested project");
     fs::create_dir(nested.parent().expect("nested parent").join(".git"))
         .expect("create nested Git marker");
 
-    let root = discover_available(temp.path(), BackendPreference::Auto)
+    let root = discover_available(temp.path())
         .expect("discover root")
         .expect("root repository");
-    assert_eq!(root.location.kind, RepositoryKind::Jujutsu);
+    assert_eq!(
+        root.location.workspace_root,
+        temp.path().canonicalize().expect("canonical root")
+    );
 
-    let nested_backend = discover_available(&nested, BackendPreference::Auto)
+    let nested_backend = discover_available(&nested)
         .expect("discover nested")
         .expect("nested repository");
-    assert_eq!(nested_backend.location.kind, RepositoryKind::Git);
     assert_eq!(
         nested_backend.location.workspace_root,
         nested
@@ -68,151 +69,17 @@ fn auto_uses_deepest_marker_and_jj_wins_only_a_tie() {
 }
 
 #[test]
-fn forced_backend_never_falls_back() {
-    let temp = TestDirectory::new("forced");
-    fs::create_dir(temp.path().join(".jj")).expect("create JJ marker");
-
-    let parent_git = discover_available(
-        temp.path().parent().expect("test operation should succeed"),
-        BackendPreference::Git,
-    )
-    .ok()
-    .flatten();
-    match parent_git {
-        Some(parent) => {
-            let git = discover_available(temp.path(), BackendPreference::Git)
-                .expect("discover enclosing Git repository")
-                .expect("enclosing Git repository");
-            assert_eq!(git.location.kind, RepositoryKind::Git);
-            assert_eq!(git.location.workspace_root, parent.location.workspace_root);
-        }
-        None => {
-            let error = discover_available(temp.path(), BackendPreference::Git)
-                .expect_err("forced Git must not use JJ");
-            assert!(matches!(
-                error,
-                RepositoryError::BackendUnavailable {
-                    kind: RepositoryKind::Git,
-                    ..
-                }
-            ));
-        }
-    }
-
-    fs::create_dir(temp.path().join(".git")).expect("create Git marker");
-    let git = discover_available(temp.path(), BackendPreference::Git)
-        .expect("discover forced Git")
-        .expect("Git repository");
-    let jj = discover_available(temp.path(), BackendPreference::Jujutsu)
-        .expect("discover forced JJ")
-        .expect("JJ repository");
-    assert_eq!(git.location.kind, RepositoryKind::Git);
-    assert_eq!(jj.location.kind, RepositoryKind::Jujutsu);
-}
-
-#[test]
-fn unavailable_backend_is_ignored_for_auto_and_stale_preference() {
-    let temp = TestDirectory::new("unavailable");
-    fs::create_dir(temp.path().join(".git")).expect("create Git marker");
-    fs::create_dir(temp.path().join(".jj")).expect("create JJ marker");
-    let missing = temp.path().join("missing");
-    let options = RepositoryOptions {
-        git_executable: std::env::current_exe()
-            .expect("current executable")
-            .into_os_string(),
-        jj_executable: missing.into_os_string(),
-        ..RepositoryOptions::default()
-    };
-
-    for preference in [BackendPreference::Auto, BackendPreference::Jujutsu] {
-        let backend =
-            RepositoryBackend::discover_with_options(temp.path(), preference, options.clone())
-                .expect("ignore unavailable JJ")
-                .expect("Git repository");
-        assert_eq!(backend.location.kind, RepositoryKind::Git);
-    }
-}
-
-#[test]
 fn no_repository_is_distinct_from_failure() {
     let temp = TestDirectory::new("none");
-    let parent = RepositoryBackend::discover(
-        temp.path().parent().expect("test operation should succeed"),
-        BackendPreference::Auto,
-    )
-    .expect("discover enclosing repository");
-    let result = RepositoryBackend::discover(temp.path(), BackendPreference::Auto)
-        .expect("marker scan should succeed");
+    let parent =
+        RepositoryBackend::discover(temp.path().parent().expect("test operation should succeed"))
+            .expect("discover enclosing repository");
+    let result = RepositoryBackend::discover(temp.path()).expect("marker scan should succeed");
     assert_eq!(
-        result.map(|backend| (backend.location.kind, backend.location.workspace_root)),
-        parent.map(|backend| (backend.location.kind, backend.location.workspace_root))
+        result.map(|backend| backend.location.workspace_root),
+        parent.map(|backend| backend.location.workspace_root)
     );
-    assert!(
-        RepositoryBackend::discover(&temp.path().join("missing"), BackendPreference::Auto).is_err()
-    );
-}
-
-#[test]
-fn jj_init_is_required_only_for_git_without_a_jj_marker() {
-    let temp = TestDirectory::new("jj-init-required");
-    fs::create_dir(temp.path().join(".git")).expect("create Git marker");
-    let mut location = RepositoryLocation {
-        kind: RepositoryKind::Git,
-        workspace_root: temp.path().to_path_buf(),
-        project_root: temp.path().to_path_buf(),
-    };
-
-    assert!(RepositoryBackend::jj_init_required(&location).expect("inspect Git repository"));
-    fs::create_dir(temp.path().join(".jj")).expect("create JJ marker");
-    assert!(!RepositoryBackend::jj_init_required(&location).expect("inspect colocated repository"));
-    location.kind = RepositoryKind::Jujutsu;
-    assert!(!RepositoryBackend::jj_init_required(&location).expect("inspect JJ repository"));
-}
-
-#[cfg(unix)]
-#[test]
-fn jj_init_runs_git_init_in_the_repository() {
-    use std::os::unix::fs::PermissionsExt as _;
-
-    let temp = TestDirectory::new("jj-init-command");
-    let repository = temp.path().join("repo");
-    let executable = temp.path().join("jj");
-    let staged_executable = temp.path().join("jj.tmp");
-    let log = temp.path().join("jj.log");
-    fs::create_dir_all(repository.join(".git")).expect("create Git repository");
-    fs::write(
-        &staged_executable,
-        "#!/bin/sh\nprintf '%s\\n' \"$PWD\" \"$@\" > \"$PI_TEST_LOG\"\n",
-    )
-    .expect("write fake JJ");
-    let mut permissions = fs::metadata(&staged_executable)
-        .expect("read fake JJ metadata")
-        .permissions();
-    permissions.set_mode(0o755);
-    fs::set_permissions(&staged_executable, permissions).expect("make fake JJ executable");
-    fs::rename(staged_executable, &executable).expect("install fake JJ");
-    let options = RepositoryOptions {
-        jj_executable: executable.into_os_string(),
-        environment: vec![(
-            OsString::from("PI_TEST_LOG"),
-            log.as_os_str().to_os_string(),
-        )],
-        ..RepositoryOptions::default()
-    };
-
-    RepositoryBackend::init_jj_colocated_with_options(&repository, options)
-        .expect("initialize colocated JJ repository");
-
-    let invocation = fs::read_to_string(log).expect("read fake JJ invocation");
-    let expected_root = repository
-        .canonicalize()
-        .expect("canonical repository")
-        .display()
-        .to_string();
-    assert_eq!(
-        invocation.lines().collect::<Vec<_>>(),
-        [expected_root.as_str(), "git", "init"]
-    );
+    assert!(RepositoryBackend::discover(&temp.path().join("missing")).is_err());
 }
 
 #[cfg(unix)]
@@ -222,25 +89,24 @@ fn stable_keys_do_not_use_lossy_path_display() {
 
     let temp = TestDirectory::new("keys");
     let location = RepositoryLocation {
-        kind: RepositoryKind::Git,
         workspace_root: temp.path().to_path_buf(),
         project_root: temp.path().to_path_buf(),
     };
     let first = change(
         &location,
-        SnapshotToken::Git(Arc::from([])),
+        Arc::from([]),
         PathBuf::from(OsString::from_vec(vec![0xff])),
         None,
-        ChangeLayer::GitUntracked,
+        ChangeLayer::Untracked,
         ChangeKind::Untracked,
     )
     .expect("first target");
     let second = change(
         &location,
-        SnapshotToken::Git(Arc::from([])),
+        Arc::from([]),
         PathBuf::from(OsString::from_vec(vec![0xfe])),
         None,
-        ChangeLayer::GitUntracked,
+        ChangeLayer::Untracked,
         ChangeKind::Untracked,
     )
     .expect("second target");
@@ -248,20 +114,9 @@ fn stable_keys_do_not_use_lossy_path_display() {
         first.target.relative_path.to_string_lossy(),
         second.target.relative_path.to_string_lossy()
     );
-    assert_eq!(first.target.layer, ChangeLayer::GitUntracked);
+    assert_eq!(first.target.layer, ChangeLayer::Untracked);
     assert_eq!(first.target.kind.status_label(), "?");
     assert_ne!(first.target.key, second.target.key);
-}
-
-#[test]
-fn backend_preferences_have_stable_storage_values() {
-    assert_eq!(BackendPreference::Auto.as_str(), "auto");
-    assert_eq!(BackendPreference::Git.as_str(), "git");
-    assert_eq!(BackendPreference::Jujutsu.as_str(), "jj");
-    assert_eq!(
-        "jj".parse::<BackendPreference>().expect("JJ preference"),
-        BackendPreference::Jujutsu
-    );
 }
 
 #[test]
@@ -309,10 +164,9 @@ fn git_snapshot_and_lazy_diff_use_separate_layers() {
         environment: isolated_environment(&home, &config),
         ..RepositoryOptions::default()
     };
-    let backend =
-        RepositoryBackend::discover_with_options(&repository, BackendPreference::Git, options)
-            .expect("discover Git")
-            .expect("Git repository");
+    let backend = RepositoryBackend::discover_with_options(&repository, options)
+        .expect("discover Git")
+        .expect("Git repository");
     let mut snapshot = backend.snapshot().expect("capture Git snapshot");
     assert_eq!(
         backend
@@ -321,8 +175,8 @@ fn git_snapshot_and_lazy_diff_use_separate_layers() {
         (Some(2), Some(1))
     );
     for (layer, counts) in [
-        (ChangeLayer::GitIndex, (1, 1)),
-        (ChangeLayer::GitWorkingTree, (1, 0)),
+        (ChangeLayer::Index, (1, 1)),
+        (ChangeLayer::WorkingTree, (1, 0)),
     ] {
         let change = snapshot
             .changes
@@ -339,18 +193,18 @@ fn git_snapshot_and_lazy_diff_use_separate_layers() {
         snapshot
             .changes
             .iter()
-            .any(|row| row.layer == ChangeLayer::GitIndex)
+            .any(|row| row.layer == ChangeLayer::Index)
     );
     assert!(
         snapshot
             .changes
             .iter()
-            .any(|row| row.layer == ChangeLayer::GitWorkingTree)
+            .any(|row| row.layer == ChangeLayer::WorkingTree)
     );
     let target = snapshot
         .changes
         .iter()
-        .find(|row| row.layer == ChangeLayer::GitIndex)
+        .find(|row| row.layer == ChangeLayer::Index)
         .expect("staged row")
         .target
         .clone();
@@ -422,10 +276,9 @@ fn git_untracked_files_are_counted_from_their_contents() {
         environment: isolated_environment(&home, &config),
         ..RepositoryOptions::default()
     };
-    let backend =
-        RepositoryBackend::discover_with_options(&repository, BackendPreference::Git, options)
-            .expect("discover Git")
-            .expect("Git repository");
+    let backend = RepositoryBackend::discover_with_options(&repository, options)
+        .expect("discover Git")
+        .expect("Git repository");
     let mut snapshot = backend.snapshot().expect("capture Git snapshot");
     assert_eq!(
         backend
@@ -436,7 +289,7 @@ fn git_untracked_files_are_counted_from_their_contents() {
     let change = snapshot
         .changes
         .iter()
-        .find(|change| change.layer == ChangeLayer::GitUntracked)
+        .find(|change| change.layer == ChangeLayer::Untracked)
         .expect("untracked row");
     assert_eq!(change.counts, Some((2, 0)));
 
@@ -503,84 +356,48 @@ fn linked_git_worktree_is_an_independent_working_copy() {
         environment: isolated_environment(&home, &config),
         ..RepositoryOptions::default()
     };
-    let backend =
-        RepositoryBackend::discover_with_options(&worktree, BackendPreference::Git, options)
-            .expect("discover linked worktree")
-            .expect("Git worktree");
+    let backend = RepositoryBackend::discover_with_options(&worktree, options)
+        .expect("discover linked worktree")
+        .expect("Git worktree");
     assert_eq!(
         backend.location.workspace_root,
         worktree.canonicalize().expect("canonical worktree")
     );
     let snapshot = backend.snapshot().expect("worktree status");
     assert_eq!(snapshot.changes.len(), 1);
-    assert_eq!(snapshot.changes[0].layer, ChangeLayer::GitWorkingTree);
+    assert_eq!(snapshot.changes[0].layer, ChangeLayer::WorkingTree);
 }
 
 #[test]
-fn jj_snapshot_and_lazy_diff_use_the_current_change_only() {
-    if !jj_installed() {
-        return;
-    }
-    let temp = TestDirectory::new("jj-command");
-    let repository = temp.path().join("repo");
-    let home = temp.path().join("home");
-    let config = temp.path().join("config");
-    fs::create_dir_all(&home).expect("create home directory");
-    fs::create_dir_all(&config).expect("create config directory");
-    run_jj(temp.path(), &home, &config, &["git", "init", "repo"]);
-    fs::write(repository.join("a|b.txt"), "working\n").expect("write JJ file");
-
-    let options = RepositoryOptions {
-        environment: isolated_environment(&home, &config),
-        ..RepositoryOptions::default()
-    };
-    let backend =
-        RepositoryBackend::discover_with_options(&repository, BackendPreference::Jujutsu, options)
-            .expect("discover JJ")
-            .expect("JJ repository");
-    let mut snapshot = backend.snapshot().expect("capture JJ snapshot");
-    assert_eq!(
-        backend
-            .working_copy_totals(&mut snapshot)
-            .expect("count JJ working copy diff"),
-        (Some(1), Some(0))
-    );
-    assert_eq!(
-        backend.list_project_files().expect("list JJ files"),
-        ["a|b.txt"]
-    );
-    assert!(matches!(snapshot.identity, SnapshotIdentity::Jujutsu(_)));
-    assert_eq!(snapshot.changes.len(), 1);
-    assert_eq!(snapshot.changes[0].layer, ChangeLayer::JujutsuWorkingCopy);
-    let diff = backend
-        .load_diff(snapshot.changes[0].target.clone())
-        .expect("load JJ diff");
-    assert!(diff.patch.contains("diff --git a/a|b.txt b/a|b.txt"));
-}
-
-#[test]
-fn jj_watcher_detects_metadata_only_commits_and_settles_after_refresh() {
+fn watcher_detects_metadata_only_commits_and_settles_after_refresh() {
     use std::time::{Duration, Instant};
 
-    if !jj_installed() {
+    if Command::new("git").arg("--version").output().is_err() {
         return;
     }
-    let temp = TestDirectory::new("jj-watch-commits");
+    let temp = TestDirectory::new("watch-commits");
     let repository = temp.path().join("repo");
     let home = temp.path().join("home");
     let config = temp.path().join("config");
     fs::create_dir_all(&home).expect("test operation should succeed");
     fs::create_dir_all(&config).expect("test operation should succeed");
-    run_jj(
-        temp.path(),
+    fs::create_dir_all(&repository).expect("test operation should succeed");
+    run_git(&repository, &home, &config, &["init"]);
+    run_git(
+        &repository,
         &home,
         &config,
-        &["git", "init", "--colocate", "repo"],
+        &["config", "user.name", "Test"],
+    );
+    run_git(
+        &repository,
+        &home,
+        &config,
+        &["config", "user.email", "test@example.com"],
     );
     fs::write(repository.join("file.txt"), "working\n").expect("test operation should succeed");
     let backend = RepositoryBackend::discover_with_options(
         &repository,
-        BackendPreference::Jujutsu,
         RepositoryOptions {
             environment: isolated_environment(&home, &config),
             ..RepositoryOptions::default()
@@ -603,57 +420,49 @@ fn jj_watcher_detects_metadata_only_commits_and_settles_after_refresh() {
     backend.snapshot().expect("test operation should succeed");
     assert_quiet();
     run_git(&repository, &home, &config, &["add", "file.txt"]);
-    // Staging does not change JJ's working-copy view.
-    assert_quiet();
-    for (program, arguments) in [
-        (
-            "git",
-            &[
-                "-c",
-                "user.name=Test",
-                "-c",
-                "user.email=test@example.com",
-                "commit",
-                "-m",
-                "external Git commit",
-            ][..],
-        ),
-        (
-            "jj",
-            &[
-                "--config",
-                "user.name='Test'",
-                "--config",
-                "user.email='test@example.com'",
-                "commit",
-                "-m",
-                "external JJ commit",
-            ][..],
-        ),
-    ] {
-        match program {
-            "git" => run_git(&repository, &home, &config, arguments),
-            _ => run_jj(&repository, &home, &config, arguments),
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+        if let Ok(event) = events.try_recv() {
+            assert_eq!(event, RepositoryWatchEvent::Changed);
+            break;
         }
-        let deadline = Instant::now() + Duration::from_secs(3);
-        loop {
-            if let Ok(event) = events.try_recv() {
-                assert_eq!(event, RepositoryWatchEvent::Changed);
-                break;
-            }
-            assert!(Instant::now() < deadline, "missed {program} commit");
-            std::thread::sleep(Duration::from_millis(10));
-        }
-        let refreshed = backend.snapshot().expect("test operation should succeed");
-        assert!(refreshed.changes.is_empty());
-        assert_ne!(refreshed.identity, initial.identity);
-        // Importing a Git commit may publish one JJ operation. Once imported,
-        // repeated reads must stop producing watcher events.
-        std::thread::sleep(Duration::from_millis(200));
-        while events.try_recv().is_ok() {}
-        backend.snapshot().expect("test operation should succeed");
-        assert_quiet();
+        assert!(Instant::now() < deadline, "missed staging event");
+        std::thread::sleep(Duration::from_millis(10));
     }
+    let refreshed = backend.snapshot().expect("test operation should succeed");
+    assert_eq!(refreshed.changes.len(), 1);
+
+    run_git(
+        &repository,
+        &home,
+        &config,
+        &[
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "-m",
+            "external commit",
+        ],
+    );
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+        if let Ok(event) = events.try_recv() {
+            assert_eq!(event, RepositoryWatchEvent::Changed);
+            break;
+        }
+        assert!(Instant::now() < deadline, "missed Git commit");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let refreshed = backend.snapshot().expect("test operation should succeed");
+    assert!(refreshed.changes.is_empty());
+    assert_ne!(refreshed.identity, initial.identity);
+    // Repeated reads must stop producing watcher events.
+    std::thread::sleep(Duration::from_millis(200));
+    while events.try_recv().is_ok() {}
+    backend.snapshot().expect("test operation should succeed");
+    assert_quiet();
 }
 
 fn run_git(repository: &Path, home: &Path, config: &Path, arguments: &[&str]) {
@@ -673,35 +482,8 @@ fn run_git(repository: &Path, home: &Path, config: &Path, arguments: &[&str]) {
     );
 }
 
-#[allow(clippy::print_stderr)]
-fn jj_installed() -> bool {
-    if Command::new("jj").arg("--version").output().is_err() {
-        eprintln!("jj not installed, skipping");
-        return false;
-    }
-    true
-}
-
-fn run_jj(repository: &Path, home: &Path, config: &Path, arguments: &[&str]) {
-    let output = Command::new("jj")
-        .args(arguments)
-        .current_dir(repository)
-        .env("HOME", home)
-        .env("XDG_CONFIG_HOME", config)
-        .output()
-        .expect("run JJ command");
-    assert!(
-        output.status.success(),
-        "JJ failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn discover_available(
-    project: &Path,
-    preference: BackendPreference,
-) -> Result<Option<RepositoryBackend>, RepositoryError> {
-    RepositoryBackend::discover_with_options(project, preference, available_options())
+fn discover_available(project: &Path) -> Result<Option<RepositoryBackend>, RepositoryError> {
+    RepositoryBackend::discover_with_options(project, available_options())
 }
 
 fn available_options() -> RepositoryOptions {
@@ -709,8 +491,7 @@ fn available_options() -> RepositoryOptions {
         .expect("current executable")
         .into_os_string();
     RepositoryOptions {
-        git_executable: executable.clone(),
-        jj_executable: executable,
+        git_executable: executable,
         ..RepositoryOptions::default()
     }
 }

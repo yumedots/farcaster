@@ -1,6 +1,5 @@
 use crate::agents::Backend;
 use std::{
-    collections::BTreeMap,
     fs,
     path::PathBuf,
     sync::{Arc, Barrier},
@@ -428,91 +427,6 @@ fn check_schema_migration(version: i64) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
-#[test]
-fn repository_backend_preferences_default_to_empty() -> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempdir()?;
-    let store = StateStore::open_at(&temp.path().join("gui.sqlite3"))?;
-
-    assert!(store.load_repository_backend_preferences()?.is_empty());
-    Ok(())
-}
-
-#[test]
-fn repository_backend_preferences_round_trip_deterministically()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempdir()?;
-    let database = temp.path().join("gui.sqlite3");
-    let alpha = temp.path().join("alpha");
-    let zeta = temp.path().join("zeta");
-    fs::create_dir(&alpha)?;
-    fs::create_dir(&zeta)?;
-    let preferences = BTreeMap::from([
-        (zeta.canonicalize()?, "jj".to_owned()),
-        (alpha.canonicalize()?, "git".to_owned()),
-    ]);
-
-    StateStore::open_at(&database)?.save_repository_backend_preferences(&preferences)?;
-
-    assert_eq!(
-        StateStore::open_at(&database)?.load_repository_backend_preferences()?,
-        preferences
-    );
-    let stored = Connection::open(&database)?
-        .prepare("SELECT path, repository_backend FROM projects WHERE repository_backend IS NOT NULL ORDER BY path")?
-        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
-        .collect::<Result<Vec<_>, _>>()?;
-    assert_eq!(
-        stored,
-        vec![
-            (
-                alpha.canonicalize()?.to_string_lossy().into_owned(),
-                "git".into()
-            ),
-            (
-                zeta.canonicalize()?.to_string_lossy().into_owned(),
-                "jj".into()
-            ),
-        ]
-    );
-
-    fs::remove_dir_all(&alpha)?;
-    StateStore::open_at(&database)?.save_repository_backend_preferences(&preferences)?;
-    assert_eq!(
-        StateStore::open_at(&database)?.load_repository_backend_preferences()?,
-        preferences
-    );
-    Ok(())
-}
-
-#[cfg(unix)]
-#[test]
-fn legacy_repository_backend_aliases_prefer_the_active_project()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempdir()?;
-    let database = temp.path().join("gui.sqlite3");
-    let project = temp.path().join("project");
-    let alias = temp.path().join("project-alias");
-    fs::create_dir(&project)?;
-    symlink(&project, &alias)?;
-    StateStore::open_at(&database)?;
-    let connection = Connection::open(&database)?;
-    connection.execute(
-        "INSERT INTO projects(path, added_ms, deleted_at, repository_backend)
-         VALUES(?1, 1, 1, 'jj'), (?2, 2, NULL, 'git')",
-        params![
-            alias.to_string_lossy(),
-            project.canonicalize()?.to_string_lossy()
-        ],
-    )?;
-    drop(connection);
-
-    assert_eq!(
-        StateStore::open_at(&database)?.load_repository_backend_preferences()?,
-        BTreeMap::from([(project.canonicalize()?, "git".to_owned())])
-    );
-    Ok(())
-}
-
 #[cfg(unix)]
 #[test]
 fn legacy_queued_prompt_project_alias_is_normalized_on_read()
@@ -549,36 +463,6 @@ fn legacy_queued_prompt_project_alias_is_normalized_on_read()
         StateStore::open_at(&database)?.queued_prompts()?[0].project,
         project
     );
-    Ok(())
-}
-
-#[test]
-fn repository_backend_preferences_reject_unknown_and_malformed_values()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempdir()?;
-    let database = temp.path().join("gui.sqlite3");
-    let project = temp.path().join("project");
-    fs::create_dir(&project)?;
-    let project = project.canonicalize()?;
-    let store = StateStore::open_at(&database)?;
-    let unknown = BTreeMap::from([(project.clone(), "svn".to_owned())]);
-    let Err(error) = store.save_repository_backend_preferences(&unknown) else {
-        return Err("unknown repository backend was accepted".into());
-    };
-    assert!(error.contains("unknown repository backend preference"));
-    drop(store);
-
-    let connection = Connection::open(&database)?;
-    connection.execute(
-        "INSERT INTO projects(path, added_ms, repository_backend) VALUES(?1, 1, 'not-a-backend')
-         ON CONFLICT(path) DO UPDATE SET repository_backend='not-a-backend'",
-        [project.to_string_lossy()],
-    )?;
-    drop(connection);
-    let Err(error) = StateStore::open_at(&database)?.load_repository_backend_preferences() else {
-        return Err("malformed repository backend preferences were accepted".into());
-    };
-    assert!(error.contains("unknown repository backend preference"));
     Ok(())
 }
 

@@ -1,22 +1,14 @@
 use super::*;
 
 #[test]
-fn auto_does_not_select_jj_before_discovery() {
-    assert_eq!(
-        selected_backend(None, BackendPreference::Auto, true, true),
-        None
+fn change_rows_keep_staged_and_working_tree_layers_apart() {
+    assert_ne!(
+        crate::repository::ChangeLayer::Index,
+        crate::repository::ChangeLayer::WorkingTree
     );
+    assert_eq!(group_title(crate::repository::ChangeLayer::Index), "Staged");
     assert_eq!(
-        selected_backend(None, BackendPreference::Jujutsu, true, false),
-        None
-    );
-    assert_eq!(
-        selected_backend(
-            Some(RepositoryKind::Git),
-            BackendPreference::Auto,
-            true,
-            true,
-        ),
-        Some(RepositoryKind::Git)
+        group_title(crate::repository::ChangeLayer::WorkingTree),
+        "Working tree"
     );
 }

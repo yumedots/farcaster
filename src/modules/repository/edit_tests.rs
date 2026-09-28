@@ -7,7 +7,7 @@ struct EditRepo {
 }
 
 impl EditRepo {
-    fn new(kind: RepositoryKind) -> Self {
+    fn new() -> Self {
         let temp = TestDirectory::new("edit");
         let root = temp.path().join("repo");
         let home = temp.path().join("home");
@@ -15,33 +15,24 @@ impl EditRepo {
         fs::create_dir_all(&root).expect("test operation should succeed");
         fs::create_dir_all(&home).expect("test operation should succeed");
         fs::create_dir_all(&config).expect("test operation should succeed");
-        let preference = match kind {
-            RepositoryKind::Git => {
-                run_git(&root, &home, &config, &["init"]);
-                run_git(
-                    &root,
-                    &home,
-                    &config,
-                    &["config", "user.name", "Review Test"],
-                );
-                run_git(
-                    &root,
-                    &home,
-                    &config,
-                    &["config", "user.email", "review@example.invalid"],
-                );
-                BackendPreference::Git
-            }
-            RepositoryKind::Jujutsu => {
-                run_jj(&root, &home, &config, &["git", "init"]);
-                BackendPreference::Jujutsu
-            }
-        };
+        run_git(&root, &home, &config, &["init"]);
+        run_git(
+            &root,
+            &home,
+            &config,
+            &["config", "user.name", "Review Test"],
+        );
+        run_git(
+            &root,
+            &home,
+            &config,
+            &["config", "user.email", "review@example.invalid"],
+        );
         let options = RepositoryOptions {
             environment: isolated_environment(&home, &config),
             ..RepositoryOptions::default()
         };
-        let backend = RepositoryBackend::discover_with_options(&root, preference, options)
+        let backend = RepositoryBackend::discover_with_options(&root, options)
             .expect("test operation should succeed")
             .expect("test operation should succeed");
         Self { temp, backend }
@@ -88,16 +79,14 @@ impl EditRepo {
     fn base(&self) {
         self.write("selected", "base\n");
         self.write("other", "base\n");
-        if self.backend.location.kind == RepositoryKind::Git {
-            self.command(&["add", "."]);
-        }
+        self.command(&["add", "."]);
         self.command(&["commit", "-m", "base"]);
     }
 }
 
 #[test]
 fn git_commit_selected_includes_working_contents_and_preserves_other_staging() {
-    let repo = EditRepo::new(RepositoryKind::Git);
+    let repo = EditRepo::new();
     repo.base();
     repo.write("selected", "staged\n");
     repo.write("other", "other staged\n");
@@ -122,7 +111,7 @@ fn git_commit_selected_includes_working_contents_and_preserves_other_staging() {
 
 #[test]
 fn git_review_rejects_same_status_binary_edits_and_empty_message() {
-    let repo = EditRepo::new(RepositoryKind::Git);
+    let repo = EditRepo::new();
     repo.base();
     repo.write("selected", b"\0one");
     let review = repo.review(&["selected"]);
@@ -146,7 +135,7 @@ fn git_review_rejects_same_status_binary_edits_and_empty_message() {
 
 #[test]
 fn git_discard_restores_both_layers_and_does_not_touch_other_files() {
-    let repo = EditRepo::new(RepositoryKind::Git);
+    let repo = EditRepo::new();
     repo.base();
     repo.write("selected", "staged\n");
     repo.command(&["add", "selected"]);
@@ -168,7 +157,7 @@ fn git_discard_restores_both_layers_and_does_not_touch_other_files() {
 
 #[test]
 fn git_discard_handles_renames_and_new_files() {
-    let repo = EditRepo::new(RepositoryKind::Git);
+    let repo = EditRepo::new();
     repo.base();
     repo.command(&["mv", "selected", "renamed"]);
     let review = repo.review(&["renamed"]);
@@ -192,7 +181,7 @@ fn git_discard_handles_renames_and_new_files() {
 
 #[test]
 fn git_initial_commit_selects_only_chosen_new_file() {
-    let repo = EditRepo::new(RepositoryKind::Git);
+    let repo = EditRepo::new();
     repo.write("selected", "new\n");
     repo.write("other", "keep\n");
     repo.command(&["add", "other"]);
@@ -215,7 +204,7 @@ fn git_initial_commit_selects_only_chosen_new_file() {
 
 #[test]
 fn review_rejects_empty_selection_and_paths_outside_project() {
-    let repo = EditRepo::new(RepositoryKind::Git);
+    let repo = EditRepo::new();
     repo.base();
     let snapshot = repo
         .backend
@@ -226,59 +215,11 @@ fn review_rejects_empty_selection_and_paths_outside_project() {
     }
 }
 
-#[test]
-fn jj_commit_selected_and_discard_keep_other_changes() {
-    if !jj_installed() {
-        return;
-    }
-    let repo = EditRepo::new(RepositoryKind::Jujutsu);
-    repo.base();
-    repo.write("selected", "chosen\n");
-    repo.write("other", "keep\n");
-    repo.write("a|b.txt", "literal\n");
-    let review = repo.review(&["selected", "a|b.txt"]);
-    repo.backend
-        .apply_edit(&review, RepositoryEdit::Commit, "chosen files")
-        .expect("test operation should succeed");
-    assert_eq!(
-        repo.command(&["file", "show", "-r", "@-", "selected"]),
-        "chosen\n"
-    );
-    assert_eq!(
-        repo.command(&["file", "show", "-r", "@-", "other"]),
-        "base\n"
-    );
-    assert_eq!(repo.read("other"), "keep\n");
-    repo.backend
-        .apply_edit(&repo.review(&["other"]), RepositoryEdit::Discard, "")
-        .expect("test operation should succeed");
-    assert_eq!(repo.read("other"), "base\n");
-    assert_eq!(repo.read("selected"), "chosen\n");
-}
-
-#[test]
-fn jj_review_rejects_changes_after_review() {
-    if !jj_installed() {
-        return;
-    }
-    let repo = EditRepo::new(RepositoryKind::Jujutsu);
-    repo.base();
-    repo.write("selected", "reviewed\n");
-    let review = repo.review(&["selected"]);
-    repo.write("selected", "later\n");
-    assert!(matches!(
-        repo.backend
-            .apply_edit(&review, RepositoryEdit::Discard, ""),
-        Err(RepositoryError::StaleSnapshot)
-    ));
-    assert_eq!(repo.read("selected"), "later\n");
-}
-
 #[cfg(unix)]
 #[test]
 fn git_failed_commit_preserves_contents_and_unrelated_index_entries() {
     use std::os::unix::fs::PermissionsExt as _;
-    let repo = EditRepo::new(RepositoryKind::Git);
+    let repo = EditRepo::new();
     repo.base();
     repo.write("selected", "keep chosen\n");
     repo.write("new", "keep new\n");
@@ -306,7 +247,7 @@ fn git_failed_commit_preserves_contents_and_unrelated_index_entries() {
 
 #[test]
 fn scoped_commit_leaves_the_outside_end_of_a_rename_staged() {
-    let mut repo = EditRepo::new(RepositoryKind::Git);
+    let mut repo = EditRepo::new();
     repo.base();
     fs::create_dir(repo.root().join("nested")).expect("test operation should succeed");
     repo.command(&["mv", "selected", "nested/selected"]);
@@ -337,7 +278,7 @@ fn scoped_commit_leaves_the_outside_end_of_a_rename_staged() {
 #[cfg(unix)]
 #[test]
 fn symlink_discard_does_not_follow_the_target() {
-    let repo = EditRepo::new(RepositoryKind::Git);
+    let repo = EditRepo::new();
     repo.base();
     let outside = repo.temp.path().join("outside");
     fs::write(&outside, "keep outside\n").expect("test operation should succeed");

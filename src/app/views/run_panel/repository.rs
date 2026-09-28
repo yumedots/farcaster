@@ -1,5 +1,3 @@
-#[cfg(test)]
-use super::repository_controls::selected_backend;
 use super::{
     super::super::FarcasterApp,
     repository_controls::{file_action, repository_header},
@@ -8,8 +6,6 @@ use super::{
         change_status_label, display_change_path, file_path_labels, group_title, repository_row_id,
     },
 };
-#[cfg(test)]
-use crate::repository::BackendPreference;
 use crate::{
     app::ui::theme::theme,
     app::ui::{
@@ -17,7 +13,7 @@ use crate::{
         file_icons::file_icon,
         primitives::{AppIconSize, AppTooltip as _, SearchField, activates_button, app_icon},
     },
-    repository::{RepositoryEdit, RepositoryKind, WorkingCopyChange, WorkingCopySnapshot},
+    repository::{RepositoryEdit, WorkingCopyChange, WorkingCopySnapshot},
 };
 use gpui::{
     AnyElement, InteractiveElement as _, IntoElement, ParentElement as _, Role,
@@ -65,15 +61,6 @@ impl FarcasterApp {
                             .text_color(theme().colors.accent)
                             .child("Reading working copy…"),
                     )
-                },
-            )
-            .when_some(
-                self.project.repository.preference_error.as_deref(),
-                |section, error| {
-                    section.child(repository_notice(
-                        &format!("Backend choice was not saved: {}", bounded_message(error)),
-                        theme().colors.warning,
-                    ))
                 },
             )
             .when_some(
@@ -235,10 +222,7 @@ impl FarcasterApp {
                     if !browser.query.trim().is_empty() {
                         "No matching files"
                     } else {
-                        match snapshot.location.kind {
-                            RepositoryKind::Git => "Working tree and index are clean",
-                            RepositoryKind::Jujutsu => "Current change is empty",
-                        }
+                        "Working tree and index are clean"
                     },
                     theme().colors.subtle,
                 ))
@@ -393,7 +377,7 @@ impl FarcasterApp {
                                 .child(filename),
                         )
                         .when(
-                            change.layer == crate::repository::ChangeLayer::GitIndex,
+                            change.layer == crate::repository::ChangeLayer::Index,
                             |label| {
                                 label.child(
                                     div()

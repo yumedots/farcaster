@@ -5,7 +5,7 @@ use nucleo_matcher::{
     pattern::{Atom, AtomKind, CaseMatching, Normalization},
 };
 
-use crate::repository::{BackendPreference, RepositoryBackend};
+use crate::repository::RepositoryBackend;
 
 const MAX_RESULTS: usize = 8;
 
@@ -20,8 +20,8 @@ pub(in crate::app) struct MentionQuery {
     pub(in crate::app) text: String,
 }
 
-pub(in crate::app) fn project_files(project: &Path, preference: BackendPreference) -> Vec<String> {
-    RepositoryBackend::discover(project, preference)
+pub(in crate::app) fn project_files(project: &Path) -> Vec<String> {
+    RepositoryBackend::discover(project)
         .ok()
         .flatten()
         .and_then(|backend| backend.list_project_files().ok())

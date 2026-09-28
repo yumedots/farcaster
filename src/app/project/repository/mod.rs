@@ -6,15 +6,12 @@ use std::{
     path::PathBuf,
 };
 
-use gpui::{AppContext as _, Context, FocusHandle, Window};
+use gpui::{AppContext as _, Context, FocusHandle};
 
 use super::FarcasterApp;
-use crate::{
-    app::infrastructure::persistence::StateStore,
-    repository::{
-        BackendPreference, DiffTargetKey, RepositoryBackend, RepositoryError, RepositoryLocation,
-        RepositorySyncAction, RepositoryWatcher, WorkingCopySnapshot,
-    },
+use crate::repository::{
+    DiffTargetKey, RepositoryBackend, RepositoryError, RepositoryLocation, RepositorySyncAction,
+    RepositoryWatcher, WorkingCopySnapshot,
 };
 
 #[derive(Default)]
@@ -27,13 +24,6 @@ struct RefreshGate {
 struct RefreshCompletion {
     publish: bool,
     next: Option<u64>,
-}
-
-pub(in crate::app) struct PendingJjInit {
-    pub(in crate::app) focus: FocusHandle,
-    pub(in crate::app) repository: PathBuf,
-    project: PathBuf,
-    return_focus: Option<FocusHandle>,
 }
 
 #[derive(Default)]
@@ -87,7 +77,6 @@ impl RefreshGate {
 
 /// The last working copy observed for one project.
 struct RepositoryObservation {
-    preference: BackendPreference,
     backend: Option<RepositoryBackend>,
     snapshot: Option<WorkingCopySnapshot>,
     additions: Option<u64>,
@@ -95,16 +84,11 @@ struct RepositoryObservation {
 }
 
 impl RepositoryObservation {
-    fn reusable_for(&self, preference: BackendPreference) -> bool {
-        self.preference == preference
-    }
-
     /// What a project should show from a scan read off screen, or nothing when
     /// the scan found nothing to show.
-    fn from_scan(preference: BackendPreference, scanned: ScanResult) -> Option<Self> {
+    fn from_scan(scanned: ScanResult) -> Option<Self> {
         match scanned {
             Ok(Some((backend, Ok((snapshot, additions, deletions))))) => Some(Self {
-                preference,
                 backend: Some(backend),
                 snapshot: Some(snapshot),
                 additions,
@@ -124,8 +108,8 @@ type ScanResult = Result<
 >;
 
 /// Reads a project's working copy without publishing it anywhere.
-fn observe_project(project: &std::path::Path, preference: BackendPreference) -> ScanResult {
-    RepositoryBackend::discover(project, preference).map(|backend| {
+fn observe_project(project: &std::path::Path) -> ScanResult {
+    RepositoryBackend::discover(project).map(|backend| {
         backend.map(|backend| {
             let snapshot = backend.snapshot().map(|mut snapshot| {
                 let (additions, deletions) = backend
@@ -151,38 +135,26 @@ impl ObservationCache {
         self.projects.insert(project, observation);
     }
 
-    fn reuse(
-        &mut self,
-        project: &std::path::Path,
-        preference: BackendPreference,
-    ) -> Option<RepositoryObservation> {
-        let observation = self.projects.remove(project)?;
-        observation.reusable_for(preference).then_some(observation)
+    fn reuse(&mut self, project: &std::path::Path) -> Option<RepositoryObservation> {
+        self.projects.remove(project)
     }
 }
 
 pub(in crate::app) struct RepositoryState {
     pub(in crate::app) project: PathBuf,
     pub(in crate::app) execution_allowed: bool,
-    pub(in crate::app) preference: BackendPreference,
     pub(in crate::app) backend: Option<RepositoryBackend>,
     pub(in crate::app) snapshot: Option<WorkingCopySnapshot>,
     pub(in crate::app) loading: bool,
     pub(in crate::app) initialized: bool,
     pub(in crate::app) error: Option<String>,
-    pub(in crate::app) preference_error: Option<String>,
     pub(in crate::app) watcher_error: Option<String>,
-    pub(in crate::app) pending_jj_init: Option<PendingJjInit>,
-    jj_init_in_flight: bool,
     pub(in crate::app) sync: RepositorySyncState,
     pub(in crate::app) edits: edits::RepositoryEditState,
     pub(in crate::app) additions: Option<u64>,
     pub(in crate::app) deletions: Option<u64>,
     pub(in crate::app) row_focus: std::collections::HashMap<DiffTargetKey, FocusHandle>,
-    preferences: BTreeMap<PathBuf, BackendPreference>,
     refresh: RefreshGate,
-    preference_save_in_flight: bool,
-    preference_save_pending: bool,
     watcher: Option<RepositoryWatcher>,
     watcher_binding: Option<watching::WatchBinding>,
     watcher_generation: u64,
@@ -194,35 +166,21 @@ pub(in crate::app) struct RepositoryState {
 
 impl RepositoryState {
     pub(in crate::app) fn load(project: PathBuf, execution_allowed: bool) -> Self {
-        let (preferences, preference_error) = StateStore::open()
-            .and_then(|store| crate::repository::load_preferences(&store))
-            .map_or_else(
-                |error| (BTreeMap::new(), Some(error)),
-                |preferences| (preferences, None),
-            );
-        let preference = preference_for(&preferences, &project);
         Self {
             project,
             execution_allowed,
-            preference,
             backend: None,
             snapshot: None,
             loading: false,
             initialized: false,
             error: None,
-            preference_error,
             watcher_error: None,
-            pending_jj_init: None,
-            jj_init_in_flight: false,
             sync: RepositorySyncState::default(),
             edits: Default::default(),
             additions: None,
             deletions: None,
             row_focus: std::collections::HashMap::new(),
-            preferences,
             refresh: RefreshGate::default(),
-            preference_save_in_flight: false,
-            preference_save_pending: false,
             watcher: None,
             watcher_binding: None,
             watcher_generation: 0,
@@ -244,15 +202,12 @@ impl RepositoryState {
                     .remember(self.project.clone(), observation);
             }
             self.project = project;
-            self.preference = preference_for(&self.preferences, &self.project);
-            self.pending_jj_init = None;
-            self.jj_init_in_flight = false;
         }
         self.execution_allowed = execution_allowed;
         self.clear_observation();
         if project_changed {
             let project = self.project.clone();
-            if let Some(observation) = self.observations.reuse(&project, self.preference) {
+            if let Some(observation) = self.observations.reuse(&project) {
                 self.apply_observation(observation);
             }
         }
@@ -272,7 +227,6 @@ impl RepositoryState {
     fn observe(&mut self) -> Option<RepositoryObservation> {
         let snapshot = self.snapshot.take()?;
         Some(RepositoryObservation {
-            preference: self.preference,
             backend: self.backend.take(),
             snapshot: Some(snapshot),
             additions: self.additions.take(),
@@ -307,16 +261,6 @@ impl RepositoryState {
                 .entry(key)
                 .or_insert_with(|| cx.focus_handle());
         }
-    }
-
-    fn select_preference(&mut self, preference: BackendPreference) -> bool {
-        if self.preference == preference {
-            return false;
-        }
-        self.preference = preference;
-        self.preferences.insert(self.project.clone(), preference);
-        self.clear_observation();
-        true
     }
 
     fn clear_observation(&mut self) {
@@ -366,126 +310,6 @@ impl FarcasterApp {
         }
     }
 
-    pub(in crate::app) fn set_repository_backend_preference(
-        &mut self,
-        preference: BackendPreference,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if preference == BackendPreference::Jujutsu {
-            if self.project.repository.jj_init_in_flight {
-                return;
-            }
-            let location = self
-                .project
-                .repository
-                .snapshot
-                .as_ref()
-                .map(|snapshot| Ok(Some(snapshot.location.clone())))
-                .unwrap_or_else(|| {
-                    RepositoryBackend::discover(
-                        &self.project.repository.project,
-                        BackendPreference::Auto,
-                    )
-                    .map(|backend| backend.map(|backend| backend.location().clone()))
-                });
-            match location.and_then(|location| {
-                location
-                    .map(|location| {
-                        RepositoryBackend::jj_init_required(&location)
-                            .map(|required| (location, required))
-                    })
-                    .transpose()
-            }) {
-                Ok(Some((location, true))) => {
-                    let pending = PendingJjInit {
-                        focus: cx.focus_handle(),
-                        repository: location.workspace_root.clone(),
-                        project: self.project.repository.project.clone(),
-                        return_focus: window.focused(cx),
-                    };
-                    self.cover_native_workspace_surface(cx);
-                    pending.focus.focus(window, cx);
-                    self.project.repository.pending_jj_init = Some(pending);
-                    cx.notify();
-                    return;
-                }
-                Ok(Some((_, false)) | None) => {}
-                Err(error) => {
-                    self.project.repository.error = Some(error.to_string());
-                    self.notify_run_panel(cx);
-                    return;
-                }
-            }
-        }
-        self.apply_repository_backend_preference(preference, false, cx);
-    }
-
-    fn apply_repository_backend_preference(
-        &mut self,
-        preference: BackendPreference,
-        refresh_unchanged: bool,
-        cx: &mut Context<Self>,
-    ) {
-        if !self.project.repository.select_preference(preference) {
-            if refresh_unchanged {
-                self.project.repository.clear_observation();
-                self.request_repository_refresh(cx);
-            }
-            return;
-        }
-        self.composer.project_files.clear();
-        self.composer.project_files_project = None;
-        self.composer.project_files_loading = None;
-        self.persist_repository_preferences(cx);
-        self.request_repository_refresh(cx);
-    }
-
-    pub(in crate::app) fn close_jj_init_confirmation(
-        &mut self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Option<PendingJjInit> {
-        let pending = self.project.repository.pending_jj_init.take()?;
-        self.restore_overlay_focus(pending.return_focus.clone(), &pending.focus, window, cx);
-        self.restore_active_native_workspace_surface(window, cx);
-        cx.notify();
-        Some(pending)
-    }
-
-    pub(in crate::app) fn confirm_jj_init(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(pending) = self.close_jj_init_confirmation(window, cx) else {
-            return;
-        };
-        let repository = pending.repository;
-        let project = pending.project;
-        self.project.repository.jj_init_in_flight = true;
-        let task =
-            cx.background_spawn(async move { RepositoryBackend::init_jj_colocated(&repository) });
-        cx.spawn(async move |weak, cx| {
-            let result = task.await;
-            let _ = weak.update(cx, |this, cx| {
-                if this.project.repository.project != project {
-                    return;
-                }
-                this.project.repository.jj_init_in_flight = false;
-                match result {
-                    Ok(()) => this.apply_repository_backend_preference(
-                        BackendPreference::Jujutsu,
-                        true,
-                        cx,
-                    ),
-                    Err(error) => {
-                        this.project.repository.error =
-                            Some(format!("Jujutsu initialization failed: {error}"));
-                        this.notify_run_panel(cx);
-                    }
-                }
-            });
-        })
-        .detach();
-    }
-
     /// Reads the working copies of the other known projects one at a time, so
     /// switching to one shows its changes right away instead of an empty panel.
     pub(in crate::app) fn warm_repository_observations(&mut self, cx: &mut Context<Self>) {
@@ -503,20 +327,17 @@ impl FarcasterApp {
         projects.dedup();
         projects.retain(|project| project != &current && !repository.warmed.contains(project));
         repository.warmed.extend(projects.iter().cloned());
-        let preferences = repository.preferences.clone();
         cx.spawn(async move |weak, cx| {
             for project in projects {
-                let preference = preference_for(&preferences, &project);
                 cx.background_executor()
                     .timer(std::time::Duration::from_millis(500))
                     .await;
                 let target = project.clone();
                 let scanned = cx
-                    .background_spawn(async move { observe_project(&target, preference) })
+                    .background_spawn(async move { observe_project(&target) })
                     .await;
                 let _ = weak.update(cx, |this, _| {
-                    if let Some(observation) = RepositoryObservation::from_scan(preference, scanned)
-                    {
+                    if let Some(observation) = RepositoryObservation::from_scan(scanned) {
                         this.project.repository.remember(project, observation);
                     }
                 });
@@ -580,14 +401,13 @@ impl FarcasterApp {
         if project == self.project.repository.project {
             return;
         }
-        let preference = preference_for(&self.project.repository.preferences, &project);
         let target = project.clone();
         cx.spawn(async move |weak, cx| {
             let scanned = cx
-                .background_spawn(async move { observe_project(&target, preference) })
+                .background_spawn(async move { observe_project(&target) })
                 .await;
             let _ = weak.update(cx, |this, _| {
-                if let Some(observation) = RepositoryObservation::from_scan(preference, scanned) {
+                if let Some(observation) = RepositoryObservation::from_scan(scanned) {
                     this.project.repository.remember(project, observation);
                 }
             });
@@ -658,8 +478,7 @@ impl FarcasterApp {
 
     fn start_repository_refresh(&mut self, generation: u64, cx: &mut Context<Self>) {
         let project = self.project.repository.project.clone();
-        let preference = self.project.repository.preference;
-        let task = cx.background_spawn(async move { observe_project(&project, preference) });
+        let task = cx.background_spawn(async move { observe_project(&project) });
         cx.spawn(async move |weak, cx| {
             let result = task.await;
             let _ = weak.update(cx, |this, cx| {
@@ -788,36 +607,11 @@ impl FarcasterApp {
             self.notify_composer(cx);
         }
     }
-
-    fn persist_repository_preferences(&mut self, cx: &mut Context<Self>) {
-        if self.project.repository.preference_save_in_flight {
-            self.project.repository.preference_save_pending = true;
-            return;
-        }
-        self.project.repository.preference_save_in_flight = true;
-        let preferences = self.project.repository.preferences.clone();
-        let task = cx.background_spawn(async move {
-            crate::repository::save_preferences(&StateStore::open()?, &preferences)
-        });
-        cx.spawn(async move |weak, cx| {
-            let result = task.await;
-            let _ = weak.update(cx, |this, cx| {
-                this.project.repository.preference_save_in_flight = false;
-                this.project.repository.preference_error = result.err();
-                let rerun = std::mem::take(&mut this.project.repository.preference_save_pending);
-                if rerun {
-                    this.persist_repository_preferences(cx);
-                }
-                this.notify_run_panel(cx);
-            });
-        })
-        .detach();
-    }
 }
 
 fn displayed_snapshot_eq(left: &WorkingCopySnapshot, right: &WorkingCopySnapshot) -> bool {
     left.location == right.location
-        && displayed_identity_eq(&left.identity, &right.identity)
+        && left.identity == right.identity
         && left.changes.len() == right.changes.len()
         && left
             .changes
@@ -831,37 +625,6 @@ fn displayed_snapshot_eq(left: &WorkingCopySnapshot, right: &WorkingCopySnapshot
                     && left.counts == right.counts
                     && left.target.exists == right.target.exists
             })
-}
-
-fn displayed_identity_eq(
-    left: &crate::repository::SnapshotIdentity,
-    right: &crate::repository::SnapshotIdentity,
-) -> bool {
-    match (left, right) {
-        (
-            crate::repository::SnapshotIdentity::Git(left),
-            crate::repository::SnapshotIdentity::Git(right),
-        ) => left == right,
-        (
-            crate::repository::SnapshotIdentity::Jujutsu(left),
-            crate::repository::SnapshotIdentity::Jujutsu(right),
-        ) => {
-            left.change_id == right.change_id
-                && left.description == right.description
-                && left.bookmarks == right.bookmarks
-                && left.closest_bookmarks == right.closest_bookmarks
-                && left.ahead == right.ahead
-                && left.conflicted == right.conflicted
-        }
-        _ => false,
-    }
-}
-
-fn preference_for(
-    preferences: &BTreeMap<PathBuf, BackendPreference>,
-    project: &std::path::Path,
-) -> BackendPreference {
-    preferences.get(project).copied().unwrap_or_default()
 }
 
 #[cfg(test)]

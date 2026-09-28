@@ -44,7 +44,6 @@ use identity::{bind_locator, ensure_locator_session, ensure_project, target_for_
 const SCHEMA_VERSION: i64 = 19;
 const DATABASE_BUSY_TIMEOUT: Duration = Duration::from_secs(10);
 const LEGACY_PI_GPUI_IMPORT_KEY: &str = "legacy_pi_gpui_state_imported";
-const REPOSITORY_BACKENDS: [&str; 3] = ["auto", "git", "jj"];
 
 pub(crate) struct StateStore {
     connection: Connection,

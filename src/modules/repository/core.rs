@@ -1,19 +1,13 @@
 mod edit;
 mod file_counts;
 pub(super) mod port;
-mod preferences;
 mod sync;
 
 pub(crate) use edit::{RepositoryEdit, RepositoryEditReview};
-pub(crate) use preferences::{PreferenceStore, load as load_preferences, save as save_preferences};
 
-use super::{
-    contract::{
-        BackendPreference, ChangeKind, ChangeLayer, DiffTarget, DiffTargetKey, RepositoryError,
-        RepositoryKind, RepositoryLocation, SnapshotIdentity, WorkingCopyChange,
-        WorkingCopySnapshot,
-    },
-    domain::SnapshotToken,
+use super::contract::{
+    ChangeKind, ChangeLayer, DiffTarget, DiffTargetKey, RepositoryError, RepositoryLocation,
+    WorkingCopyChange, WorkingCopySnapshot,
 };
 
 #[cfg(test)]
@@ -80,92 +74,64 @@ impl RepositoryBackend {
         let mut file_counts = std::collections::BTreeMap::new();
         let mut untracked_binary = false;
         let mut untracked_additions = 0_u64;
-        let output = match &snapshot.identity {
-            SnapshotIdentity::Git(_) => {
-                let mut patch = Vec::new();
-                for staged in [true, false] {
-                    let mut arguments = [
-                        "--no-pager",
-                        "--no-optional-locks",
-                        "--literal-pathspecs",
-                        "-c",
-                        "core.fsmonitor=false",
-                        "diff",
-                        "--no-color",
-                        "--no-ext-diff",
-                        "--no-textconv",
-                        "--find-renames",
-                        "--src-prefix=a/",
-                        "--dst-prefix=b/",
-                    ]
-                    .map(OsString::from)
-                    .to_vec();
-                    if staged {
-                        arguments.push(OsString::from("--cached"));
-                    }
-                    arguments.push(OsString::from("--"));
-                    arguments.push(self.project_pathspec().into_os_string());
-                    let output = self.run_success(&arguments)?;
-                    require_complete_stdout(self.executable(), &output)?;
-                    let layer = if staged {
-                        ChangeLayer::GitIndex
-                    } else {
-                        ChangeLayer::GitWorkingTree
-                    };
-                    file_counts.extend(
-                        file_counts::parse(&String::from_utf8_lossy(&output.stdout))
-                            .into_iter()
-                            .map(|(path, counts)| ((layer, path), counts)),
-                    );
-                    patch.extend(output.stdout);
+        let output = {
+            let mut patch = Vec::new();
+            for staged in [true, false] {
+                let mut arguments = [
+                    "--no-pager",
+                    "--no-optional-locks",
+                    "--literal-pathspecs",
+                    "-c",
+                    "core.fsmonitor=false",
+                    "diff",
+                    "--no-color",
+                    "--no-ext-diff",
+                    "--no-textconv",
+                    "--find-renames",
+                    "--src-prefix=a/",
+                    "--dst-prefix=b/",
+                ]
+                .map(OsString::from)
+                .to_vec();
+                if staged {
+                    arguments.push(OsString::from("--cached"));
                 }
-                for change in snapshot
-                    .changes
-                    .iter()
-                    .filter(|change| change.layer == ChangeLayer::GitUntracked)
-                {
-                    let contents =
-                        std::fs::read(change.target.absolute_path()).map_err(|source| {
-                            RepositoryError::Io {
-                                context: format!(
-                                    "read untracked file {}",
-                                    change.relative_path.display()
-                                ),
-                                source,
-                            }
-                        })?;
-                    let counts = file_counts::untracked(&contents);
-                    if let Some((additions, _)) = counts {
-                        untracked_additions = untracked_additions.saturating_add(additions as u64);
-                    } else {
-                        untracked_binary = true;
-                    }
-                    file_counts.insert((change.layer, change.relative_path.clone()), counts);
-                }
-                patch
-            }
-            SnapshotIdentity::Jujutsu(identity) => {
-                let arguments = vec![
-                    OsString::from("--no-pager"),
-                    OsString::from("--color=never"),
-                    OsString::from("--at-operation"),
-                    OsString::from(&identity.operation_id),
-                    OsString::from("diff"),
-                    OsString::from("-r"),
-                    OsString::from("@"),
-                    OsString::from("--git"),
-                    OsString::from("--"),
-                    self.project_pathspec().into_os_string(),
-                ];
+                arguments.push(OsString::from("--"));
+                arguments.push(self.project_pathspec().into_os_string());
                 let output = self.run_success(&arguments)?;
                 require_complete_stdout(self.executable(), &output)?;
+                let layer = if staged {
+                    ChangeLayer::Index
+                } else {
+                    ChangeLayer::WorkingTree
+                };
                 file_counts.extend(
                     file_counts::parse(&String::from_utf8_lossy(&output.stdout))
                         .into_iter()
-                        .map(|(path, counts)| ((ChangeLayer::JujutsuWorkingCopy, path), counts)),
+                        .map(|(path, counts)| ((layer, path), counts)),
                 );
-                output.stdout
+                patch.extend(output.stdout);
             }
+            for change in snapshot
+                .changes
+                .iter()
+                .filter(|change| change.layer == ChangeLayer::Untracked)
+            {
+                let contents = std::fs::read(change.target.absolute_path()).map_err(|source| {
+                    RepositoryError::Io {
+                        context: format!("read untracked file {}", change.relative_path.display()),
+                        source,
+                    }
+                })?;
+                let counts = file_counts::untracked(&contents);
+                if let Some((additions, _)) = counts {
+                    untracked_additions = untracked_additions.saturating_add(additions as u64);
+                } else {
+                    untracked_binary = true;
+                }
+                file_counts.insert((change.layer, change.relative_path.clone()), counts);
+            }
+            patch
         };
         let patch = String::from_utf8_lossy(&output);
         for change in &mut snapshot.changes {
@@ -222,21 +188,6 @@ impl RepositoryBackend {
         {
             return Err(RepositoryError::InvalidPath(target.relative_path.clone()));
         }
-        let layer_matches = matches!(
-            (self.location.kind, target.layer),
-            (
-                RepositoryKind::Git,
-                ChangeLayer::GitIndex
-                    | ChangeLayer::GitWorkingTree
-                    | ChangeLayer::GitConflict
-                    | ChangeLayer::GitUntracked
-            ) | (RepositoryKind::Jujutsu, ChangeLayer::JujutsuWorkingCopy)
-        );
-        if !layer_matches {
-            return Err(RepositoryError::TargetMismatch(
-                "target layer does not match repository kind".to_owned(),
-            ));
-        }
         Ok(())
     }
 
@@ -288,9 +239,7 @@ pub(super) fn repository_operation() -> Result<MutexGuard<'static, ()>, Reposito
 
 pub(super) fn discover_location(
     project: &Path,
-    preference: BackendPreference,
     git_available: bool,
-    jj_available: bool,
 ) -> Result<Option<RepositoryLocation>, RepositoryError> {
     let canonical = project
         .canonicalize()
@@ -308,73 +257,25 @@ pub(super) fn discover_location(
     } else {
         canonical
     };
-    let preference = available_preference(preference, git_available, jj_available);
-    let Some((workspace_root, kind)) =
-        find_marker(&project_root, preference, git_available, jj_available)?
-    else {
-        let unavailable_kind = match preference {
-            BackendPreference::Auto => return Ok(None),
-            BackendPreference::Git => RepositoryKind::Git,
-            BackendPreference::Jujutsu => RepositoryKind::Jujutsu,
-        };
-        if find_marker(
-            &project_root,
-            BackendPreference::Auto,
-            git_available,
-            jj_available,
-        )?
-        .is_none()
-        {
-            return Ok(None);
-        }
-        return Err(RepositoryError::BackendUnavailable {
-            kind: unavailable_kind,
-            project: project_root,
-        });
+    let Some(workspace_root) = find_marker(&project_root, git_available)? else {
+        return Ok(None);
     };
     Ok(Some(RepositoryLocation {
-        kind,
         workspace_root,
         project_root,
     }))
 }
 
-fn available_preference(
-    preference: BackendPreference,
-    git_available: bool,
-    jj_available: bool,
-) -> BackendPreference {
-    match preference {
-        BackendPreference::Git if !git_available => BackendPreference::Auto,
-        BackendPreference::Jujutsu if !jj_available => BackendPreference::Auto,
-        preference => preference,
-    }
-}
-
 fn find_marker(
     project_root: &Path,
-    preference: BackendPreference,
     git_available: bool,
-    jj_available: bool,
-) -> Result<Option<(PathBuf, RepositoryKind)>, RepositoryError> {
+) -> Result<Option<PathBuf>, RepositoryError> {
+    if !git_available {
+        return Ok(None);
+    }
     for ancestor in project_root.ancestors() {
-        let kind = match preference {
-            BackendPreference::Auto => {
-                if jj_available && marker_exists(&ancestor.join(".jj"))? {
-                    Some(RepositoryKind::Jujutsu)
-                } else if git_available && marker_exists(&ancestor.join(".git"))? {
-                    Some(RepositoryKind::Git)
-                } else {
-                    None
-                }
-            }
-            BackendPreference::Git => (git_available && marker_exists(&ancestor.join(".git"))?)
-                .then_some(RepositoryKind::Git),
-            BackendPreference::Jujutsu => (jj_available && marker_exists(&ancestor.join(".jj"))?)
-                .then_some(RepositoryKind::Jujutsu),
-        };
-        if let Some(kind) = kind {
-            return Ok(Some((ancestor.to_path_buf(), kind)));
+        if marker_exists(&ancestor.join(".git"))? {
+            return Ok(Some(ancestor.to_path_buf()));
         }
     }
     Ok(None)
@@ -432,7 +333,7 @@ pub(super) fn require_complete_stdout(
 
 pub(super) fn change(
     location: &RepositoryLocation,
-    token: SnapshotToken,
+    token: Arc<[u8]>,
     relative_path: PathBuf,
     original_relative_path: Option<PathBuf>,
     layer: ChangeLayer,

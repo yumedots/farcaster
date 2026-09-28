@@ -212,9 +212,6 @@ impl FarcasterApp {
         if self.overlays.image_preview.is_some() {
             self.close_image_preview(window, cx);
         }
-        if self.project.repository.pending_jj_init.is_some() {
-            self.close_jj_init_confirmation(window, cx);
-        }
         if self.navigation.picker.is_some() {
             self.close_picker(window, cx);
         }

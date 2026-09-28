@@ -475,64 +475,6 @@ impl StateStore {
             .map(|_| ())
             .map_err(|error| format!("ensure ui_state: {error}"))
     }
-
-    pub(crate) fn load_repository_backend_preferences(
-        &self,
-    ) -> Result<BTreeMap<PathBuf, String>, String> {
-        let mut statement = self
-            .connection
-            .prepare(
-                "SELECT path, repository_backend FROM projects
-                  WHERE repository_backend IS NOT NULL
-                  ORDER BY deleted_at IS NOT NULL, added_ms, path",
-            )
-            .map_err(|error| format!("load repository backend preferences: {error}"))?;
-        let rows = statement
-            .query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-            })
-            .map_err(|error| format!("query repository backend preferences: {error}"))?;
-        let mut preferences = BTreeMap::new();
-        for row in rows {
-            let (path, backend) = row.map_err(|error| error.to_string())?;
-            preferences
-                .entry(crate::sessions::normalize_session_path(Path::new(&path)))
-                .or_insert(backend);
-        }
-        validate_repository_backend_preferences(&preferences)?;
-        Ok(preferences)
-    }
-
-    pub(crate) fn save_repository_backend_preferences(
-        &self,
-        preferences: &BTreeMap<PathBuf, String>,
-    ) -> Result<(), String> {
-        validate_repository_backend_preferences(preferences)?;
-        let transaction = self
-            .connection
-            .unchecked_transaction()
-            .map_err(|error| format!("start repository backend preferences: {error}"))?;
-        transaction
-            .execute("UPDATE projects SET repository_backend=NULL", [])
-            .map_err(|error| format!("clear repository backend preferences: {error}"))?;
-        for (project, backend) in preferences {
-            let project_id = ensure_project(&transaction, project, u64_to_i64(now_ms()))?;
-            transaction
-                .execute(
-                    "UPDATE projects SET repository_backend=?2 WHERE id=?1",
-                    params![project_id, backend],
-                )
-                .map_err(|error| {
-                    format!(
-                        "save repository backend preference for {}: {error}",
-                        project.display()
-                    )
-                })?;
-        }
-        transaction
-            .commit()
-            .map_err(|error| format!("commit repository backend preferences: {error}"))
-    }
 }
 
 fn normalize_configuration_catalogs(
@@ -551,26 +493,6 @@ fn normalize_configuration_catalogs(
         }
     }
     normalized
-}
-
-fn validate_repository_backend_preferences(
-    preferences: &BTreeMap<PathBuf, String>,
-) -> Result<(), String> {
-    for (project, backend) in preferences {
-        if !project.is_absolute() {
-            return Err(format!(
-                "repository backend preference project path is not absolute: {}",
-                project.display()
-            ));
-        }
-        if !REPOSITORY_BACKENDS.contains(&backend.as_str()) {
-            return Err(format!(
-                "unknown repository backend preference for {}: {backend}",
-                project.display()
-            ));
-        }
-    }
-    Ok(())
 }
 
 impl StateStore {
