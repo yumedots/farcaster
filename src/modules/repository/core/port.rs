@@ -55,6 +55,12 @@ pub(in crate::modules::repository) trait RepositoryOperations:
         target: DiffTarget,
     ) -> Result<DiffResult, RepositoryError>;
 
+    fn load_unchanged_diff(
+        &self,
+        backend: &RepositoryBackend,
+        target: DiffTarget,
+    ) -> Result<DiffResult, RepositoryError>;
+
     /// Applies a patch built from one of this backend's diffs.
     fn apply_patch(
         &self,

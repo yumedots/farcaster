@@ -415,7 +415,7 @@ fn git_hunk_staging_moves_one_hunk_into_the_index() {
 
     let diff = repo
         .backend
-        .file_diff(&repo.target("wide", ChangeLayer::WorkingTree))
+        .file_diff(&repo.target("wide", ChangeLayer::WorkingTree), false)
         .expect("test operation should succeed");
     assert_eq!(diff.hunks.len(), 2);
 
@@ -433,7 +433,7 @@ fn git_hunk_staging_moves_one_hunk_into_the_index() {
     // The staged hunk can be taken back out of the index on its own.
     let diff = repo
         .backend
-        .file_diff(&repo.target("wide", ChangeLayer::Index))
+        .file_diff(&repo.target("wide", ChangeLayer::Index), false)
         .expect("test operation should succeed");
     assert_eq!(diff.hunks.len(), 1);
     let patch = diff.patch_for(0).expect("only hunk");
@@ -450,6 +450,60 @@ fn git_hunk_staging_moves_one_hunk_into_the_index() {
 }
 
 #[test]
+fn git_file_diff_carries_the_unchanged_lines_between_its_hunks() {
+    let repo = EditRepo::new();
+    repo.base();
+    repo.two_hunk_file("wide");
+
+    let hunks_only = repo
+        .backend
+        .file_diff(&repo.target("wide", ChangeLayer::WorkingTree), false)
+        .expect("test operation should succeed");
+    assert_eq!(hunks_only.hunks.len(), 2);
+    assert_eq!(
+        hunks_only.spans().iter().map(Vec::len).collect::<Vec<_>>(),
+        vec![1, 6, 3]
+    );
+
+    let whole = repo
+        .backend
+        .file_diff(&repo.target("wide", ChangeLayer::WorkingTree), true)
+        .expect("test operation should succeed");
+    assert_eq!(whole.hunks.len(), 2);
+    assert_eq!(
+        whole.spans().iter().map(Vec::len).collect::<Vec<_>>(),
+        vec![1, 16, 5]
+    );
+    assert_eq!(
+        whole.spans()[2]
+            .iter()
+            .map(|line| line.text.clone())
+            .collect::<Vec<_>>(),
+        ["line 20", "line 21", "line 22", "line 23", "line 24"]
+            .map(str::to_owned)
+            .to_vec()
+    );
+    assert_eq!(
+        whole.spans()[1]
+            .iter()
+            .map(|line| line.text.clone())
+            .collect::<Vec<_>>(),
+        (3..=18)
+            .map(|line| format!("line {line}"))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(whole.spans()[1][0].old_line, Some(3));
+    assert_eq!(whole.spans()[1][0].new_line, Some(3));
+
+    let patch = whole.patch_for(0).expect("first hunk");
+    repo.backend
+        .apply_hunk_patch(&patch, HunkApply::Stage)
+        .expect("test operation should succeed");
+    assert!(repo.command(&["show", ":wide"]).contains("line two\n"));
+    assert!(repo.read("wide").contains("line nineteen\n"));
+}
+
+#[test]
 fn git_hunk_revert_restores_only_that_hunk_in_the_working_tree() {
     let repo = EditRepo::new();
     repo.base();
@@ -457,7 +511,7 @@ fn git_hunk_revert_restores_only_that_hunk_in_the_working_tree() {
 
     let diff = repo
         .backend
-        .file_diff(&repo.target("wide", ChangeLayer::WorkingTree))
+        .file_diff(&repo.target("wide", ChangeLayer::WorkingTree), false)
         .expect("test operation should succeed");
     let patch = diff.patch_for(1).expect("second hunk");
     repo.backend
@@ -482,7 +536,7 @@ fn git_hunk_patch_reports_an_index_that_moved_on() {
 
     let diff = repo
         .backend
-        .file_diff(&repo.target("wide", ChangeLayer::WorkingTree))
+        .file_diff(&repo.target("wide", ChangeLayer::WorkingTree), false)
         .expect("test operation should succeed");
     let patch = diff.patch_for(1).expect("second hunk");
     // Stage the whole file, so the hunk's context is no longer in the index.
@@ -507,7 +561,7 @@ fn git_hunk_staging_covers_a_new_file() {
 
     let diff = repo
         .backend
-        .file_diff(&repo.target("fresh", ChangeLayer::Untracked))
+        .file_diff(&repo.target("fresh", ChangeLayer::Untracked), false)
         .expect("test operation should succeed");
     assert_eq!(diff.hunks.len(), 1);
     let patch = diff.patch_for(0).expect("only hunk");

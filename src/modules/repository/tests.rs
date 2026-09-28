@@ -299,7 +299,7 @@ fn git_untracked_files_are_counted_from_their_contents() {
         backend
             .working_copy_totals(&mut snapshot)
             .expect("count untracked binary"),
-        (None, None)
+        (Some(2), Some(0))
     );
     let change = snapshot
         .changes

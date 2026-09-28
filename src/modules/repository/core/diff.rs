@@ -1,4 +1,4 @@
-use std::fmt::Write as _;
+use std::{collections::BTreeMap, fmt::Write as _, ops::Range};
 
 /// Which copy of a file a hunk is applied to.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -21,6 +21,8 @@ impl HunkApply {
     }
 }
 
+pub(crate) const NO_NEWLINE_NOTE: &str = "\\ No newline at end of file";
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DiffLineKind {
     Context,
@@ -39,6 +41,15 @@ pub(crate) struct DiffLine {
     pub(crate) new_line: Option<u64>,
 }
 
+impl DiffLine {
+    pub(crate) fn drawn_text(&self) -> &str {
+        match self.kind {
+            DiffLineKind::Marker => NO_NEWLINE_NOTE,
+            _ => &self.text,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DiffHunk {
     /// The `@@ -a,b +c,d @@` line, including any trailing section heading.
@@ -46,6 +57,12 @@ pub(crate) struct DiffHunk {
     pub(crate) lines: Vec<DiffLine>,
     pub(crate) additions: usize,
     pub(crate) deletions: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum DiffSegment {
+    Unchanged(Range<usize>),
+    Changed(Range<usize>),
 }
 
 /// One row of a side-by-side view, as indices into the hunk's lines.
@@ -61,15 +78,61 @@ pub(crate) enum SplitRow {
     },
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DiffSource {
+    Hunk(usize),
+    Unchanged(usize),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DiffRow {
+    Block { hunk: usize },
+    Line { source: DiffSource, line: usize },
+    Split { source: DiffSource, row: SplitRow },
+    Band {
+        span: usize,
+        lines: usize,
+        folded: bool,
+    },
+}
+
 impl DiffHunk {
-    /// Lines paired left against right the way a side-by-side editor shows
-    /// them: a run of removals lines up with the run of additions that replaced
-    /// it, and a line of context sits on both sides.
-    pub(crate) fn split_rows(&self) -> Vec<SplitRow> {
+    pub(crate) fn segments(&self) -> Vec<DiffSegment> {
+        let mut segments = Vec::new();
+        let mut start = 0;
+        let mut unchanged = !self
+            .lines
+            .first()
+            .is_some_and(|line| line.kind != DiffLineKind::Context);
+        while start < self.lines.len() {
+            let mut end = start + 1;
+            while end < self.lines.len() {
+                let belongs = match self.lines[end].kind {
+                    DiffLineKind::Context => true,
+                    DiffLineKind::Marker => unchanged,
+                    DiffLineKind::Added | DiffLineKind::Removed => false,
+                };
+                if belongs != unchanged {
+                    break;
+                }
+                end += 1;
+            }
+            segments.push(if unchanged {
+                DiffSegment::Unchanged(start..end)
+            } else {
+                DiffSegment::Changed(start..end)
+            });
+            start = end;
+            unchanged = !unchanged;
+        }
+        segments
+    }
+
+    pub(crate) fn pair_segment(&self, range: Range<usize>) -> Vec<SplitRow> {
         let kind = |index: usize| self.lines[index].kind;
         let mut rows = Vec::new();
-        let mut index = 0;
-        while index < self.lines.len() {
+        let mut index = range.start;
+        while index < range.end {
             match kind(index) {
                 DiffLineKind::Marker => {
                     rows.push(SplitRow::Note { line: index });
@@ -91,12 +154,12 @@ impl DiffHunk {
                 }
                 DiffLineKind::Removed => {
                     let removed = index;
-                    while index < self.lines.len() && kind(index) == DiffLineKind::Removed {
+                    while index < range.end && kind(index) == DiffLineKind::Removed {
                         index += 1;
                     }
                     let removed_len = index - removed;
                     let added = index;
-                    while index < self.lines.len() && kind(index) == DiffLineKind::Added {
+                    while index < range.end && kind(index) == DiffLineKind::Added {
                         index += 1;
                     }
                     let added_len = index - added;
@@ -119,6 +182,7 @@ pub(crate) struct FileDiff {
     /// Everything above the first hunk: the header a patch has to carry.
     header: String,
     pub(crate) hunks: Vec<DiffHunk>,
+    spans: Vec<Vec<DiffLine>>,
 }
 
 impl FileDiff {
@@ -147,7 +211,83 @@ impl FileDiff {
             header.push('\n');
             index += 1;
         }
-        Self { header, hunks }
+        let mut diff = Self {
+            header,
+            hunks,
+            spans: Vec::new(),
+        };
+        diff.rebuild_spans(&[]);
+        diff
+    }
+
+    pub(crate) fn is_new_file(&self) -> bool {
+        self.header
+            .lines()
+            .any(|line| line == "--- /dev/null" || line == "--- NUL")
+    }
+
+    pub(crate) fn spans(&self) -> &[Vec<DiffLine>] {
+        &self.spans
+    }
+
+    pub(crate) fn absorb_unchanged(&mut self, full: &Self) {
+        let file = full
+            .hunks
+            .iter()
+            .flat_map(|hunk| hunk.lines.iter())
+            .filter_map(|line| line.new_line.map(|number| (number, line)))
+            .collect::<BTreeMap<_, _>>();
+        let between = |from: u64, to: u64| {
+            file.range(from..to)
+                .map(|(_, line)| (*line).clone())
+                .collect::<Vec<_>>()
+        };
+        let mut gaps = Vec::with_capacity(self.hunks.len() + 1);
+        let mut next = 1_u64;
+        for hunk in &self.hunks {
+            let first = hunk.lines.iter().filter_map(|line| line.new_line).min();
+            let last = hunk.lines.iter().filter_map(|line| line.new_line).max();
+            match (first, last) {
+                (Some(first), Some(last)) => {
+                    gaps.push(between(next, first));
+                    next = last.saturating_add(1);
+                }
+                _ => gaps.push(Vec::new()),
+            }
+        }
+        gaps.push(between(next, u64::MAX));
+        self.rebuild_spans(&gaps);
+    }
+
+    fn rebuild_spans(&mut self, gaps: &[Vec<DiffLine>]) {
+        let mut spans = Vec::with_capacity(self.hunks.len() + 1);
+        let mut current = gaps.first().cloned().unwrap_or_default();
+        for (index, hunk) in self.hunks.iter().enumerate() {
+            for segment in hunk.segments() {
+                match segment {
+                    DiffSegment::Unchanged(range) => {
+                        current.extend(hunk.lines[range].iter().cloned());
+                    }
+                    DiffSegment::Changed(_) => spans.push(std::mem::take(&mut current)),
+                }
+            }
+            current.extend(gaps.get(index + 1).into_iter().flatten().cloned());
+        }
+        spans.push(current);
+        self.spans = spans;
+    }
+
+    pub(crate) fn widest_line(&self, measure: impl Fn(&str) -> f32) -> f32 {
+        self.lines()
+            .map(|line| measure(line.drawn_text()))
+            .fold(0.0, f32::max)
+    }
+
+    fn lines(&self) -> impl Iterator<Item = &DiffLine> {
+        self.hunks
+            .iter()
+            .flat_map(|hunk| hunk.lines.iter())
+            .chain(self.spans.iter().flatten())
     }
 
     /// A patch for one hunk, ready to be applied on its own.
@@ -159,7 +299,10 @@ impl FileDiff {
         patch.push('\n');
         for line in &hunk.lines {
             match line.kind {
-                DiffLineKind::Marker => patch.push_str("\\ No newline at end of file\n"),
+                DiffLineKind::Marker => {
+                    patch.push_str(NO_NEWLINE_NOTE);
+                    patch.push('\n');
+                }
                 DiffLineKind::Context => {
                     let _ = writeln!(patch, " {}", line.text);
                 }
@@ -172,6 +315,89 @@ impl FileDiff {
             }
         }
         Some(patch)
+    }
+
+    pub(crate) fn rows(&self, split: bool, hidden: bool, opened: &[usize]) -> Vec<DiffRow> {
+        let split = split && !self.is_new_file();
+        let mut rows = Vec::new();
+        let mut span = 0;
+        for (index, hunk) in self.hunks.iter().enumerate() {
+            let mut block = false;
+            for segment in hunk.segments() {
+                let DiffSegment::Changed(range) = segment else {
+                    continue;
+                };
+                self.span_rows(&mut rows, span, split, hidden, opened);
+                span += 1;
+                if !block {
+                    rows.push(DiffRow::Block { hunk: index });
+                    block = true;
+                }
+                if split {
+                    rows.extend(
+                        hunk.pair_segment(range)
+                            .into_iter()
+                            .map(|row| DiffRow::Split {
+                                source: DiffSource::Hunk(index),
+                                row,
+                            }),
+                    );
+                } else {
+                    rows.extend(range.map(|line| DiffRow::Line {
+                        source: DiffSource::Hunk(index),
+                        line,
+                    }));
+                }
+            }
+        }
+        self.span_rows(&mut rows, span, split, hidden, opened);
+        rows
+    }
+
+    fn span_rows(
+        &self,
+        rows: &mut Vec<DiffRow>,
+        span: usize,
+        split: bool,
+        hidden: bool,
+        opened: &[usize],
+    ) {
+        let Some(lines) = self.spans.get(span) else {
+            return;
+        };
+        if lines.is_empty() {
+            return;
+        }
+        let count = lines.len();
+        if hidden && !opened.contains(&span) {
+            rows.push(DiffRow::Band {
+                span,
+                lines: count,
+                folded: true,
+            });
+            return;
+        }
+        if hidden {
+            rows.push(DiffRow::Band {
+                span,
+                lines: count,
+                folded: false,
+            });
+        }
+        if split {
+            rows.extend((0..lines.len()).map(|line| DiffRow::Split {
+                source: DiffSource::Unchanged(span),
+                row: SplitRow::Pair {
+                    left: Some(line),
+                    right: Some(line),
+                },
+            }));
+        } else {
+            rows.extend((0..lines.len()).map(|line| DiffRow::Line {
+                source: DiffSource::Unchanged(span),
+                line,
+            }));
+        }
     }
 }
 

@@ -37,6 +37,14 @@ impl RepositoryOperations for GitOperations {
         load_diff(backend, target)
     }
 
+    fn load_unchanged_diff(
+        &self,
+        backend: &RepositoryBackend,
+        target: DiffTarget,
+    ) -> Result<DiffResult, RepositoryError> {
+        load_diff_with_context(backend, target, Some(UNCHANGED_CONTEXT))
+    }
+
     fn apply_patch(
         &self,
         backend: &RepositoryBackend,
@@ -149,9 +157,19 @@ pub(in crate::modules::repository) fn apply_patch(
     }
 }
 
+const UNCHANGED_CONTEXT: u32 = 1_000_000;
+
 pub(in crate::modules::repository) fn load_diff(
     backend: &RepositoryBackend,
     target: DiffTarget,
+) -> Result<DiffResult, RepositoryError> {
+    load_diff_with_context(backend, target, None)
+}
+
+pub(in crate::modules::repository) fn load_diff_with_context(
+    backend: &RepositoryBackend,
+    target: DiffTarget,
+    context: Option<u32>,
 ) -> Result<DiffResult, RepositoryError> {
     let expected_status = &target.token;
     let current = status_output(backend)?;
@@ -160,9 +178,9 @@ pub(in crate::modules::repository) fn load_diff(
     }
 
     let mut arguments = match target.layer {
-        ChangeLayer::Index => diff_arguments(true),
-        ChangeLayer::WorkingTree | ChangeLayer::Conflict => diff_arguments(false),
-        ChangeLayer::Untracked => untracked_diff_arguments(),
+        ChangeLayer::Index => diff_arguments(true, context),
+        ChangeLayer::WorkingTree | ChangeLayer::Conflict => diff_arguments(false, context),
+        ChangeLayer::Untracked => untracked_diff_arguments(context),
     };
     if let Some(original) = &target.original_relative_path {
         arguments.push(original.as_os_str().to_os_string());
@@ -207,7 +225,7 @@ fn status_output(backend: &RepositoryBackend) -> Result<CommandOutput, Repositor
     Ok(output)
 }
 
-fn diff_arguments(staged: bool) -> Vec<OsString> {
+fn diff_arguments(staged: bool, context: Option<u32>) -> Vec<OsString> {
     let mut arguments = [
         "--no-pager",
         "--no-optional-locks",
@@ -225,21 +243,30 @@ fn diff_arguments(staged: bool) -> Vec<OsString> {
     if staged {
         arguments.push(OsString::from("--cached"));
     }
+    if let Some(context) = context {
+        arguments.push(OsString::from(format!("--unified={context}")));
+    }
     arguments.push(OsString::from("--"));
     arguments
 }
 
-fn untracked_diff_arguments() -> Vec<OsString> {
-    vec![
-        OsString::from("--no-pager"),
-        OsString::from("diff"),
-        OsString::from("--no-index"),
-        OsString::from("--no-color"),
-        OsString::from("--no-ext-diff"),
-        OsString::from("--no-textconv"),
-        OsString::from("--"),
-        OsString::from(null_device()),
+fn untracked_diff_arguments(context: Option<u32>) -> Vec<OsString> {
+    let mut arguments = [
+        "--no-pager",
+        "diff",
+        "--no-index",
+        "--no-color",
+        "--no-ext-diff",
+        "--no-textconv",
     ]
+    .map(OsString::from)
+    .to_vec();
+    if let Some(context) = context {
+        arguments.push(OsString::from(format!("--unified={context}")));
+    }
+    arguments.push(OsString::from("--"));
+    arguments.push(OsString::from(null_device()));
+    arguments
 }
 
 #[cfg(unix)]

@@ -9,8 +9,8 @@ pub(crate) use contract::{
 };
 
 pub(crate) use core::{
-    DiffHunk, DiffLine, DiffLineKind, FileDiff, HunkApply, RepositoryBackend, RepositoryEdit,
-    RepositoryEditReview, SplitRow,
+    DiffHunk, DiffLine, DiffLineKind, DiffRow, DiffSource, FileDiff, HunkApply, RepositoryBackend,
+    RepositoryEdit, RepositoryEditReview, SplitRow,
 };
 
 use core::{change, command_failed, require_complete_stdout};

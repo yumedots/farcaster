@@ -4,7 +4,9 @@ mod file_counts;
 pub(super) mod port;
 mod sync;
 
-pub(crate) use diff::{DiffHunk, DiffLine, DiffLineKind, FileDiff, HunkApply, SplitRow};
+pub(crate) use diff::{
+    DiffHunk, DiffLine, DiffLineKind, DiffRow, DiffSource, FileDiff, HunkApply, SplitRow,
+};
 pub(crate) use edit::{RepositoryEdit, RepositoryEditReview};
 
 use super::contract::{
@@ -71,10 +73,7 @@ impl RepositoryBackend {
         }
         let _operation = repository_operation()?;
         let mut file_counts = std::collections::BTreeMap::new();
-        let mut untracked_binary = false;
-        let mut untracked_additions = 0_u64;
-        let output = {
-            let mut patch = Vec::new();
+        {
             for staged in [true, false] {
                 let mut arguments = [
                     "--no-pager",
@@ -109,7 +108,6 @@ impl RepositoryBackend {
                         .into_iter()
                         .map(|(path, counts)| ((layer, path), counts)),
                 );
-                patch.extend(output.stdout);
             }
             for change in snapshot
                 .changes
@@ -123,30 +121,29 @@ impl RepositoryBackend {
                     }
                 })?;
                 let counts = file_counts::untracked(&contents);
-                if let Some((additions, _)) = counts {
-                    untracked_additions = untracked_additions.saturating_add(additions as u64);
-                } else {
-                    untracked_binary = true;
-                }
                 file_counts.insert((change.layer, change.relative_path.clone()), counts);
             }
-            patch
-        };
-        let patch = String::from_utf8_lossy(&output);
+        }
         for change in &mut snapshot.changes {
             change.counts = file_counts
                 .get(&(change.layer, change.relative_path.clone()))
                 .copied()
                 .flatten();
         }
-        if untracked_binary {
-            return Ok((None, None));
-        }
-        let (additions, deletions) = patch_counts(&patch);
-        Ok((
-            additions.map(|additions| additions.saturating_add(untracked_additions)),
-            deletions,
-        ))
+        let (additions, deletions) = snapshot
+            .changes
+            .iter()
+            .filter_map(|change| change.counts)
+            .fold(
+                (0_u64, 0_u64),
+                |(additions, deletions), (added, removed)| {
+                    (
+                        additions.saturating_add(added as u64),
+                        deletions.saturating_add(removed as u64),
+                    )
+                },
+            );
+        Ok((Some(additions), Some(deletions)))
     }
 
     pub(crate) fn load_diff(&self, target: DiffTarget) -> Result<DiffResult, RepositoryError> {
@@ -156,9 +153,24 @@ impl RepositoryBackend {
     }
 
     /// The file's diff, split into hunks that can each be applied on their own.
-    pub(crate) fn file_diff(&self, target: &DiffTarget) -> Result<FileDiff, RepositoryError> {
+    pub(crate) fn file_diff(
+        &self,
+        target: &DiffTarget,
+        unchanged: bool,
+    ) -> Result<FileDiff, RepositoryError> {
         let result = self.load_diff(target.clone())?;
-        Ok(FileDiff::parse(&result.patch))
+        let mut diff = FileDiff::parse(&result.patch);
+        if unchanged {
+            let full = self.load_unchanged_diff(target.clone())?;
+            diff.absorb_unchanged(&FileDiff::parse(&full.patch));
+        }
+        Ok(diff)
+    }
+
+    fn load_unchanged_diff(&self, target: DiffTarget) -> Result<DiffResult, RepositoryError> {
+        self.validate_target(&target)?;
+        let _operation = repository_operation()?;
+        self.operations.load_unchanged_diff(self, target)
     }
 
     /// Applies one hunk's patch. The patch comes straight from a diff this
