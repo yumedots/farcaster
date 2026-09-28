@@ -142,15 +142,12 @@ fn parse_ignores_an_empty_patch() {
 
 #[test]
 fn split_rows_line_a_replacement_up_left_against_right() {
-    // One line in, three out: the second and third rows are additions with
-    // nothing to pair with, which is the blank cell on the left.
     let diff = FileDiff::parse(
         "diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1,2 +1,4 @@\n keep\n-old\n+new\n+much\n+more\n",
     );
     let hunk_lines = diff.hunks[0].lines.len();
     let rows = diff.hunks[0].pair_segment(0..hunk_lines);
     assert_eq!(rows.len(), 4);
-    // Context sits on both sides.
     assert_eq!(
         rows[0],
         SplitRow::Pair {
@@ -158,7 +155,6 @@ fn split_rows_line_a_replacement_up_left_against_right() {
             right: Some(0)
         }
     );
-    // The removal and the first addition share a row.
     assert_eq!(
         rows[1],
         SplitRow::Pair {
@@ -465,17 +461,23 @@ fn cells(text: &str) -> f32 {
 }
 
 #[test]
-fn widest_line_measures_every_line_of_the_file() {
+fn the_widest_line_of_each_side_measures_the_whole_file() {
     let mut diff = FileDiff::parse(
         "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,1 +1,1 @@\n-old\n+new\n@@ -6,1 +6,1 @@\n-late\n+later\n",
     );
-    assert_eq!(diff.widest_line(cells), 5.0);
+    assert_eq!(diff.widest_sides(cells), SideWidths { old: 4.0, new: 5.0 });
     let full = FileDiff::parse(
         "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,6 +1,6 @@\n-old\n+new\n a line\n a much longer unchanged line\n last\n-late\n+later\n",
     );
     diff.absorb_unchanged(&full);
-    assert_eq!(diff.widest_line(cells), 28.0);
-    assert_eq!(FileDiff::parse("").widest_line(cells), 0.0);
+    assert_eq!(
+        diff.widest_sides(cells),
+        SideWidths {
+            old: 28.0,
+            new: 28.0
+        }
+    );
+    assert_eq!(FileDiff::parse("").widest_sides(cells).widest(), 0.0);
 }
 
 #[test]
@@ -483,7 +485,15 @@ fn the_widest_line_is_the_one_that_needs_the_most_room() {
     let diff = FileDiff::parse(
         "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,3 +1,3 @@\n a line of twenty-one\n-日本語のテキストでした\n+english text\n",
     );
-    assert_eq!(diff.widest_line(cells), 22.0);
+    let widths = diff.widest_sides(cells);
+    assert_eq!(
+        widths,
+        SideWidths {
+            old: 22.0,
+            new: 20.0
+        }
+    );
+    assert_eq!(widths.widest(), 22.0);
 }
 
 #[test]
@@ -492,7 +502,7 @@ fn the_note_about_a_missing_newline_is_measured_with_its_line() {
         "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n\\ No newline at end of file\n+new\n\\ No newline at end of file\n",
     );
     assert_eq!(
-        diff.widest_line(cells),
+        diff.widest_sides(cells).widest(),
         NO_NEWLINE_NOTE.chars().count() as f32
     );
 }

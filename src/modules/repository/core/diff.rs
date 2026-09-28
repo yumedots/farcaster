@@ -1,13 +1,9 @@
 use std::{collections::BTreeMap, fmt::Write as _, ops::Range};
 
-/// Which copy of a file a hunk is applied to.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HunkApply {
-    /// Stage a hunk from the working tree into the index.
     Stage,
-    /// Take a hunk back out of the index.
     Unstage,
-    /// Throw away a hunk in the working tree.
     Revert,
 }
 
@@ -21,6 +17,18 @@ impl HunkApply {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct SideWidths {
+    pub(crate) old: f32,
+    pub(crate) new: f32,
+}
+
+impl SideWidths {
+    pub(crate) fn widest(self) -> f32 {
+        self.old.max(self.new)
+    }
+}
+
 pub(crate) const NO_NEWLINE_NOTE: &str = "\\ No newline at end of file";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -28,14 +36,12 @@ pub(crate) enum DiffLineKind {
     Context,
     Added,
     Removed,
-    /// A `\ No newline at end of file` marker that belongs to the line above it.
     Marker,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DiffLine {
     pub(crate) kind: DiffLineKind,
-    /// The line without its diff prefix.
     pub(crate) text: String,
     pub(crate) old_line: Option<u64>,
     pub(crate) new_line: Option<u64>,
@@ -52,7 +58,6 @@ impl DiffLine {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DiffHunk {
-    /// The `@@ -a,b +c,d @@` line, including any trailing section heading.
     pub(crate) heading: String,
     pub(crate) lines: Vec<DiffLine>,
     pub(crate) additions: usize,
@@ -65,13 +70,11 @@ pub(crate) enum DiffSegment {
     Changed(Range<usize>),
 }
 
-/// One row of a side-by-side view, as indices into the hunk's lines.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SplitRow {
-    /// A `\ No newline at end of file` note, which belongs to neither side.
-    Note { line: usize },
-    /// A line against its counterpart. Either side is empty when its half of
-    /// the block is shorter, which is the blank cell a diff editor shows.
+    Note {
+        line: usize,
+    },
     Pair {
         left: Option<usize>,
         right: Option<usize>,
@@ -86,9 +89,17 @@ pub(crate) enum DiffSource {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DiffRow {
-    Block { hunk: usize },
-    Line { source: DiffSource, line: usize },
-    Split { source: DiffSource, row: SplitRow },
+    Block {
+        hunk: usize,
+    },
+    Line {
+        source: DiffSource,
+        line: usize,
+    },
+    Split {
+        source: DiffSource,
+        row: SplitRow,
+    },
     Band {
         span: usize,
         lines: usize,
@@ -176,10 +187,8 @@ impl DiffHunk {
     }
 }
 
-/// One file's unified diff, split so each hunk can be applied on its own.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct FileDiff {
-    /// Everything above the first hunk: the header a patch has to carry.
     header: String,
     pub(crate) hunks: Vec<DiffHunk>,
     spans: Vec<Vec<DiffLine>>,
@@ -202,8 +211,6 @@ impl FileDiff {
                 hunks.push(hunk(line, &lines[start..index]));
                 continue;
             }
-            // Everything above the first hunk is header; anything below the
-            // last one belongs to another file's block.
             if !hunks.is_empty() {
                 break;
             }
@@ -277,10 +284,18 @@ impl FileDiff {
         self.spans = spans;
     }
 
-    pub(crate) fn widest_line(&self, measure: impl Fn(&str) -> f32) -> f32 {
-        self.lines()
-            .map(|line| measure(line.drawn_text()))
-            .fold(0.0, f32::max)
+    pub(crate) fn widest_sides(&self, measure: impl Fn(&str) -> f32) -> SideWidths {
+        let mut widths = SideWidths { old: 0.0, new: 0.0 };
+        for line in self.lines() {
+            let width = measure(line.drawn_text());
+            if line.kind != DiffLineKind::Added {
+                widths.old = widths.old.max(width);
+            }
+            if line.kind != DiffLineKind::Removed {
+                widths.new = widths.new.max(width);
+            }
+        }
+        widths
     }
 
     fn lines(&self) -> impl Iterator<Item = &DiffLine> {
@@ -290,7 +305,6 @@ impl FileDiff {
             .chain(self.spans.iter().flatten())
     }
 
-    /// A patch for one hunk, ready to be applied on its own.
     pub(crate) fn patch_for(&self, index: usize) -> Option<String> {
         let hunk = self.hunks.get(index)?;
         let mut patch = String::with_capacity(self.header.len() + hunk.heading.len() + 64);
@@ -461,7 +475,6 @@ fn hunk(heading: &str, lines: &[&str]) -> DiffHunk {
     }
 }
 
-/// The starting line numbers of `@@ -old,count +new,count @@`.
 fn heading_lines(heading: &str) -> (u64, u64) {
     let mut ranges = heading.split_whitespace();
     let old = ranges

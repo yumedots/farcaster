@@ -13,9 +13,6 @@ fn change_rows_keep_staged_and_working_tree_layers_apart() {
     );
 }
 
-/// The source control section only renders in a wide window with the run panel
-/// showing, so this drives the real app over a dirty repository and draws the
-/// frame that contains it.
 #[gpui::test]
 fn the_source_control_panel_renders_a_dirty_repository(cx: &mut gpui::TestAppContext) {
     let test_name = concat!(
@@ -50,11 +47,9 @@ fn the_source_control_panel_renders_a_dirty_repository(cx: &mut gpui::TestAppCon
                 changes >= 2,
                 "the panel should have staged and working changes to render, found {changes}"
             );
-            // Two frames: the section reflects state the first draw installs.
             pump(cx, app);
             pump(cx, app);
 
-            // The VS Code sections and the flat list are separate render paths.
             cx.update(|_, cx| {
                 app.update(cx, |app, _| {
                     app.settings.stage_changes_like_vscode = true;
@@ -76,8 +71,6 @@ fn the_source_control_panel_renders_a_dirty_repository(cx: &mut gpui::TestAppCon
     );
 }
 
-/// A repository with one modified tracked file and one untracked file, ready
-/// before the app boots so the first refresh already sees both.
 fn dirty_repository(project: &std::path::Path) {
     git(project, &["init", "-q"]);
     git(project, &["config", "user.name", "Panel Test"]);
@@ -125,8 +118,6 @@ fn git(project: &std::path::Path, arguments: &[&str]) {
     );
 }
 
-/// Opens the in-app diff for the modified file, draws it, and stages its hunk,
-/// which is the whole hunk path the gutter actions take.
 #[gpui::test]
 fn the_app_diff_tab_stages_a_hunk(cx: &mut gpui::TestAppContext) {
     let test_name = concat!(module_path!(), "::the_app_diff_tab_stages_a_hunk");
@@ -218,7 +209,6 @@ fn the_app_diff_tab_stages_a_hunk(cx: &mut gpui::TestAppContext) {
                         .snapshot
                         .as_ref()
                         .is_some_and(|snapshot| {
-                            // The staged row is a different key: same path, new layer.
                             snapshot.changes.iter().any(|change| {
                                 change.layer == crate::repository::ChangeLayer::Index
                                     && change.relative_path == target.1
@@ -242,7 +232,6 @@ fn the_app_diff_tab_stages_a_hunk(cx: &mut gpui::TestAppContext) {
                     .clone()
             });
             assert_eq!(error, None);
-            // A file opens against itself, and either reading draws.
             cx.update(|_, cx| {
                 app.update(cx, |app, cx| {
                     let diff = app.active_diff().expect("diff");
@@ -598,6 +587,93 @@ fn one_long_line_repository(project: &std::path::Path) {
     );
     let after = format!("{}\n", "new ".repeat(60));
     std::fs::write(project.join("one.txt"), after).expect("change the file");
+}
+
+fn long_deleted_line_repository(project: &std::path::Path) {
+    git(project, &["init", "-q"]);
+    git(project, &["config", "user.name", "Panel Test"]);
+    git(project, &["config", "user.email", "panel@example.invalid"]);
+    let before = format!("{}\n", "old ".repeat(60));
+    std::fs::write(project.join("one.txt"), &before).expect("write the file");
+    git(project, &["add", "."]);
+    git(
+        project,
+        &["-c", "commit.gpgsign=false", "commit", "-qm", "base"],
+    );
+    std::fs::write(project.join("one.txt"), "new\n").expect("change the file");
+}
+
+#[gpui::test]
+fn the_app_diff_sizes_a_row_to_the_lines_it_holds(cx: &mut gpui::TestAppContext) {
+    let test_name = concat!(
+        module_path!(),
+        "::the_app_diff_sizes_a_row_to_the_lines_it_holds"
+    );
+    crate::app::test_support::with_prepared_offline_app(
+        test_name,
+        cx,
+        dirty_repository,
+        |cx, app, _, _| {
+            cx.simulate_resize(gpui::size(gpui::px(1400.0), gpui::px(900.0)));
+            cx.update(|_, cx| {
+                app.update(cx, |app, cx| {
+                    app.project.repository.execution_allowed = true;
+                    app.workspace.run_panel_hidden = false;
+                    app.request_repository_refresh(cx);
+                });
+            });
+            wait_for_repository(cx, app);
+            open_diff(cx, app, std::path::Path::new("tracked.txt"));
+            pump(cx, app);
+            pump(cx, app);
+            let row = cx
+                .debug_bounds("repository-diff-row")
+                .expect("the row of the change");
+            assert!(
+                f32::from(row.size.width) < 400.0,
+                "a one-line file was read {} wide in a 1400px window",
+                f32::from(row.size.width),
+            );
+        },
+    );
+}
+
+#[gpui::test]
+fn the_app_diff_sizes_each_column_to_its_own_side(cx: &mut gpui::TestAppContext) {
+    let test_name = concat!(
+        module_path!(),
+        "::the_app_diff_sizes_each_column_to_its_own_side"
+    );
+    crate::app::test_support::with_prepared_offline_app(
+        test_name,
+        cx,
+        long_deleted_line_repository,
+        |cx, app, _, _| {
+            cx.simulate_resize(gpui::size(gpui::px(1400.0), gpui::px(900.0)));
+            cx.update(|_, cx| {
+                app.update(cx, |app, cx| {
+                    app.project.repository.execution_allowed = true;
+                    app.workspace.run_panel_hidden = false;
+                    app.request_repository_refresh(cx);
+                });
+            });
+            wait_for_repository(cx, app);
+            open_diff(cx, app, std::path::Path::new("one.txt"));
+            pump(cx, app);
+            pump(cx, app);
+            let deleted = cx.update(|_, cx| {
+                f32::from(app.read(cx).active_diff().expect("the diff").widest_left)
+            });
+            let row = cx
+                .debug_bounds("repository-diff-row")
+                .expect("the row of the change");
+            assert!(
+                f32::from(row.size.width) < deleted * 1.2,
+                "the row is {} wide against {deleted} for the side that holds the long line",
+                f32::from(row.size.width),
+            );
+        },
+    );
 }
 
 #[gpui::test]

@@ -107,13 +107,23 @@ fn body(diff: &RepositoryDiff, entity: WeakEntity<FarcasterApp>, available: bool
     let bounds = diff.scroll.bounds();
     let viewport = f32::from(bounds.size.height);
     let window_width = px(f32::from(bounds.size.width));
-    let reading_width = if diff.split_reading() {
-        (half_gutter_width() + diff.widest_line) * 2.0 + theme().border
+    let widths = if diff.split_reading() {
+        SideWidths {
+            left: half_gutter_width() + diff.widest_left,
+            right: half_gutter_width() + diff.widest_right,
+        }
     } else {
-        gutter_width() + diff.widest_line
-    }
-    .max(window_width);
-    let half_width = px(f32::from(reading_width) / 2.0);
+        let widest = diff.widest_left.max(diff.widest_right);
+        SideWidths {
+            left: gutter_width() + widest,
+            right: gutter_width() + widest,
+        }
+    };
+    let reading_width = if diff.split_reading() {
+        widths.left + theme().border + widths.right
+    } else {
+        widths.left
+    };
     let tail = (reading_width - window_width - px(scrolled)).max(px(0.0));
     let (first, first_top) = {
         let mut first = 0;
@@ -152,7 +162,7 @@ fn body(diff: &RepositoryDiff, entity: WeakEntity<FarcasterApp>, available: bool
             anchors.push((hunk, row_top));
             continue;
         }
-        let element = diff_row(diff, *row, entity.clone(), line_height, row_top, half_width);
+        let element = diff_row(diff, *row, entity.clone(), line_height, row_top, widths);
         let hunk = row_hunk(*row);
         match grouped.last_mut() {
             Some((owner, elements)) if *owner == hunk => elements.push(element),
@@ -190,7 +200,7 @@ fn body(diff: &RepositoryDiff, entity: WeakEntity<FarcasterApp>, available: bool
         .flex()
         .flex_col()
         .relative()
-        .min_w(reading_width)
+        .w(reading_width)
         .when(first_top > 0.0, |reading| {
             reading.child(spacer(px(first_top)))
         })
@@ -250,7 +260,7 @@ fn diff_row(
     entity: WeakEntity<FarcasterApp>,
     line_height: Pixels,
     top: f32,
-    half_width: Pixels,
+    widths: SideWidths,
 ) -> AnyElement {
     let Some(file) = diff.diff.as_ref() else {
         return div().into_any_element();
@@ -262,11 +272,9 @@ fn diff_row(
             DiffSource::Unchanged(span) => span_line(diff, span, line, line_height, top),
         },
         DiffRow::Split { source, row } => match source {
-            DiffSource::Hunk(hunk) => {
-                split_row(&file.hunks[hunk], row, line_height, half_width, top)
-            }
+            DiffSource::Hunk(hunk) => split_row(&file.hunks[hunk], row, line_height, widths, top),
             DiffSource::Unchanged(span) => match span_lines(diff, span).get(row_line(row)) {
-                Some(line) => unchanged_row(line, line_height, half_width, top),
+                Some(line) => unchanged_row(line, line_height, widths, top),
                 None => div().h(line_height).into_any_element(),
             },
         },
@@ -311,12 +319,12 @@ fn span_line(
     }
 }
 
-fn unchanged_row(line: &DiffLine, height: Pixels, half_width: Pixels, origin: f32) -> AnyElement {
+fn unchanged_row(line: &DiffLine, height: Pixels, widths: SideWidths, origin: f32) -> AnyElement {
     let text = diff_text(line.drawn_text());
-    let side = |number: Option<u64>| {
+    let side = |number: Option<u64>, side: Side| {
         div()
             .flex_1()
-            .min_w(half_width)
+            .min_w(widths.width(side))
             .h(height)
             .flex()
             .items_start()
@@ -329,7 +337,7 @@ fn unchanged_row(line: &DiffLine, height: Pixels, half_width: Pixels, origin: f3
         .items_start()
         .h(height)
         .child(hatch(origin, unchanged_ink()))
-        .child(side(line.old_line))
+        .child(side(line.old_line, Side::Old))
         .child(
             div()
                 .flex_none()
@@ -337,7 +345,7 @@ fn unchanged_row(line: &DiffLine, height: Pixels, half_width: Pixels, origin: f3
                 .self_stretch()
                 .bg(theme().colors.border),
         )
-        .child(side(line.new_line))
+        .child(side(line.new_line, Side::New))
         .into_any_element()
 }
 
@@ -556,7 +564,7 @@ fn split_row(
     hunk: &DiffHunk,
     row: SplitRow,
     height: Pixels,
-    half_width: Pixels,
+    widths: SideWidths,
     top: f32,
 ) -> AnyElement {
     match row {
@@ -571,12 +579,13 @@ fn split_row(
                 .filter(|line| Some(*line) == right)
                 .is_some_and(|line| hunk.lines[line].kind == DiffLineKind::Context);
             div()
+                .debug_selector(|| "repository-diff-row".into())
                 .relative()
                 .flex()
                 .items_start()
                 .h(height)
                 .when(unchanged, |line| line.child(hatch(top, unchanged_ink())))
-                .child(split_side(hunk, left, Side::Old, height, half_width, top))
+                .child(split_side(hunk, left, Side::Old, height, widths, top))
                 .child(
                     div()
                         .flex_none()
@@ -584,7 +593,7 @@ fn split_row(
                         .self_stretch()
                         .bg(theme().colors.border),
                 )
-                .child(split_side(hunk, right, Side::New, height, half_width, top))
+                .child(split_side(hunk, right, Side::New, height, widths, top))
                 .into_any_element()
         }
     }
@@ -605,20 +614,38 @@ impl Side {
     }
 }
 
+#[derive(Clone, Copy)]
+struct SideWidths {
+    left: Pixels,
+    right: Pixels,
+}
+
+impl SideWidths {
+    fn width(self, side: Side) -> Pixels {
+        match side {
+            Side::Old => self.left,
+            Side::New => self.right,
+        }
+    }
+
+    fn origin(self, side: Side, top: f32) -> f32 {
+        top + match side {
+            Side::Old => 0.0,
+            Side::New => f32::from(self.left) + f32::from(theme().border),
+        }
+    }
+}
+
 fn split_side(
     hunk: &DiffHunk,
     index: Option<usize>,
     side: Side,
     height: Pixels,
-    half_width: Pixels,
+    widths: SideWidths,
     top: f32,
 ) -> AnyElement {
     let Some(line) = index.map(|index| &hunk.lines[index]) else {
-        let origin = match side {
-            Side::Old => top,
-            Side::New => top + f32::from(half_width) + f32::from(theme().border),
-        };
-        return empty_side(height, half_width, origin);
+        return empty_side(height, widths.width(side), widths.origin(side, top));
     };
     let (sign, tint) = match line.kind {
         DiffLineKind::Added => ("+", Some(theme().colors.success)),
@@ -632,7 +659,7 @@ fn split_side(
     let text = diff_text(&line.text);
     div()
         .flex_1()
-        .min_w(half_width)
+        .min_w(widths.width(side))
         .h(height)
         .flex()
         .items_start()
@@ -656,11 +683,11 @@ fn split_side(
         .into_any_element()
 }
 
-fn empty_side(height: Pixels, half_width: Pixels, origin: f32) -> AnyElement {
+fn empty_side(height: Pixels, width: Pixels, origin: f32) -> AnyElement {
     div()
         .relative()
         .flex_1()
-        .min_w(half_width)
+        .min_w(width)
         .h(height)
         .overflow_hidden()
         .child(hatch(origin, empty_ink()))
@@ -734,6 +761,7 @@ fn diff_line(line: &DiffLine, height: Pixels, origin: f32) -> AnyElement {
     let text = diff_text(line.drawn_text());
     let unchanged = line.kind == DiffLineKind::Context;
     div()
+        .debug_selector(|| "repository-diff-row".into())
         .relative()
         .flex()
         .items_start()

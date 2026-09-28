@@ -184,7 +184,8 @@ pub(crate) struct RepositoryDiff {
     pub(crate) hide_unchanged: bool,
     pub(crate) opened: Vec<usize>,
 
-    pub(crate) widest_line: gpui::Pixels,
+    pub(crate) widest_left: gpui::Pixels,
+    pub(crate) widest_right: gpui::Pixels,
     pub(crate) rows: Vec<crate::repository::DiffRow>,
     pub(crate) scroll: gpui::ScrollHandle,
     generation: u64,
@@ -208,7 +209,8 @@ impl RepositoryDiff {
             split: true,
             hide_unchanged: false,
             opened: Vec::new(),
-            widest_line: gpui::px(0.0),
+            widest_left: gpui::px(0.0),
+            widest_right: gpui::px(0.0),
             rows: Vec::new(),
             scroll: gpui::ScrollHandle::new(),
             generation: 0,
@@ -235,7 +237,9 @@ impl RepositoryDiff {
     ) {
         self.additions = diff.hunks.iter().map(|hunk| hunk.additions as u64).sum();
         self.deletions = diff.hunks.iter().map(|hunk| hunk.deletions as u64).sum();
-        self.widest_line = widest_line_width(&diff, text_system);
+        let widths = widest_line_widths(&diff, text_system);
+        self.widest_left = gpui::px(widths.old);
+        self.widest_right = gpui::px(widths.new);
         self.hide_unchanged = hide_unchanged;
         self.diff = Some(diff);
         self.opened.clear();
@@ -307,10 +311,10 @@ pub(in crate::app) fn diff_text(text: &str) -> String {
     text.replace('\t', "    ")
 }
 
-fn widest_line_width(
+fn widest_line_widths(
     file: &crate::repository::FileDiff,
     text_system: &gpui::TextSystem,
-) -> gpui::Pixels {
+) -> crate::repository::SideWidths {
     let font_size = crate::app::ui::theme::theme().type_scale.caption;
     let font_id = text_system.resolve_font(&gpui::font(crate::app::ui::theme::MONO_FONT_FAMILY));
     let cell = text_system
@@ -330,7 +334,7 @@ fn widest_line_width(
             })
             .fold(gpui::px(0.0), |width, character| width + character)
     };
-    gpui::px(file.widest_line(|text| f32::from(width(text))))
+    file.widest_sides(|text| f32::from(width(text)))
 }
 
 pub(crate) struct FarcasterApp {

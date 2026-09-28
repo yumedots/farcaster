@@ -5,7 +5,8 @@ pub(super) mod port;
 mod sync;
 
 pub(crate) use diff::{
-    DiffHunk, DiffLine, DiffLineKind, DiffRow, DiffSource, FileDiff, HunkApply, SplitRow,
+    DiffHunk, DiffLine, DiffLineKind, DiffRow, DiffSource, FileDiff, HunkApply, SideWidths,
+    SplitRow,
 };
 pub(crate) use edit::{RepositoryEdit, RepositoryEditReview};
 
