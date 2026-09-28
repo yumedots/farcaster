@@ -8,11 +8,13 @@ use crate::{
         FarcasterApp, OVERLAY_KEY_CONTEXT,
         ui::{
             assets::AppIcon,
-            primitives::{AppIconSize, ButtonTone, app_icon, icon_button, icon_control, modal},
+            primitives::{
+                AppIconSize, ButtonTone, app_icon, button, icon_button, icon_control, modal,
+            },
             theme::{MONO_FONT_FAMILY, theme},
         },
     },
-    repository::{DiffLine, DiffLineKind, HunkApply},
+    repository::{DiffHunk, DiffLine, DiffLineKind, HunkApply, SplitRow},
 };
 
 const LINE_HEIGHT: f32 = 18.0;
@@ -38,6 +40,7 @@ pub(in crate::app::views) fn render(
         .as_ref()
         .map(|diff| diff.hunks.clone())
         .unwrap_or_default();
+    let split = diff.split;
     let error = diff.error.clone();
     let preparing = diff.preparing();
     let applying = diff.applying;
@@ -59,7 +62,7 @@ pub(in crate::app::views) fn render(
                     .overflow_hidden()
                     .flex()
                     .flex_col()
-                    .child(header(&entity, &path, staged, additions, deletions))
+                    .child(header(&entity, &path, staged, split, additions, deletions))
                     .child(
                         div()
                             .id("repository-diff-body")
@@ -89,19 +92,24 @@ pub(in crate::app::views) fn render(
                             .children(hunks.iter().enumerate().map(|(index, hunk)| {
                                 let entity = entity.clone();
                                 let actions = actions.clone();
+                                let body = if split {
+                                    hunk.split_rows()
+                                        .into_iter()
+                                        .map(|row| split_row(hunk, row))
+                                        .collect::<Vec<_>>()
+                                } else {
+                                    hunk.lines.iter().map(diff_line).collect::<Vec<_>>()
+                                };
                                 div()
                                     .flex()
                                     .flex_col()
-                                    .child(hunk_heading(
+                                    .child(hunk_bar(
                                         index,
-                                        &hunk.heading,
-                                        &hunk.additions,
-                                        &hunk.deletions,
                                         &actions,
                                         available && applying.is_none(),
                                         entity,
                                     ))
-                                    .children(hunk.lines.iter().map(diff_line))
+                                    .children(body)
                                     .into_any_element()
                             })),
                     )
@@ -126,11 +134,13 @@ fn header(
     entity: &WeakEntity<FarcasterApp>,
     path: &str,
     staged: bool,
+    split: bool,
     additions: u64,
     deletions: u64,
 ) -> AnyElement {
     let close = entity.clone();
     let reload = entity.clone();
+    let layout = entity.clone();
     div()
         .flex_none()
         .h(theme().size(48.0))
@@ -175,6 +185,15 @@ fn header(
                         .child(format!("−{deletions}")),
                 ),
         )
+        .child(button(
+            "toggle-repository-diff-layout",
+            if split { "Inline" } else { "Side by side" },
+            ButtonTone::Quiet,
+            true,
+            move |_, cx| {
+                let _ = layout.update(cx, |this, cx| this.toggle_repository_diff_split(cx));
+            },
+        ))
         .child(icon_button(
             "reload-repository-diff",
             AppIcon::ArrowsClockwise,
@@ -196,11 +215,15 @@ fn header(
         .into_any_element()
 }
 
-fn hunk_heading(
+/// The rule between two blocks of changes.
+///
+/// VS Code's inline diff has no heading here either: the block boundary is a
+/// line, and the per-block actions appear on it. They stay on screen at rest
+/// rather than only on hover, so staging one block is findable without
+/// guessing. `@@ -a,b +c,d @@` and its line numbers stay in the parser, which
+/// needs them to rebuild a patch for one block.
+fn hunk_bar(
     index: usize,
-    heading: &str,
-    additions: &usize,
-    deletions: &usize,
     actions: &[HunkApply],
     available: bool,
     entity: WeakEntity<FarcasterApp>,
@@ -211,32 +234,14 @@ fn hunk_heading(
         .group(group.clone())
         .flex()
         .items_center()
+        .justify_end()
         .gap(theme().space.xs)
-        .h(theme().size(LINE_HEIGHT + 6.0))
+        .h(theme().size(LINE_HEIGHT + 4.0))
         .px(theme().space.xs)
-        .bg(theme().colors.surface)
+        .bg(theme().colors.canvas)
         .border_t(theme().border)
         .border_color(theme().colors.border)
-        .child(
-            div()
-                .min_w_0()
-                .flex_1()
-                .text_ellipsis()
-                .text_color(theme().colors.muted)
-                .child(heading.to_owned()),
-        )
-        .child(
-            div()
-                .flex_none()
-                .text_color(theme().colors.success)
-                .child(format!("+{additions}")),
-        )
-        .child(
-            div()
-                .flex_none()
-                .text_color(theme().colors.error)
-                .child(format!("−{deletions}")),
-        )
+        .hover(|bar| bar.bg(theme().colors.surface))
         .children(actions.iter().map(|mode| {
             let mode = *mode;
             let entity = entity.clone();
@@ -258,12 +263,13 @@ fn hunk_action(
         .child(app_icon(hunk_icon(mode), AppIconSize::Inline));
     let control = if available {
         control
-            .opacity(0.0)
+            .opacity(0.55)
+            .hover(|control| control.opacity(1.0))
             .group_hover(group, |control| control.opacity(1.0))
             .focus_visible(|control| control.opacity(1.0))
     } else {
         // The action stays visible but inert when the section cannot take it.
-        control.opacity(0.35)
+        control.opacity(0.25)
     };
     control
         .on_click(move |_, _, cx| {
@@ -281,6 +287,86 @@ const fn hunk_icon(mode: HunkApply) -> AppIcon {
         HunkApply::Unstage => AppIcon::Minus,
         HunkApply::Revert => AppIcon::ArrowCounterClockwise,
     }
+}
+
+/// One row of the side-by-side reading: the old file on the left, the new file
+/// on the right, each half showing its own line number.
+fn split_row(hunk: &DiffHunk, row: SplitRow) -> AnyElement {
+    match row {
+        SplitRow::Note { .. } => div()
+            .px(theme().space.xs)
+            .text_color(theme().colors.subtle)
+            .child("\\ No newline at end of file")
+            .into_any_element(),
+        SplitRow::Pair { left, right } => div()
+            .flex()
+            .items_start()
+            .child(split_side(hunk, left, Side::Old))
+            .child(
+                div()
+                    .flex_none()
+                    .w(theme().border)
+                    .self_stretch()
+                    .bg(theme().colors.border),
+            )
+            .child(split_side(hunk, right, Side::New))
+            .into_any_element(),
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Side {
+    Old,
+    New,
+}
+
+fn split_side(hunk: &DiffHunk, index: Option<usize>, side: Side) -> AnyElement {
+    let line = index.map(|index| &hunk.lines[index]);
+    let (sign, tint) = match line.map(|line| line.kind) {
+        Some(DiffLineKind::Added) => ("+", Some(theme().colors.success)),
+        Some(DiffLineKind::Removed) => ("−", Some(theme().colors.error)),
+        _ => ("", None),
+    };
+    let number = line.and_then(|line| match side {
+        Side::Old => line.old_line,
+        Side::New => line.new_line,
+    });
+    let text = line.map_or_else(String::new, |line| line.text.replace('\t', "    "));
+    div()
+        .flex_1()
+        .min_w_0()
+        .flex()
+        .items_start()
+        .when_some(tint, |cell, tint| cell.bg(tint.opacity(0.20)))
+        .child(number_cell(number))
+        .child(
+            div()
+                .flex_none()
+                .w(theme().size(14.0))
+                .text_align(gpui::TextAlign::Center)
+                .when_some(tint, |slot, tint| slot.text_color(tint))
+                .child(sign.to_owned()),
+        )
+        .child(
+            div()
+                .min_w_0()
+                .flex_1()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .child(text),
+        )
+        .into_any_element()
+}
+
+fn number_cell(value: Option<u64>) -> AnyElement {
+    div()
+        .flex_none()
+        .w(theme().size(NUMBER_WIDTH))
+        .px(px(4.0))
+        .text_align(gpui::TextAlign::Right)
+        .text_color(theme().colors.subtle)
+        .child(value.map_or_else(String::new, |value| value.to_string()))
+        .into_any_element()
 }
 
 fn diff_line(line: &DiffLine) -> AnyElement {

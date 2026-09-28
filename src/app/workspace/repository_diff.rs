@@ -107,6 +107,15 @@ impl FarcasterApp {
         .detach();
     }
 
+    /// Flips between the stacked and the side-by-side reading of the file.
+    pub(in crate::app) fn toggle_repository_diff_split(&mut self, cx: &mut Context<Self>) {
+        let Some(diff) = self.overlays.repository_diff.as_mut() else {
+            return;
+        };
+        diff.split = !diff.split;
+        cx.notify();
+    }
+
     /// Re-reads the file's diff without closing the overlay.
     pub(in crate::app) fn reload_repository_diff(&mut self, cx: &mut Context<Self>) {
         let Some(backend) = self.project.repository.backend.clone() else {

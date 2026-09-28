@@ -188,6 +188,9 @@ pub(crate) struct RepositoryDiff {
     pub(crate) diff: Option<crate::repository::FileDiff>,
     pub(crate) error: Option<String>,
     pub(crate) applying: Option<usize>,
+    /// Whether the changed lines are shown against each other or stacked.
+    /// Side by side is what a diff opens as, the way an editor does it.
+    pub(crate) split: bool,
     generation: u64,
 }
 
@@ -206,6 +209,7 @@ impl RepositoryDiff {
             diff: None,
             error: None,
             applying: None,
+            split: true,
             generation: 0,
         }
     }

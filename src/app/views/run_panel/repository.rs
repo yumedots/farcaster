@@ -695,14 +695,6 @@ impl FarcasterApp {
                         },
                     ),
             )
-            .child(
-                div()
-                    .w(theme().size(14.0))
-                    .flex_none()
-                    .text_size(theme().type_scale.caption)
-                    .text_color(change_color(&change.kind))
-                    .child(status),
-            )
             .when(staging_like_vscode, |row| {
                 let action = if staged {
                     RepositoryEdit::Unstage
@@ -777,6 +769,18 @@ impl FarcasterApp {
                             )),
                         )
                     }),
+            )
+            // The status letter owns the row's right edge, so the action
+            // squares always land in the same place beside it.
+            .child(
+                div()
+                    .w(theme().size(16.0))
+                    .flex_none()
+                    .flex()
+                    .justify_center()
+                    .text_size(theme().type_scale.caption)
+                    .text_color(change_color(&change.kind))
+                    .child(status),
             );
         if !staging_like_vscode {
             return Some(target.into_any_element());

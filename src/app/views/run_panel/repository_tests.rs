@@ -226,6 +226,15 @@ fn the_app_diff_overlay_stages_a_hunk(cx: &mut gpui::TestAppContext) {
                     .clone()
             });
             assert_eq!(error, None);
+            // A file opens against itself, and either reading draws.
+            cx.update(|_, cx| {
+                app.update(cx, |app, cx| {
+                    let diff = app.overlays.repository_diff.as_ref().expect("diff");
+                    assert!(diff.split, "a diff opens side by side");
+                    app.toggle_repository_diff_split(cx);
+                    assert!(!app.overlays.repository_diff.as_ref().expect("diff").split);
+                });
+            });
             pump(cx, app);
             cx.update(|window, cx| {
                 app.update(cx, |app, cx| app.close_repository_diff(window, cx));

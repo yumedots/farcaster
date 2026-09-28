@@ -141,6 +141,101 @@ fn parse_ignores_an_empty_patch() {
 }
 
 #[test]
+fn split_rows_line_a_replacement_up_left_against_right() {
+    // One line in, three out: the second and third rows are additions with
+    // nothing to pair with, which is the blank cell on the left.
+    let diff = FileDiff::parse(
+        "diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1,2 +1,4 @@\n keep\n-old\n+new\n+much\n+more\n",
+    );
+    let rows = diff.hunks[0].split_rows();
+    assert_eq!(rows.len(), 4);
+    // Context sits on both sides.
+    assert_eq!(
+        rows[0],
+        SplitRow::Pair {
+            left: Some(0),
+            right: Some(0)
+        }
+    );
+    // The removal and the first addition share a row.
+    assert_eq!(
+        rows[1],
+        SplitRow::Pair {
+            left: Some(1),
+            right: Some(2)
+        }
+    );
+    assert_eq!(
+        rows[2],
+        SplitRow::Pair {
+            left: None,
+            right: Some(3)
+        }
+    );
+    assert_eq!(
+        rows[3],
+        SplitRow::Pair {
+            left: None,
+            right: Some(4)
+        }
+    );
+}
+
+#[test]
+fn split_rows_pair_a_shorter_replacement_with_a_blank_right() {
+    let diff = FileDiff::parse(
+        "diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1,3 +1,2 @@\n-one\n-two\n-three\n+replacement\n",
+    );
+    let rows = diff.hunks[0].split_rows();
+    assert_eq!(rows.len(), 3);
+    assert_eq!(
+        rows[0],
+        SplitRow::Pair {
+            left: Some(0),
+            right: Some(3)
+        }
+    );
+    assert_eq!(
+        rows[1],
+        SplitRow::Pair {
+            left: Some(1),
+            right: None
+        }
+    );
+    assert_eq!(
+        rows[2],
+        SplitRow::Pair {
+            left: Some(2),
+            right: None
+        }
+    );
+}
+
+#[test]
+fn split_rows_keep_a_no_newline_note_on_its_own() {
+    let diff = FileDiff::parse(
+        "diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1 +1 @@\n-old\n\\ No newline at end of file\n+new\n\\ No newline at end of file\n",
+    );
+    let rows = diff.hunks[0].split_rows();
+    assert_eq!(
+        rows[0],
+        SplitRow::Pair {
+            left: Some(0),
+            right: None
+        }
+    );
+    assert_eq!(rows[1], SplitRow::Note { line: 1 });
+    assert_eq!(
+        rows[2],
+        SplitRow::Pair {
+            left: None,
+            right: Some(2)
+        }
+    );
+    assert_eq!(rows[3], SplitRow::Note { line: 3 });
+}
+
+#[test]
 fn hunk_actions_name_their_target() {
     assert_eq!(HunkApply::Stage.label(), "Stage hunk");
     assert_eq!(HunkApply::Unstage.label(), "Unstage hunk");

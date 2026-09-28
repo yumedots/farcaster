@@ -4,7 +4,7 @@ mod file_counts;
 pub(super) mod port;
 mod sync;
 
-pub(crate) use diff::{DiffLine, DiffLineKind, FileDiff, HunkApply};
+pub(crate) use diff::{DiffHunk, DiffLine, DiffLineKind, FileDiff, HunkApply, SplitRow};
 pub(crate) use edit::{RepositoryEdit, RepositoryEditReview};
 
 use super::contract::{

@@ -48,6 +48,71 @@ pub(crate) struct DiffHunk {
     pub(crate) deletions: usize,
 }
 
+/// One row of a side-by-side view, as indices into the hunk's lines.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SplitRow {
+    /// A `\ No newline at end of file` note, which belongs to neither side.
+    Note { line: usize },
+    /// A line against its counterpart. Either side is empty when its half of
+    /// the block is shorter, which is the blank cell a diff editor shows.
+    Pair {
+        left: Option<usize>,
+        right: Option<usize>,
+    },
+}
+
+impl DiffHunk {
+    /// Lines paired left against right the way a side-by-side editor shows
+    /// them: a run of removals lines up with the run of additions that replaced
+    /// it, and a line of context sits on both sides.
+    pub(crate) fn split_rows(&self) -> Vec<SplitRow> {
+        let kind = |index: usize| self.lines[index].kind;
+        let mut rows = Vec::new();
+        let mut index = 0;
+        while index < self.lines.len() {
+            match kind(index) {
+                DiffLineKind::Marker => {
+                    rows.push(SplitRow::Note { line: index });
+                    index += 1;
+                }
+                DiffLineKind::Context => {
+                    rows.push(SplitRow::Pair {
+                        left: Some(index),
+                        right: Some(index),
+                    });
+                    index += 1;
+                }
+                DiffLineKind::Added => {
+                    rows.push(SplitRow::Pair {
+                        left: None,
+                        right: Some(index),
+                    });
+                    index += 1;
+                }
+                DiffLineKind::Removed => {
+                    let removed = index;
+                    while index < self.lines.len() && kind(index) == DiffLineKind::Removed {
+                        index += 1;
+                    }
+                    let removed_len = index - removed;
+                    let added = index;
+                    while index < self.lines.len() && kind(index) == DiffLineKind::Added {
+                        index += 1;
+                    }
+                    let added_len = index - added;
+                    for offset in 0..removed_len.max(added_len) {
+                        rows.push(SplitRow::Pair {
+                            left: (offset < removed_len).then_some(removed + offset),
+                            right: (offset < added_len).then_some(added + offset),
+                        });
+                    }
+                }
+            }
+        }
+        rows
+    }
+}
+
 /// One file's unified diff, split so each hunk can be applied on its own.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct FileDiff {
