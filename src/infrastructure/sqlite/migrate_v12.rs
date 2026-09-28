@@ -73,20 +73,6 @@ fn copy_projects(tx: &Transaction<'_>) -> Result<(), String> {
             .map_err(|error| format!("copy excluded project: {error}"))?;
         }
     }
-    if let Ok(prefs) = tx.query_row(
-        "SELECT value FROM meta WHERE key='repository_backend_preferences'",
-        [],
-        |row| row.get::<_, String>(0),
-    ) {
-        let prefs: BTreeMap<String, String> = serde_json::from_str(&prefs).unwrap_or_default();
-        for (path, backend) in prefs {
-            tx.execute(
-                "UPDATE projects SET repository_backend=?2 WHERE path=?1",
-                params![path, backend],
-            )
-            .map_err(|error| format!("copy repository preference: {error}"))?;
-        }
-    }
     Ok(())
 }
 
@@ -448,8 +434,8 @@ pub(super) fn import_legacy_pi_gpui(tx: &Transaction<'_>) -> Result<(), String> 
     ).map_err(|error| format!("inspect legacy sessions: {error}"))?;
     let (projects, sessions, archives, composers) = if normalized {
         (
-            "INSERT INTO projects(path, added_ms, deleted_at, repository_backend)
-             SELECT path, added_ms, deleted_at, repository_backend FROM legacy_pi_gpui.projects WHERE true
+            "INSERT INTO projects(path, added_ms, deleted_at)
+             SELECT path, added_ms, deleted_at FROM legacy_pi_gpui.projects WHERE true
              ON CONFLICT(path) DO NOTHING",
             "INSERT INTO sessions(project_id, harness, locator, title, first_user_message, search_text,
                  timestamp, modified_ms, archived_at, message_count, input_tokens, output_tokens,

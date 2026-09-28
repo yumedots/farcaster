@@ -429,7 +429,7 @@ fn branching_requires_a_successor_and_rewind_preserves_abandoned_history() {
     let mut graph = WorkGraph::new(MemoryPersistence::default());
     let (plan, root, walk) = create_plan(&mut graph);
     let git = add_node(&mut graph, "git", plan, "Git first", Some(root));
-    let jj = add_node(&mut graph, "jj", plan, "jj first", Some(root));
+    let rust = add_node(&mut graph, "rust", plan, "Rust first", Some(root));
 
     let ambiguous = graph.edit(&EditRequest {
         project: "/project".into(),
@@ -459,7 +459,7 @@ fn branching_requires_a_successor_and_rewind_preserves_abandoned_history() {
     };
     assert_eq!(rewound.current_node, Some(root));
     assert_eq!(rewound.head_step, None);
-    advance(&mut graph, "choose-jj", walk, root, Some(jj), 4);
+    advance(&mut graph, "choose-rust", walk, root, Some(rust), 4);
 
     let SearchResult::Plan(snapshot) = graph
         .search(&SearchRequest::Plan {
@@ -473,7 +473,7 @@ fn branching_requires_a_successor_and_rewind_preserves_abandoned_history() {
     };
     assert_eq!(snapshot.steps.len(), 3);
     assert!(snapshot.steps.iter().any(|step| step.id == root_step));
-    assert_eq!(snapshot.walk.expect("walk").current_node, Some(jj));
+    assert_eq!(snapshot.walk.expect("walk").current_node, Some(rust));
 }
 
 #[test]

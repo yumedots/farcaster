@@ -458,7 +458,6 @@ fn watcher_detects_metadata_only_commits_and_settles_after_refresh() {
     let refreshed = backend.snapshot().expect("test operation should succeed");
     assert!(refreshed.changes.is_empty());
     assert_ne!(refreshed.identity, initial.identity);
-    // Repeated reads must stop producing watcher events.
     std::thread::sleep(Duration::from_millis(200));
     while events.try_recv().is_ok() {}
     backend.snapshot().expect("test operation should succeed");

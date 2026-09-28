@@ -30,7 +30,7 @@ fn snapshot() -> PlanSnapshot {
         nodes: vec![
             node(1, "Current product"),
             node(2, "Git"),
-            node(3, "jj"),
+            node(3, "Rust"),
             node(4, "Both"),
         ],
         edges: vec![
@@ -118,7 +118,7 @@ fn projection_is_stable_and_marks_reached_and_current_nodes() {
 
 #[test]
 fn search_and_keyboard_navigation_use_visible_rows() {
-    let rows = plan_rows(&snapshot(), &workgraph::ProjectGraph::default(), "jj");
+    let rows = plan_rows(&snapshot(), &workgraph::ProjectGraph::default(), "Rust");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].node.number, 3);
     assert_eq!(adjacent_node_number(&rows, None, 1), Some(3));
@@ -127,7 +127,7 @@ fn search_and_keyboard_navigation_use_visible_rows() {
 #[test]
 fn plan_creation_requires_an_outcome_and_current_state() {
     assert!(!create_form_valid(false, "", "Current product"));
-    assert!(!create_form_valid(false, "Git and jj", "  "));
-    assert!(create_form_valid(false, "Git and jj", "Current product"));
+    assert!(!create_form_valid(false, "Git and Rust", "  "));
+    assert!(create_form_valid(false, "Git and Rust", "Current product"));
     assert!(create_form_valid(true, "Add Git backend", ""));
 }

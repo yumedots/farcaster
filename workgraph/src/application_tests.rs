@@ -78,7 +78,7 @@ fn application_round_trips_nodes_walk_and_session() {
     let (created, root) = create_plan(
         database.clone(),
         project.clone(),
-        "Git and jj integration".into(),
+        "Git integration".into(),
         "Current product".into(),
     )
     .expect("create plan");

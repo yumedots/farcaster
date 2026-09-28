@@ -134,7 +134,7 @@ impl RepositoryBackend {
                     || self.project_relative_path(path).is_none()
                     || path
                         .components()
-                        .any(|part| matches!(part.as_os_str().to_str(), Some(".git" | ".jj")))
+                        .any(|part| part.as_os_str().to_str() == Some(".git"))
                 {
                     return Err(RepositoryError::InvalidPath(path.clone()));
                 }
