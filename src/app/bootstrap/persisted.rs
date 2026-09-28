@@ -14,6 +14,7 @@ pub(super) struct PersistedState {
     pub(super) saved_proxy: Option<String>,
     pub(super) expand_transcript_folders: bool,
     pub(super) stage_changes_like_vscode: bool,
+    pub(super) hide_unchanged_lines: bool,
     pub(super) source_control_view: crate::app::ui::change_tree::ChangeView,
     pub(super) source_control_sort: crate::app::ui::change_tree::ChangeSort,
     pub(super) text_editor: Option<String>,
@@ -130,6 +131,13 @@ pub(super) fn load(project: &Path) -> PersistedState {
             true
         });
 
+    let hide_unchanged_lines = crate::app::infrastructure::persistence::StateStore::open()
+        .and_then(|store| store.load_hide_unchanged_lines())
+        .unwrap_or_else(|load_error| {
+            error.get_or_insert(load_error);
+            false
+        });
+
     let source_control_view = crate::app::infrastructure::persistence::StateStore::open()
         .and_then(|store| store.load_source_control_view())
         .unwrap_or_else(|load_error| {
@@ -184,6 +192,7 @@ pub(super) fn load(project: &Path) -> PersistedState {
         saved_proxy,
         expand_transcript_folders,
         stage_changes_like_vscode,
+        hide_unchanged_lines,
         source_control_view: crate::app::ui::change_tree::ChangeView::from_setting(
             source_control_view.as_deref(),
         ),

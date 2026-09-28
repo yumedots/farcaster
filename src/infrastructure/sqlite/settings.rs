@@ -76,6 +76,29 @@ impl StateStore {
             .map_err(|error| format!("save source control setting: {error}"))
     }
 
+    pub(crate) fn load_hide_unchanged_lines(&self) -> Result<bool, String> {
+        self.connection
+            .query_row(
+                "SELECT value FROM meta WHERE key='hide_unchanged_lines'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map(|value| value.as_deref() == Some("true"))
+            .map_err(|error| format!("load diff setting: {error}"))
+    }
+
+    pub(crate) fn save_hide_unchanged_lines(&self, hidden: bool) -> Result<(), String> {
+        self.connection
+            .execute(
+                "INSERT INTO meta(key, value) VALUES('hide_unchanged_lines', ?1)
+             ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                [if hidden { "true" } else { "false" }],
+            )
+            .map(|_| ())
+            .map_err(|error| format!("save diff setting: {error}"))
+    }
+
     pub(crate) fn load_source_control_view(&self) -> Result<Option<String>, String> {
         self.optional_setting("source_control_view", "load source control view")
     }

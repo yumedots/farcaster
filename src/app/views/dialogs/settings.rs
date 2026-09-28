@@ -86,6 +86,14 @@ pub(in crate::app::views) fn render(
                             entity.clone(),
                             FarcasterApp::toggle_settings_stage_changes_like_vscode,
                         ))
+                        .child(toggle_setting(
+                            "source-control-unchanged-toggle",
+                            "Hide unchanged lines in diffs",
+                            "Open a diff on the changed blocks only, folding the lines between them away. Off shows the whole file, the way a diff editor does.",
+                            app.settings.hide_unchanged_lines,
+                            entity.clone(),
+                            FarcasterApp::toggle_settings_hide_unchanged_lines,
+                        ))
                         .when_some(app.settings.source_control_error.clone(), |content, error| {
                             content.child(feedback(
                                 "settings-source-control-error",
