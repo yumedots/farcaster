@@ -78,10 +78,6 @@ Lobe Icons and distributed under MIT. Their upstream source is
 <https://github.com/lobehub/lobe-icons>, and the exact license is included at
 `THIRD_PARTY_LICENSES/LOBE-ICONS-MIT.txt`.
 
-Linux AppImages explicitly bundle libxcb, Wayland client/EGL, the Vulkan
-loader, and libglvnd's libEGL and libGLdispatch. Their license and attribution
-texts are included under `THIRD_PARTY_LICENSES`.
-
 The Vim, Helix, and GNU Emacs editor icons under `assets/workbench-icons` are
 from Simple Icons, which distributes its icons under CC0 1.0 Universal.
 Upstream: <https://github.com/simple-icons/simple-icons>. Its license is
