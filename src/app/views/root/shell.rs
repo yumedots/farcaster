@@ -95,6 +95,10 @@ impl FarcasterApp {
                 AppSurface::Terminal if self.workspace.terminal.view.is_some() => {
                     self.render_terminal_workspace()
                 }
+                AppSurface::Diff => {
+                    crate::app::views::workspace::repository_diff::render(self, entity.clone())
+                        .unwrap_or_else(|| self.render_chat_main(entity.clone(), viewport_height))
+                }
                 _ => self.render_chat_main(entity.clone(), viewport_height),
             }
         };
@@ -105,7 +109,7 @@ impl FarcasterApp {
             .h_full()
             .flex()
             .flex_col()
-            .child(self.render_workspace_bar(entity.clone(), mode))
+            .child(self.render_workspace_tabs(entity.clone(), mode))
             .child(div().relative().flex_1().min_h_0().child(main).when(
                 native_surface && self.extensions.active.dialog.is_some(),
                 |center| {
@@ -209,17 +213,10 @@ impl FarcasterApp {
                             .border_l(theme().border)
                             .border_color(theme().colors.border)
                             .child(
-                                if self.views.workgraph_inspector_issue.is_some()
-                                    && self.visible_review().is_none()
-                                {
-                                    self.views.workgraph_detail.clone().into_any_element()
-                                } else {
-                                    self.views
-                                        .run_panel
-                                        .clone()
-                                        .cached(gpui::StyleRefinement::default().size_full())
-                                        .into_any_element()
-                                },
+                                self.views
+                                    .run_panel
+                                    .clone()
+                                    .cached(gpui::StyleRefinement::default().size_full()),
                             )
                             .child(resize_handle("run-panel-resize", false, move |x, cx| {
                                 let _ = resize.update(cx, |this, cx| {

@@ -12,11 +12,19 @@ use crate::{
     sessions::root_session_for_path,
 };
 
+const fn cycle_target(surface: AppSurface, forward: bool) -> Option<AppSurface> {
+    match (surface, forward) {
+        (AppSurface::Chat, true) | (AppSurface::Terminal, false) => Some(AppSurface::Editor),
+        (AppSurface::Editor, true) | (AppSurface::Chat, false) => Some(AppSurface::Terminal),
+        (AppSurface::Terminal, true) | (AppSurface::Editor, false) => Some(AppSurface::Chat),
+        (AppSurface::Diff, _) => Some(AppSurface::Chat),
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum AppSheet {
     Sessions,
     Run,
-    WorkerNotices,
     Keybindings,
     Settings,
     ProjectTrust,
@@ -26,7 +34,6 @@ enum AppSheet {
 struct SheetFlags {
     sessions: bool,
     run: bool,
-    worker_notices: bool,
     keybindings: bool,
     settings: bool,
     project_trust: bool,
@@ -36,7 +43,6 @@ const fn sheet_flags(active: Option<AppSheet>) -> SheetFlags {
     SheetFlags {
         sessions: matches!(active, Some(AppSheet::Sessions)),
         run: matches!(active, Some(AppSheet::Run)),
-        worker_notices: matches!(active, Some(AppSheet::WorkerNotices)),
         keybindings: matches!(active, Some(AppSheet::Keybindings)),
         settings: matches!(active, Some(AppSheet::Settings)),
         project_trust: matches!(active, Some(AppSheet::ProjectTrust)),
@@ -45,12 +51,7 @@ const fn sheet_flags(active: Option<AppSheet>) -> SheetFlags {
 
 impl SheetFlags {
     const fn any(self) -> bool {
-        self.sessions
-            || self.run
-            || self.worker_notices
-            || self.keybindings
-            || self.settings
-            || self.project_trust
+        self.sessions || self.run || self.keybindings || self.settings || self.project_trust
     }
 }
 
@@ -93,8 +94,6 @@ impl FarcasterApp {
             ))
         } else if self.overlays.image_preview.is_some() {
             Some(self.overlays.image_preview_focus.clone())
-        } else if self.overlays.repository_diff.is_some() {
-            Some(self.overlays.repository_diff_focus.clone())
         } else if let Some(pending) = &self.project.repository.edits.pending {
             Some(if pending.action.requires_message() {
                 pending.input.read(cx).focus_handle(cx)
@@ -111,8 +110,8 @@ impl FarcasterApp {
             Some(self.overlays.sheet_focus.clone())
         } else if self.navigation.picker.is_some() {
             self.picker_focus(cx)
-        } else if self.workspace.surface == AppSurface::Work {
-            Some(self.views.workgraph.read(cx).focus_handle())
+        } else if self.workspace.surface == AppSurface::Diff {
+            Some(self.overlays.repository_diff_focus.clone())
         } else {
             None
         }
@@ -195,7 +194,7 @@ impl FarcasterApp {
                 self.workspace.editor.ready && self.workspace.editor.view.is_some()
             }
             AppSurface::Terminal => self.workspace.terminal.view.is_some(),
-            AppSurface::Chat | AppSurface::Work => false,
+            AppSurface::Chat | AppSurface::Diff => false,
         }
     }
 
@@ -226,7 +225,7 @@ impl FarcasterApp {
                     terminal.update(cx, |terminal, _| terminal.snapshot()).ok()
                 })
             }
-            AppSurface::Chat | AppSurface::Work => None,
+            AppSurface::Chat | AppSurface::Diff => None,
         }
     }
 
@@ -247,7 +246,7 @@ impl FarcasterApp {
                 .as_ref()
                 .map(|editor| editor.update(cx, |editor, cx| editor.frame_count(cx)))
                 .unwrap_or(0),
-            AppSurface::Chat | AppSurface::Work => 0,
+            AppSurface::Chat | AppSurface::Diff => 0,
         }
     }
 
@@ -337,7 +336,7 @@ impl FarcasterApp {
                     .session_surfaces
                     .insert(target, self.workspace.surface);
             }
-            AppSurface::Chat | AppSurface::Work => {
+            AppSurface::Chat | AppSurface::Diff => {
                 self.workspace.session_surfaces.remove(&target);
             }
         }
@@ -354,9 +353,6 @@ impl FarcasterApp {
             self.overlays.view.pending_setup = false;
             self.overlays.sheet_return_focus = None;
         }
-        if self.workspace.surface == AppSurface::Work {
-            return;
-        }
         let surface = self
             .workspace
             .session_surfaces
@@ -367,7 +363,7 @@ impl FarcasterApp {
         match surface {
             AppSurface::Editor => self.activate_editor_for_project(project, window, cx),
             AppSurface::Terminal => self.activate_terminal_for_project(project, window, cx),
-            AppSurface::Chat | AppSurface::Work => {}
+            AppSurface::Chat | AppSurface::Diff => {}
         }
     }
 
@@ -427,10 +423,10 @@ impl FarcasterApp {
         };
         match request {
             PostRenderFocus::ImagePreview => {
-                if self.overlays.repository_diff.is_some() {
-                    self.overlays.repository_diff_focus.focus(window, cx);
-                } else if self.overlays.image_preview.is_some() {
+                if self.overlays.image_preview.is_some() {
                     self.overlays.image_preview_focus.focus(window, cx);
+                } else if self.workspace.surface == AppSurface::Diff {
+                    self.overlays.repository_diff_focus.focus(window, cx);
                 }
             }
             PostRenderFocus::ActiveSurface(chat) => {
@@ -463,7 +459,9 @@ impl FarcasterApp {
                             terminal.update(cx, |terminal, cx| terminal.focus(window, cx));
                         }
                     }
-                    AppSurface::Work => {}
+                    AppSurface::Diff => {
+                        self.overlays.repository_diff_focus.focus(window, cx);
+                    }
                 }
             }
         }
@@ -482,7 +480,6 @@ impl FarcasterApp {
             || self.sessions.pending_delete.is_some()
             || self.sessions.import.is_some()
             || self.overlays.image_preview.is_some()
-            || self.overlays.repository_diff.is_some()
             || self.project.repository.edits.pending.is_some()
     }
 
@@ -529,7 +526,7 @@ impl FarcasterApp {
     }
 
     pub(in crate::app) fn workspace_switch_blocked(&self) -> bool {
-        self.center_surface_switch_blocked() || self.workspace.surface == AppSurface::Work
+        self.center_surface_switch_blocked()
     }
 
     pub(in crate::app) fn cycle_workspace_surface(
@@ -541,17 +538,14 @@ impl FarcasterApp {
         if self.workspace_switch_blocked() {
             return;
         }
-        let target = match (self.workspace.surface, forward) {
-            (AppSurface::Chat, true) | (AppSurface::Terminal, false) => AppSurface::Editor,
-            (AppSurface::Editor, true) | (AppSurface::Chat, false) => AppSurface::Terminal,
-            (AppSurface::Terminal, true) | (AppSurface::Editor, false) => AppSurface::Chat,
-            (AppSurface::Work, _) => return,
+        let Some(target) = cycle_target(self.workspace.surface, forward) else {
+            return;
         };
         match target {
             AppSurface::Chat => self.show_chat_surface(window, cx),
             AppSurface::Editor => self.show_editor_surface(window, cx),
             AppSurface::Terminal => self.show_terminal_surface(window, cx),
-            AppSurface::Work => {}
+            AppSurface::Diff => {}
         }
     }
 
@@ -679,26 +673,6 @@ impl FarcasterApp {
         self.open_sheet(AppSheet::Run, window, cx);
     }
 
-    pub(in crate::app) fn open_worker_notices(
-        &mut self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.open_sheet(AppSheet::WorkerNotices, window, cx);
-    }
-
-    pub(in crate::app) fn toggle_workgraph_surface(
-        &mut self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.workspace.surface == AppSurface::Work {
-            self.show_chat_surface(window, cx);
-        } else {
-            self.open_workgraph_surface(window, cx);
-        }
-    }
-
     pub(in crate::app) fn enter_chat_surface(
         &mut self,
         focus: FocusHandle,
@@ -724,87 +698,7 @@ impl FarcasterApp {
             self.notify_composer(cx);
             return;
         }
-        if self.enter_chat_surface(self.composer.focus.clone(), cx) {
-            self.views
-                .workgraph
-                .update(cx, |view, cx| view.prepare_open(window, cx));
-        }
-    }
-
-    pub(in crate::app) fn open_workgraph_surface(
-        &mut self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.hide_native_workspace_surfaces(cx);
-        if self.overlays.view.run {
-            self.close_sheet(window, cx);
-        }
-        if self.workspace.surface != AppSurface::Work {
-            self.refresh_workgraph_board(cx);
-            self.set_surface(AppSurface::Work, cx);
-        }
-        self.views
-            .workgraph
-            .update(cx, |view, cx| view.prepare_open(window, cx));
-    }
-
-    pub(in crate::app) fn open_workgraph_node(
-        &mut self,
-        number: u64,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.open_workgraph_surface(window, cx);
-        self.views
-            .workgraph
-            .update(cx, |view, cx| view.select_node(number, cx));
-    }
-
-    pub(in crate::app) fn close_workgraph_inspector(&mut self, cx: &mut Context<Self>) {
-        if self.views.workgraph_inspector_issue.take().is_some() {
-            cx.notify();
-        }
-    }
-
-    fn refresh_workgraph_board(&mut self, cx: &mut Context<Self>) {
-        let project = self.project.path.clone();
-        let active_session = self.active_workgraph_session();
-        let session_goal = self.snapshot.session_goal.clone();
-        self.views.workgraph.update(cx, |view, cx| {
-            view.refresh_for(project, active_session, session_goal, cx);
-        });
-    }
-
-    pub(in crate::app) fn refresh_workgraph_sidebar(&mut self, cx: &mut Context<Self>) {
-        let project = self.project.path.clone();
-        let session_id = self
-            .active_workgraph_session()
-            .map(|(session_id, _)| session_id);
-        let session_goal = self.snapshot.session_goal.clone();
-        self.views.workgraph_sidebar.update(cx, |view, cx| {
-            view.refresh_for(project, session_id, session_goal, cx);
-        });
-    }
-
-    pub(in crate::app) fn refresh_workgraph_goal(&mut self, cx: &mut Context<Self>) {
-        let goal = self.snapshot.session_goal.clone();
-        self.views
-            .workgraph
-            .update(cx, |view, cx| view.set_session_goal(goal.clone(), cx));
-        self.views
-            .workgraph_sidebar
-            .update(cx, |view, cx| view.set_session_goal(goal, cx));
-    }
-
-    pub(in crate::app) fn active_workgraph_session(&self) -> Option<(String, String)> {
-        let selected = self.snapshot.selected_session.as_deref()?;
-        self.sessions
-            .all
-            .iter()
-            .chain(&self.sessions.visible)
-            .find(|session| session.path == selected)
-            .map(|session| (session.id.clone(), session.path.display().to_string()))
+        self.enter_chat_surface(self.composer.focus.clone(), cx);
     }
 
     pub(in crate::app) fn close_sessions_sheet_after_selection(
@@ -840,10 +734,6 @@ impl FarcasterApp {
             }
             Err(error) => self.settings.network_proxy_error = Some(error),
         }
-        if let Err(error) = self.load_worker_profile_settings() {
-            self.workspace.worker_profile_editor.error = Some(error);
-        }
-        self.settings.mcp_error = None;
         self.refresh_theme_editor(window, cx);
         self.open_sheet(AppSheet::Settings, window, cx);
     }
@@ -857,17 +747,6 @@ impl FarcasterApp {
             .network_proxy_input
             .update(cx, |input, cx| input.set_value("", window, cx));
         self.save_settings_proxy(cx);
-    }
-
-    pub(in crate::app) fn toggle_settings_builtin_mcp(&mut self, cx: &mut Context<Self>) {
-        let enabled = !crate::builtin_mcp::enabled();
-        match crate::app::mcp_server::set_enabled(enabled) {
-            Ok(()) => {
-                self.settings.mcp_error = None;
-            }
-            Err(error) => self.settings.mcp_error = Some(error),
-        }
-        cx.notify();
     }
 
     pub(in crate::app) fn toggle_settings_transcript_folders(&mut self, cx: &mut Context<Self>) {
@@ -899,6 +778,24 @@ impl FarcasterApp {
             Ok(()) => {
                 self.settings.stage_changes_like_vscode = enabled;
                 self.settings.source_control_error = None;
+                self.notify_run_panel(cx);
+            }
+            Err(error) => self.settings.source_control_error = Some(error),
+        }
+        cx.notify();
+    }
+
+    pub(in crate::app) fn toggle_settings_hide_unchanged_lines(&mut self, cx: &mut Context<Self>) {
+        let hidden = !self.settings.hide_unchanged_lines;
+        match crate::app::infrastructure::persistence::StateStore::open()
+            .and_then(|store| store.save_hide_unchanged_lines(hidden))
+        {
+            Ok(()) => {
+                self.settings.hide_unchanged_lines = hidden;
+                self.settings.source_control_error = None;
+                for diff in &mut self.workspace.diffs {
+                    diff.set_hide_unchanged(hidden);
+                }
                 self.notify_run_panel(cx);
             }
             Err(error) => self.settings.source_control_error = Some(error),
@@ -1077,7 +974,6 @@ impl FarcasterApp {
         SheetFlags {
             sessions: self.overlays.view.sessions,
             run: self.overlays.view.run,
-            worker_notices: self.overlays.view.worker_notices,
             keybindings: self.overlays.view.keybindings,
             settings: self.overlays.view.settings,
             project_trust: self.overlays.view.project_trust,
@@ -1087,7 +983,6 @@ impl FarcasterApp {
     fn apply_sheet_flags(&mut self, flags: SheetFlags) {
         self.overlays.view.sessions = flags.sessions;
         self.overlays.view.run = flags.run;
-        self.overlays.view.worker_notices = flags.worker_notices;
         self.overlays.view.keybindings = flags.keybindings;
         self.overlays.view.settings = flags.settings;
         self.overlays.view.project_trust = flags.project_trust;
@@ -1155,8 +1050,6 @@ impl FarcasterApp {
             self.close_send_to_chat(window, cx);
         } else if self.overlays.image_preview.is_some() {
             self.close_image_preview(window, cx);
-        } else if self.overlays.repository_diff.is_some() {
-            self.close_repository_diff(window, cx);
         } else if self.project.repository.edits.pending.is_some() {
             self.close_repository_edit(window, cx);
         } else if self.sessions.pending_delete.is_some() {
@@ -1177,6 +1070,8 @@ impl FarcasterApp {
             self.close_picker(window, cx);
         } else if self.extensions.active.dialog.is_some() {
             self.cancel_dialog(window, cx);
+        } else if self.workspace.surface == AppSurface::Diff {
+            self.close_active_diff(window, cx);
         }
     }
 }

@@ -48,6 +48,26 @@ fn focusing_a_native_surface_waits_until_the_bar_stops_obscuring_it(cx: &mut gpu
 }
 
 #[test]
+fn cycling_the_workspace_walks_the_surfaces_and_leaves_a_diff() {
+    for (surface, forward, expected) in [
+        (AppSurface::Chat, true, Some(AppSurface::Editor)),
+        (AppSurface::Chat, false, Some(AppSurface::Terminal)),
+        (AppSurface::Editor, true, Some(AppSurface::Terminal)),
+        (AppSurface::Editor, false, Some(AppSurface::Chat)),
+        (AppSurface::Terminal, true, Some(AppSurface::Chat)),
+        (AppSurface::Terminal, false, Some(AppSurface::Editor)),
+        (AppSurface::Diff, true, Some(AppSurface::Chat)),
+        (AppSurface::Diff, false, Some(AppSurface::Chat)),
+    ] {
+        assert_eq!(
+            cycle_target(surface, forward),
+            expected,
+            "{surface:?} forward={forward}"
+        );
+    }
+}
+
+#[test]
 fn arriving_requests_only_focus_when_replacing_the_composer_slot() {
     assert!(arriving_request_takes_focus(true));
     assert!(!arriving_request_takes_focus(false));
@@ -58,7 +78,6 @@ fn activating_a_sheet_never_stacks_it_with_an_existing_sheet() {
     for sheet in [
         AppSheet::Sessions,
         AppSheet::Run,
-        AppSheet::WorkerNotices,
         AppSheet::Keybindings,
         AppSheet::Settings,
         AppSheet::ProjectTrust,
@@ -68,7 +87,6 @@ fn activating_a_sheet_never_stacks_it_with_an_existing_sheet() {
             [
                 flags.sessions,
                 flags.run,
-                flags.worker_notices,
                 flags.keybindings,
                 flags.settings,
                 flags.project_trust,

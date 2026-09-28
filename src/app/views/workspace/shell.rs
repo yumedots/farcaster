@@ -1,6 +1,5 @@
 use gpui::{
-    IntoElement, ParentElement as _, StatefulInteractiveElement as _, Styled as _, WeakEntity, div,
-    prelude::FluentBuilder as _,
+    IntoElement, ParentElement as _, Styled as _, WeakEntity, div, prelude::FluentBuilder as _,
 };
 
 use crate::app::{
@@ -10,7 +9,7 @@ use crate::app::{
         layout::{
             LayoutMode, shows_right_inline, shows_run_sheet_button, shows_session_sheet_button,
         },
-        primitives::{AppIconSize, ButtonTone, app_icon, icon_button, icon_control, number_slot},
+        primitives::{ButtonTone, icon_button},
         theme::theme,
     },
 };
@@ -22,14 +21,13 @@ impl FarcasterApp {
         entity: WeakEntity<Self>,
     ) -> impl IntoElement {
         let sessions = entity.clone();
-        let work = entity.clone();
         let panel_toggle = entity.clone();
-        let notice_count = self.worker_notices.snapshot(&self.project.path).len();
         div()
             .flex_none()
             .flex()
             .items_center()
             .gap(theme().space.xs)
+            .pr(theme().space.sm)
             .when(shows_session_sheet_button(mode), |controls| {
                 controls.child(icon_button(
                     "open-sessions",
@@ -42,16 +40,6 @@ impl FarcasterApp {
                     },
                 ))
             })
-            .child(icon_button(
-                "open-project-work",
-                AppIcon::GitFork,
-                "Project plan",
-                ButtonTone::Quiet,
-                move |window, cx| {
-                    let _ = work.update(cx, |this, cx| this.open_workgraph_surface(window, cx));
-                },
-            ))
-            .child(worker_notice_control(notice_count, entity.clone()))
             .when(shows_run_sheet_button(mode), |controls| {
                 controls.child(icon_button(
                     "open-run",
@@ -66,7 +54,7 @@ impl FarcasterApp {
             .when(shows_right_inline(mode), |controls| {
                 controls.child(icon_button(
                     "toggle-run-panel",
-                    AppIcon::GitBranch,
+                    AppIcon::SidebarLeft,
                     if self.workspace.run_panel_hidden {
                         "Show source control"
                     } else {
@@ -79,33 +67,4 @@ impl FarcasterApp {
                 ))
             })
     }
-}
-
-fn worker_notice_control(count: usize, entity: WeakEntity<FarcasterApp>) -> impl IntoElement {
-    let label = match count {
-        1 => "Worker notices — 1 active".to_owned(),
-        _ => format!("Worker notices — {count} active"),
-    };
-    icon_control("open-worker-notices", label)
-        .relative()
-        .child(app_icon(AppIcon::Chalkboard, AppIconSize::Control))
-        .when(count > 0, |control| {
-            control.child(
-                div()
-                    .absolute()
-                    .top(theme().size(1.0))
-                    .right(theme().size(1.0))
-                    .child(number_slot(
-                        if count > 99 {
-                            "99+".to_owned()
-                        } else {
-                            count.to_string()
-                        },
-                        theme().layout.counter_slot,
-                    )),
-            )
-        })
-        .on_click(move |_, window, cx| {
-            let _ = entity.update(cx, |app, cx| app.open_worker_notices(window, cx));
-        })
 }

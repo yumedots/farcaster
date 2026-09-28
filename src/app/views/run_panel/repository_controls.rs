@@ -58,6 +58,7 @@ pub(super) fn repository_header(
     filtering: bool,
 ) -> AnyElement {
     let refresh = entity.clone();
+    let hide = entity.clone();
     let clear = entity.clone();
     let clear_selection = entity.clone();
     let commit = entity.clone();
@@ -210,7 +211,16 @@ pub(super) fn repository_header(
                         },
                     ))
                 })
-                .child(menu),
+                .child(menu)
+                .child(icon_button(
+                    "hide-source-control",
+                    AppIcon::SidebarLeft,
+                    "Hide source control",
+                    ButtonTone::Quiet,
+                    move |_, cx| {
+                        let _ = hide.update(cx, |this, cx| this.toggle_run_panel(cx));
+                    },
+                )),
         )
         .when_some(snapshot, |section, snapshot| {
             let metadata = repository_sync_metadata(&snapshot.identity);

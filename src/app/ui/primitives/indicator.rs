@@ -4,16 +4,16 @@ use crate::app::ui::theme::theme;
 
 #[derive(Clone, Copy)]
 pub(crate) enum IndicatorEdge {
-    Bottom,
+    Top,
     Leading,
 }
 
 pub(crate) fn line_indicator(edge: IndicatorEdge, color: Rgba) -> AnyElement {
     let thickness = theme().size(2.0);
     match edge {
-        IndicatorEdge::Bottom => div()
+        IndicatorEdge::Top => div()
             .absolute()
-            .bottom_0()
+            .top_0()
             .left_0()
             .right_0()
             .h(thickness)

@@ -1,17 +1,13 @@
 use gpui::{
     AnyElement, Context, FocusHandle, IntoElement as _, ParentElement as _, Styled as _,
-    WeakEntity, div, prelude::FluentBuilder as _,
+    WeakEntity, prelude::FluentBuilder as _,
 };
 
 use super::{
     super::{FarcasterApp, OVERLAY_KEY_CONTEXT, dialogs},
     keybindings,
 };
-use crate::app::ui::{
-    assets::AppIcon,
-    primitives::{ButtonTone, icon_button, modal},
-    theme::theme,
-};
+use crate::app::ui::{primitives::modal, theme::theme};
 
 impl FarcasterApp {
     pub(super) fn render_root_overlays(
@@ -19,10 +15,8 @@ impl FarcasterApp {
         root: gpui::Div,
         entity: WeakEntity<Self>,
         picker: Option<AnyElement>,
-        work_active: bool,
         cx: &Context<Self>,
     ) -> gpui::Div {
-        let workgraph_focus = self.views.workgraph.read(cx).focus_handle();
         let sessions_sheet = self.overlays.view.sessions.then(|| {
             panel_sheet(
                 "sessions",
@@ -37,75 +31,24 @@ impl FarcasterApp {
             )
         });
         let run_sheet = self.overlays.view.run.then(|| {
-            let reviewing = self.visible_review().is_some();
-            let inspecting = self.views.workgraph_inspector_issue.is_some() && !reviewing;
-            let content = if inspecting {
-                self.views.workgraph_detail.clone().into_any_element()
-            } else {
-                self.views
-                    .run_panel
-                    .clone()
-                    .cached(gpui::StyleRefinement::default().size_full())
-                    .into_any_element()
-            };
             panel_sheet(
                 "run",
-                if reviewing {
+                if self.visible_review().is_some() {
                     "Review"
-                } else if inspecting {
-                    "Node details"
                 } else {
                     "Session details"
                 },
                 &self.overlays.sheet_focus,
                 entity.clone(),
-                content,
+                self.views
+                    .run_panel
+                    .clone()
+                    .cached(gpui::StyleRefinement::default().size_full())
+                    .into_any_element(),
             )
         });
 
         root.when_some(picker, |root, picker| root.child(picker))
-            .when(work_active, |root| {
-                let close = entity.clone();
-                root.child(modal(
-                    "project-work",
-                    "Project plan",
-                    &workgraph_focus,
-                    crate::app::views::workgraph::WORKGRAPH_KEY_CONTEXT,
-                    move |window, cx| {
-                        let _ = close.update(cx, |this, cx| {
-                            this.show_chat_surface(window, cx);
-                        });
-                    },
-                    |surface| {
-                        let close = entity.clone();
-                        surface
-                            .relative()
-                            .w(gpui::px(crate::app::views::workgraph::BOARD_WIDTH))
-                            .max_w_full()
-                            .h(theme().size(620.0))
-                            .max_h(gpui::relative(1.0))
-                            .overflow_hidden()
-                            .child(self.views.workgraph.clone())
-                            .child(
-                                div()
-                                    .absolute()
-                                    .top(theme().size(12.0))
-                                    .right(theme().space.md)
-                                    .child(icon_button(
-                                        "close-project-work",
-                                        AppIcon::X,
-                                        "Close project plan",
-                                        ButtonTone::Quiet,
-                                        move |window, cx| {
-                                            let _ = close.update(cx, |this, cx| {
-                                                this.show_chat_surface(window, cx);
-                                            });
-                                        },
-                                    )),
-                            )
-                    },
-                ))
-            })
             .when(self.overlays.view.project_trust, |root| {
                 root.child(dialogs::project_trust::render(self, entity.clone()))
             })
@@ -130,9 +73,6 @@ impl FarcasterApp {
                     },
                 ))
             })
-            .when(self.overlays.view.worker_notices, |root| {
-                root.child(dialogs::worker_notices::render(self, entity.clone()))
-            })
             .when_some(sessions_sheet, |root, sheet| root.child(sheet))
             .when_some(run_sheet, |root, sheet| root.child(sheet))
             .when(self.sessions.pending_archive.is_some(), |root| {
@@ -154,10 +94,6 @@ impl FarcasterApp {
             .when_some(
                 dialogs::image_preview::render(self, entity.clone()),
                 |root, preview| root.child(preview),
-            )
-            .when_some(
-                dialogs::repository_diff::render(self, entity.clone()),
-                |root, diff| root.child(diff),
             )
             .when(self.lifecycle.pending_quit.is_some(), |root| {
                 root.child(dialogs::quit_confirmation::render(self, entity.clone()))

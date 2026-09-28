@@ -1,37 +1,31 @@
 use crate::{
     app::ui::assets::AppIcon,
+    app::ui::file_icons::file_icon,
     app::ui::layout::{TRAFFIC_LIGHT_INSET, shows_left_inline},
     app::ui::primitives::{
         AppIconSize, AppTooltip as _, ButtonTone, IndicatorEdge, app_icon, icon_button,
         icon_control, line_indicator,
     },
     app::ui::theme::theme,
-    app::{AppSurface, FarcasterApp, views::session_rail::project_label},
+    app::{AppSurface, FarcasterApp, RepositoryDiff},
 };
 use gpui::{
-    Context, InteractiveElement as _, IntoElement, MouseButton, ParentElement as _,
-    StatefulInteractiveElement as _, Styled as _, WeakEntity, Window, div,
-    prelude::FluentBuilder as _,
+    AnyElement, Context, ElementId, InteractiveElement as _, IntoElement, MouseButton,
+    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, WeakEntity,
+    Window, div, prelude::FluentBuilder as _,
 };
 
 impl FarcasterApp {
-    pub(in crate::app::views) fn render_workspace_bar(
-        &self,
-        entity: WeakEntity<Self>,
-        mode: crate::app::ui::layout::LayoutMode,
-    ) -> impl IntoElement {
-        let project_path = self.workspace_project();
-        let project = project_label(&project_path);
-        let project_hint = format!("New session in {project}");
-        let project_entity = entity.clone();
-        let selected_path = self.snapshot.selected_session.as_deref();
-        let session = selected_path.and_then(|path| {
-            self.sessions
-                .all
-                .iter()
-                .find(|session| session.path == path)
-        });
-        let harness_icon = session
+    fn workspace_harness_icon(&self) -> AppIcon {
+        self.snapshot
+            .selected_session
+            .as_deref()
+            .and_then(|path| {
+                self.sessions
+                    .all
+                    .iter()
+                    .find(|session| session.path == path)
+            })
             .map(|session| AppIcon::for_harness(session.harness))
             .or_else(|| {
                 let selected = self.sessions.selected_draft.as_deref()?;
@@ -41,43 +35,72 @@ impl FarcasterApp {
                     .find(|draft| draft.id == selected)
                     .map(|draft| AppIcon::for_harness(draft.harness))
             })
-            .unwrap_or(AppIcon::Pi);
-        let title = session.map(|session| session.title.clone()).or_else(|| {
-            let selected = self.sessions.selected_draft.as_deref()?;
-            self.sessions
-                .drafts
-                .iter()
-                .find(|draft| draft.id == selected)
-                .and_then(|draft| draft.title.clone())
-        });
+            .unwrap_or(AppIcon::Pi)
+    }
 
-        let bar_entity = entity.clone();
+    fn workspace_title(&self) -> SharedString {
+        self.snapshot
+            .selected_session
+            .as_deref()
+            .and_then(|path| {
+                self.sessions
+                    .all
+                    .iter()
+                    .find(|session| session.path == path)
+            })
+            .map(|session| session.title.clone())
+            .or_else(|| {
+                let selected = self.sessions.selected_draft.as_deref()?;
+                self.sessions
+                    .drafts
+                    .iter()
+                    .find(|draft| draft.id == selected)
+                    .and_then(|draft| draft.title.clone())
+            })
+            .unwrap_or_else(|| "Chat".into())
+            .into()
+    }
+
+    pub(in crate::app::views) fn render_workspace_tabs(
+        &self,
+        entity: WeakEntity<Self>,
+        mode: crate::app::ui::layout::LayoutMode,
+    ) -> impl IntoElement {
+        let (modifier, chat_hint) = if cfg!(target_os = "macos") {
+            (
+                "Cmd",
+                "Chat composer (Cmd+G in app views; Ctrl+G Ctrl+G anywhere)",
+            )
+        } else {
+            ("Ctrl", "Chat composer (Ctrl+G Ctrl+G anywhere)")
+        };
+        let surface = self.workspace.surface;
+        let active_diff = self.workspace.active_diff.as_ref();
+        let hover = entity.clone();
         let rail_toggle = entity.clone();
         div()
-            .id("workspace-bar")
-            .h(theme().size(38.0))
+            .id("workspace-tabs")
             .flex_none()
+            .h(theme().size(38.0))
             .flex()
             .items_center()
-            .gap(theme().space.sm)
-            .px(theme().size(12.0))
+            .bg(theme().colors.canvas)
+            .border_b(theme().border)
+            .border_color(theme().colors.border)
             .when(
                 cfg!(target_os = "macos")
                     && (!shows_left_inline(mode) || self.workspace.session_rail_hidden),
-                |bar| bar.pl(theme().size(TRAFFIC_LIGHT_INSET)),
+                |row| row.pl(theme().size(TRAFFIC_LIGHT_INSET)),
             )
-            .border_b(theme().border)
-            .border_color(theme().colors.surface)
-            .bg(theme().colors.canvas)
-            .on_hover(move |hovered, _window, cx| {
-                let _ = bar_entity.update(cx, |app, cx| {
+            .on_hover(move |hovered, _, cx| {
+                let _ = hover.update(cx, |app, cx| {
                     app.set_workspace_bar_hovered(*hovered, cx);
                 });
             })
             .when(
                 shows_left_inline(mode) && self.workspace.session_rail_hidden,
-                |bar| {
-                    bar.child(icon_button(
+                |row| {
+                    row.child(icon_button(
                         "toggle-session-rail",
                         AppIcon::SidebarLeft,
                         "Show sessions",
@@ -90,153 +113,163 @@ impl FarcasterApp {
             )
             .child(
                 div()
-                    .min_w_0()
+                    .id("workspace-tab-strip")
                     .flex_1()
+                    .min_w_0()
+                    .h_full()
                     .flex()
                     .items_center()
-                    .gap(theme().space.sm)
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .text_size(theme().type_scale.caption)
-                    .child(
-                        app_icon(AppIcon::Folder, AppIconSize::Inline)
-                            .text_color(theme().colors.subtle),
-                    )
-                    .child(
-                        div()
-                            .id("workspace-project-new-session")
-                            .role(gpui::Role::Button)
-                            .aria_label(project_hint.clone())
-                            .tab_index(0)
-                            .cursor_pointer()
-                            .text_color(theme().colors.muted)
-                            .hover(|link| link.text_color(theme().colors.text))
-                            .focus_visible(|link| link.text_color(theme().colors.indicator))
-                            .app_tooltip(project_hint.clone())
-                            .child(project)
-                            .on_click(move |_, window, cx| {
-                                let _ = project_entity.update(cx, |app, cx| {
-                                    app.new_session(project_path.clone(), window, cx);
-                                });
-                            }),
-                    )
-                    .when_some(title, |workspace, title| {
-                        workspace
-                            .child(div().text_color(theme().colors.subtle).child("/"))
-                            .child(
-                                div()
-                                    .min_w_0()
-                                    .overflow_hidden()
-                                    .text_ellipsis()
-                                    .font_weight(gpui::FontWeight::MEDIUM)
-                                    .text_color(theme().colors.text)
-                                    .child(title),
+                    .overflow_x_scroll()
+                    .child(workspace_tab(
+                        "workspace-tab-chat",
+                        self.workspace_title(),
+                        app_icon(self.workspace_harness_icon(), AppIconSize::Inline)
+                            .into_any_element(),
+                        chat_hint.into(),
+                        surface == AppSurface::Chat,
+                        entity.clone(),
+                        |app, window, cx| app.show_chat_surface(window, cx),
+                        None,
+                    ))
+                    .child(workspace_tab(
+                        "workspace-tab-editor",
+                        self.text_editor_name().into(),
+                        app_icon(self.text_editor_icon(), AppIconSize::Inline).into_any_element(),
+                        format!(
+                            "{} ({modifier}+E in app views; {} anywhere)",
+                            self.text_editor_name(),
+                            crate::app::ui::navigation::command_key(
+                                crate::app::ui::navigation::Command::Editor
                             )
-                    })
-                    .child(
-                        div()
-                            .flex_1()
-                            .h_full()
-                            .on_mouse_down(MouseButton::Left, |_, window, _| {
-                                window.start_window_move()
-                            }),
-                    ),
+                        )
+                        .into(),
+                        surface == AppSurface::Editor,
+                        entity.clone(),
+                        |app, window, cx| app.show_editor_surface(window, cx),
+                        None,
+                    ))
+                    .child(workspace_tab(
+                        "workspace-tab-terminal",
+                        "Terminal".into(),
+                        app_icon(AppIcon::Ghostty, AppIconSize::Inline).into_any_element(),
+                        format!(
+                            "Terminal ({modifier}+T in app views; {} anywhere)",
+                            crate::app::ui::navigation::command_key(
+                                crate::app::ui::navigation::Command::Terminal
+                            )
+                        )
+                        .into(),
+                        surface == AppSurface::Terminal,
+                        entity.clone(),
+                        |app, window, cx| app.show_terminal_surface(window, cx),
+                        None,
+                    ))
+                    .children(self.open_diffs().iter().enumerate().map(|(index, diff)| {
+                        let active = surface == AppSurface::Diff && active_diff == Some(&diff.key);
+                        diff_tab(index, diff, active, entity.clone())
+                    })),
             )
-            .child(self.render_workspace_panels(mode, entity.clone()))
             .child(
                 div()
-                    .w(theme().size(1.0))
-                    .h(theme().space.md)
-                    .bg(theme().colors.surface),
+                    .flex_none()
+                    .w(theme().size(24.0))
+                    .h_full()
+                    .on_mouse_down(MouseButton::Left, |_, window, _| {
+                        window.start_window_move();
+                    }),
             )
-            .child(self.render_surface_switcher(entity, harness_icon))
-    }
-
-    pub(in crate::app::views) fn render_surface_switcher(
-        &self,
-        entity: WeakEntity<Self>,
-        harness_icon: AppIcon,
-    ) -> impl IntoElement {
-        let (modifier, chat_hint) = if cfg!(target_os = "macos") {
-            (
-                "Cmd",
-                "Chat composer (Cmd+G in app views; Ctrl+G Ctrl+G anywhere)",
-            )
-        } else {
-            ("Ctrl", "Chat composer (Ctrl+G Ctrl+G anywhere)")
-        };
-        div()
-            .h_full()
-            .flex()
-            .items_center()
-            .gap(theme().size(2.0))
-            .child(surface_control(
-                "show-chat-surface",
-                chat_hint,
-                harness_icon,
-                self.workspace.surface == AppSurface::Chat,
-                entity.clone(),
-                FarcasterApp::show_chat_surface,
-            ))
-            .child(surface_control(
-                "show-editor-surface",
-                format!(
-                    "{} ({modifier}+E in app views; {} anywhere)",
-                    self.text_editor_name(),
-                    crate::app::ui::navigation::command_key(
-                        crate::app::ui::navigation::Command::Editor
-                    )
-                ),
-                self.text_editor_icon(),
-                self.workspace.surface == AppSurface::Editor,
-                entity.clone(),
-                FarcasterApp::show_editor_surface,
-            ))
-            .child(surface_control(
-                "show-terminal-surface",
-                format!(
-                    "Terminal ({modifier}+T in app views; {} anywhere)",
-                    crate::app::ui::navigation::command_key(
-                        crate::app::ui::navigation::Command::Terminal
-                    )
-                ),
-                AppIcon::Ghostty,
-                self.workspace.surface == AppSurface::Terminal,
-                entity,
-                FarcasterApp::show_terminal_surface,
-            ))
+            .child(self.render_workspace_panels(mode, entity.clone()))
     }
 }
 
-type SurfaceAction = fn(&mut FarcasterApp, &mut Window, &mut Context<FarcasterApp>);
-
-fn surface_control(
-    id: &'static str,
-    label: impl Into<gpui::SharedString>,
-    icon: AppIcon,
+#[allow(clippy::too_many_arguments)]
+fn workspace_tab(
+    id: impl Into<ElementId>,
+    label: SharedString,
+    icon: AnyElement,
+    hint: SharedString,
     active: bool,
     entity: WeakEntity<FarcasterApp>,
-    action: SurfaceAction,
-) -> gpui::Stateful<gpui::Div> {
-    icon_control(id, label)
+    action: impl Fn(&mut FarcasterApp, &mut Window, &mut Context<FarcasterApp>) + 'static,
+    trailing: Option<AnyElement>,
+) -> AnyElement {
+    div()
+        .id(id)
         .relative()
-        .w(theme().size(34.0))
+        .flex_none()
         .h_full()
-        .rounded_none()
+        .max_w(theme().size(220.0))
+        .flex()
+        .items_center()
+        .gap(theme().space.xs)
+        .px(theme().space.sm)
+        .whitespace_nowrap()
+        .text_size(theme().type_scale.caption)
         .text_color(if active {
             theme().colors.text
         } else {
             theme().colors.muted
         })
-        .hover(|control| control.bg(theme().colors.highlight))
-        .when(active, |control| {
-            control.child(line_indicator(
-                IndicatorEdge::Bottom,
-                theme().colors.indicator,
-            ))
+        .when(active, |tab| tab.bg(theme().colors.surface))
+        .hover(|tab| tab.bg(theme().colors.highlight))
+        .cursor_pointer()
+        .when(active, |tab| {
+            tab.child(line_indicator(IndicatorEdge::Top, theme().colors.indicator))
         })
-        .child(app_icon(icon, AppIconSize::Control))
+        .app_tooltip(hint)
+        .child(icon)
+        .child(
+            div()
+                .min_w_0()
+                .overflow_hidden()
+                .text_ellipsis()
+                .child(label),
+        )
+        .children(trailing)
         .on_click(move |_, window, cx| {
             let _ = entity.update(cx, |app, cx| action(app, window, cx));
         })
+        .into_any_element()
+}
+
+fn diff_tab(
+    index: usize,
+    diff: &RepositoryDiff,
+    active: bool,
+    entity: WeakEntity<FarcasterApp>,
+) -> AnyElement {
+    let path = diff.path.clone();
+    let label: SharedString = path
+        .file_name()
+        .map_or_else(
+            || path.display().to_string(),
+            |name| name.to_string_lossy().into_owned(),
+        )
+        .into();
+    let hint: SharedString = path.display().to_string().into();
+    let open_key = diff.key.clone();
+    let close = entity.clone();
+    let close_key = diff.key.clone();
+    let close_hint: SharedString = format!("Close {hint}").into();
+    workspace_tab(
+        ("workspace-tab-diff", index),
+        label,
+        file_icon(&path),
+        hint,
+        active,
+        entity,
+        move |app, window, cx| app.activate_repository_diff(open_key.clone(), window, cx),
+        Some(
+            icon_control(("close-workspace-tab", index), close_hint)
+                .size(theme().size(16.0))
+                .child(app_icon(AppIcon::X, AppIconSize::Inline))
+                .on_click(move |_, window, cx| {
+                    cx.stop_propagation();
+                    let _ = close.update(cx, |this, cx| {
+                        this.close_repository_diff(&close_key, window, cx);
+                    });
+                })
+                .into_any_element(),
+        ),
+    )
 }

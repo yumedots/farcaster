@@ -32,13 +32,12 @@ impl Render for FarcasterApp {
         {
             crate::app::CHAT_INPUT_CONTEXT
         } else if self.native_workspace_covered_by_overlay()
-            || matches!(self.workspace.surface, AppSurface::Chat | AppSurface::Work)
+            || self.workspace.surface == AppSurface::Chat
         {
             APP_INPUT_CONTEXT
         } else {
             NATIVE_INPUT_CONTEXT
         };
-        let work_active = self.workspace.surface == AppSurface::Work;
         let obscured = self.native_surface_obscured(window, cx);
         let main = self.render_workspace_main(
             entity.clone(),
@@ -88,6 +87,6 @@ impl Render for FarcasterApp {
             .text_size(theme().type_scale.body);
         let root = actions::bind(root, cx).child(shell);
 
-        self.render_root_overlays(root, entity, picker, work_active, cx)
+        self.render_root_overlays(root, entity, picker, cx)
     }
 }
