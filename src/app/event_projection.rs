@@ -110,8 +110,6 @@ struct DirtyRegions {
     transcript: bool,
     composer: bool,
     run: bool,
-    workgraph_session: bool,
-    workgraph_goal: bool,
 }
 
 impl DirtyRegions {
@@ -125,9 +123,6 @@ impl DirtyRegions {
                 self.composer |= composer_snapshot_changed(&app.snapshot, snapshot);
                 self.root |= app.snapshot.pending_question != snapshot.pending_question;
                 self.run |= run_panel_snapshot_changed(&app.snapshot, snapshot);
-                self.workgraph_session |=
-                    app.snapshot.selected_session != snapshot.selected_session;
-                self.workgraph_goal |= app.snapshot.session_goal != snapshot.session_goal;
             }
             RuntimeEvent::Sessions { .. }
             | RuntimeEvent::SessionUpdated(_)
@@ -196,12 +191,6 @@ impl DirtyRegions {
     }
 
     fn notify(self, app: &mut FarcasterApp, cx: &mut Context<FarcasterApp>) {
-        if self.workgraph_session {
-            app.refresh_workgraph_sidebar(cx);
-        }
-        if self.workgraph_goal {
-            app.refresh_workgraph_goal(cx);
-        }
         app.sync_notification_expiries(cx);
         app.sync_recent_completion_expiries(cx);
         if self.rail {
@@ -329,7 +318,6 @@ impl FarcasterApp {
             &all_sessions,
             self.snapshot.selected_session.as_deref(),
         );
-        let previous_workgraph_session = self.active_workgraph_session();
         let visible_activities_changed = run_panel_activities_changed(
             &self.activity.agents,
             activities.as_ref(),
@@ -371,7 +359,6 @@ impl FarcasterApp {
         dirty.archived_rail |= archived_catalog_changed;
         dirty.composer |= composer_usage_changed;
         dirty.run |= run_catalog_changed || visible_activities_changed;
-        dirty.workgraph_session |= previous_workgraph_session != self.active_workgraph_session();
         dirty.rail |= self.reconcile_submitted_drafts(cx);
     }
     fn project_session_deleted(
@@ -483,9 +470,7 @@ impl FarcasterApp {
                 .sessions
                 .discard_and_switch(&current_target, next_target.clone());
             self.hide_native_workspace_surfaces(cx);
-            if self.workspace.surface != AppSurface::Work {
-                self.set_surface(AppSurface::Chat, cx);
-            }
+            self.set_surface(AppSurface::Chat, cx);
             self.reset_session_ui(generation, false, cx);
             self.composer.pending_restore = Some((next_target, composer));
             self.sessions.selected_draft = next_draft.as_ref().map(|draft| draft.id.clone());
@@ -693,7 +678,6 @@ impl FarcasterApp {
                     "",
                     Some(&session.path),
                 );
-                let previous_workgraph_session = self.active_workgraph_session();
                 let activity = crate::sessions::activity::ActivityBuilder::default().finish(
                     session.id.clone(),
                     session.path.clone(),
@@ -738,8 +722,6 @@ impl FarcasterApp {
                 }
                 dirty.rail = true;
                 dirty.run = true;
-                dirty.workgraph_session |=
-                    previous_workgraph_session != self.active_workgraph_session();
                 dirty.rail |= self.reconcile_submitted_drafts(cx);
             }
             RuntimeEvent::AgentActivityUpdated(activity) => {

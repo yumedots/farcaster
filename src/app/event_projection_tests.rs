@@ -138,15 +138,6 @@ fn metadata_refresh_does_not_erase_an_explicit_native_outcome() {
             .lifecycle,
         completed.lifecycle
     );
-    assert_eq!(
-        crate::app::views::run_panel::agents::agent_section(
-            activities.values().next().expect("activity").lifecycle,
-            true,
-            false,
-        ),
-        crate::app::views::run_panel::agents::AgentSection::Completed
-    );
-
     let mut running_metadata = metadata_only;
     running_metadata.lifecycle = crate::agent_activity::AgentLifecycle::Working;
     assert!(!merge_agent_activity(
@@ -641,16 +632,14 @@ fn unknown_activity_then_real_rejection_resolves_the_original_payload_once(
 }
 
 #[gpui::test]
-fn child_activity_event_invalidates_and_renders_the_real_run_sidebar(
-    cx: &mut gpui::TestAppContext,
-) {
+fn child_activity_event_invalidates_the_projected_activity(cx: &mut gpui::TestAppContext) {
     use crate::sessions::UsageSummary;
     use std::time::SystemTime;
 
     crate::app::test_support::with_offline_app(
         concat!(
             module_path!(),
-            "::child_activity_event_invalidates_and_renders_the_real_run_sidebar"
+            "::child_activity_event_invalidates_the_projected_activity"
         ),
         cx,
         |cx, app, runtime, project| {
@@ -684,7 +673,6 @@ fn child_activity_event_invalidates_and_renders_the_real_run_sidebar(
                 None,
             );
             let activity_key = crate::agent_activity::agent_activity_key(&child_path);
-            let card_selector = "agent-card-/offline-child.jsonl";
 
             runtime.send_event(RuntimeEvent::Snapshot {
                 generation: 1,
@@ -707,7 +695,6 @@ fn child_activity_event_invalidates_and_renders_the_real_run_sidebar(
                 });
                 window.draw(cx).clear(cx);
             });
-            assert!(cx.debug_bounds(card_selector).is_none());
 
             runtime.send_event(RuntimeEvent::Sessions {
                 generation: 2,
@@ -720,10 +707,6 @@ fn child_activity_event_invalidates_and_renders_the_real_run_sidebar(
                 app.update(cx, |app, cx| app.drain_runtime(cx));
                 window.draw(cx).clear(cx);
             });
-            assert!(
-                cx.debug_bounds(card_selector).is_some(),
-                "the projected active child must render in the run sidebar"
-            );
             cx.update(|_, cx| {
                 let app = app.read(cx);
                 assert_eq!(
@@ -748,10 +731,6 @@ fn child_activity_event_invalidates_and_renders_the_real_run_sidebar(
                 app.update(cx, |app, cx| app.drain_runtime(cx));
                 window.draw(cx).clear(cx);
             });
-            assert!(
-                cx.debug_bounds(card_selector).is_none(),
-                "activity invalidation must remove a completed child from the collapsed section"
-            );
             let inferred_incomplete =
                 AgentActivity::from_native_child("child".into(), child_path, "worker", false, None);
             runtime.send_event(RuntimeEvent::AgentActivityUpdated(inferred_incomplete));

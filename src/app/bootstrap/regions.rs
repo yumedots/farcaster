@@ -6,16 +6,9 @@ pub(super) struct RegionViews {
     pub(super) transcript: Entity<TranscriptView>,
     pub(super) composer: Entity<ComposerView>,
     pub(super) run_panel: Entity<RunPanelView>,
-    pub(super) workgraph: Entity<WorkGraphBoardView>,
-    pub(super) workgraph_detail: Entity<WorkGraphDetailView>,
-    pub(super) workgraph_sidebar: Entity<WorkGraphSidebarView>,
 }
 
-pub(super) fn create(
-    project: &Path,
-    window: &mut Window,
-    cx: &mut Context<FarcasterApp>,
-) -> RegionViews {
+pub(super) fn create(cx: &mut Context<FarcasterApp>) -> RegionViews {
     let app = cx.entity().downgrade();
     let session_rail = cx.new(|_| SessionRailView::new(app.clone()));
     let archived_session_rail =
@@ -36,24 +29,6 @@ pub(super) fn create(
 
     let composer = cx.new(|_| ComposerView::new(app.clone()));
     let run_panel = cx.new(|_| RunPanelView::new(app.clone()));
-    let workgraph = cx.new(|cx| {
-        WorkGraphBoardView::new(
-            crate::app::infrastructure::persistence::state_path(),
-            project.to_path_buf(),
-            window,
-            cx,
-        )
-    });
-    let workgraph_detail =
-        cx.new(|cx| WorkGraphDetailView::new(app.clone(), workgraph.clone(), cx));
-    let workgraph_sidebar = cx.new(|cx| {
-        WorkGraphSidebarView::new(
-            app,
-            crate::app::infrastructure::persistence::state_path(),
-            project.to_path_buf(),
-            cx,
-        )
-    });
 
     RegionViews {
         session_rail,
@@ -61,9 +36,6 @@ pub(super) fn create(
         transcript,
         composer,
         run_panel,
-        workgraph,
-        workgraph_detail,
-        workgraph_sidebar,
     }
 }
 

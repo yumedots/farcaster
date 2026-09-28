@@ -6,12 +6,10 @@ use crate::app::{
     AbortRun, AddProject, CloseCurrent, ComposerCompletionNext, ComposerCompletionPrevious,
     ComposerEscape, ComposerHistoryNext, ComposerHistoryPrevious, DismissSurface, FocusComposer,
     NewSession, NextSession, OVERLAY_KEY_CONTEXT, PICKER_KEY_CONTEXT, PickerBack, PreviousSession,
-    QuitApplication, ShowActionPicker, ShowEditor, ShowKeybindings, ShowTerminal, ShowWorkGraph,
-    SubmitFollowUp, SwitchSession0, SwitchSession1, SwitchSession2, SwitchSession3, SwitchSession4,
-    SwitchSession5, SwitchSession6, SwitchSession7, SwitchSession8, SwitchSession9, WorkBack,
-    WorkCreateIssue, WorkDismiss, WorkFocusSearch, WorkNextIssue, WorkPreviousIssue,
+    QuitApplication, ShowActionPicker, ShowEditor, ShowKeybindings, ShowTerminal, SubmitFollowUp,
+    SwitchSession0, SwitchSession1, SwitchSession2, SwitchSession3, SwitchSession4, SwitchSession5,
+    SwitchSession6, SwitchSession7, SwitchSession8, SwitchSession9,
 };
-use crate::app::{WORKGRAPH_KEY_CONTEXT, WORKGRAPH_NAV_KEY_CONTEXT};
 use gpui::{Action as _, KeyBinding, Unbind};
 use gpui_base::actions::{SelectDown, SelectUp};
 
@@ -344,54 +342,6 @@ fn registry_for_platform(prefix: &str) -> Vec<Shortcut> {
                 Some("FarcasterComposer > Input"),
             ),
         },
-        shortcut!(
-            "Work",
-            "Previous node",
-            "k",
-            WorkPreviousIssue,
-            Some(WORKGRAPH_NAV_KEY_CONTEXT)
-        ),
-        shortcut!(
-            "Work",
-            "Next node",
-            "j",
-            WorkNextIssue,
-            Some(WORKGRAPH_NAV_KEY_CONTEXT)
-        ),
-        shortcut!(
-            "Work",
-            "Search plan",
-            "/",
-            WorkFocusSearch,
-            Some(WORKGRAPH_NAV_KEY_CONTEXT)
-        ),
-        shortcut!(
-            "Work",
-            "Add plan node",
-            "c",
-            WorkCreateIssue,
-            Some(WORKGRAPH_NAV_KEY_CONTEXT)
-        ),
-        shortcut!(
-            "Work",
-            "Back to all plans",
-            "backspace",
-            WorkBack,
-            Some(WORKGRAPH_NAV_KEY_CONTEXT)
-        ),
-        shortcut!(
-            "Work",
-            "Back or clear",
-            "escape",
-            WorkDismiss,
-            Some(WORKGRAPH_KEY_CONTEXT)
-        ),
-        application_shortcut!(
-            "Application",
-            "Open / close project work",
-            "shift-i",
-            ShowWorkGraph
-        ),
         application_shortcut!(
             "Application",
             "Open action picker",

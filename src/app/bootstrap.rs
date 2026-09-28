@@ -39,9 +39,7 @@ impl FarcasterApp {
     pub(crate) fn new(
         project: PathBuf,
         repository_execution_allowed: bool,
-        workgraph_updates: async_channel::Receiver<()>,
         worker_updates: async_channel::Receiver<()>,
-        notice_board: worker_notices::NoticeBoard,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -68,9 +66,7 @@ impl FarcasterApp {
         let mut app = Self::from_bootstrap_state(
             project,
             repository_execution_allowed,
-            workgraph_updates,
             worker_updates,
-            notice_board,
             persisted,
             runtime,
             window,
@@ -84,7 +80,6 @@ impl FarcasterApp {
     pub(crate) fn new_offline_for_test(
         project: PathBuf,
         runtime: RuntimeHandle,
-        workgraph_updates: async_channel::Receiver<()>,
         worker_updates: async_channel::Receiver<()>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -112,6 +107,7 @@ impl FarcasterApp {
             saved_proxy: None,
             expand_transcript_folders: false,
             stage_changes_like_vscode: true,
+            hide_unchanged_lines: false,
             source_control_view: crate::app::ui::change_tree::ChangeView::default(),
             source_control_sort: crate::app::ui::change_tree::ChangeSort::default(),
             text_editor: None,
@@ -122,9 +118,7 @@ impl FarcasterApp {
         Self::from_bootstrap_state(
             project,
             false,
-            workgraph_updates,
             worker_updates,
-            worker_notices::NoticeBoard::default(),
             persisted,
             runtime,
             window,
@@ -136,9 +130,7 @@ impl FarcasterApp {
     fn from_bootstrap_state(
         project: PathBuf,
         repository_execution_allowed: bool,
-        workgraph_updates: async_channel::Receiver<()>,
         worker_updates: async_channel::Receiver<()>,
-        notice_board: worker_notices::NoticeBoard,
         persisted: persisted::PersistedState,
         runtime: RuntimeHandle,
         window: &mut Window,
@@ -152,15 +144,9 @@ impl FarcasterApp {
             cx,
         );
         let subscriptions = subscriptions::create(&inputs, window, cx);
-        let tasks = tasks::spawn(
-            &runtime,
-            workgraph_updates,
-            worker_updates,
-            notice_board.updates(),
-            cx,
-        );
+        let tasks = tasks::spawn(&runtime, worker_updates, cx);
         let performance = tasks::start_performance_monitor(window, cx);
-        let regions = regions::create(&project, window, cx);
+        let regions = regions::create(cx);
 
         let repository_timing = crate::app::infrastructure::performance::StartupTiming::new(
             "app.load_repository_state",
@@ -232,7 +218,6 @@ impl FarcasterApp {
             activity: session::ActivityState {
                 agents: HashMap::new(),
                 row_focus: HashMap::new(),
-                background_jobs: Vec::new(),
                 run_statuses: HashMap::new(),
                 recent_completions: HashMap::new(),
                 recent_completion_expiries: HashMap::new(),
@@ -291,7 +276,9 @@ impl FarcasterApp {
                 run_panel_hidden: persisted.panel_layout.run_panel_hidden,
                 surface: AppSurface::Chat,
                 session_surfaces: HashMap::new(),
-                worker_profile_editor: workspace::worker_tasks::WorkerProfileEditor::default(),
+                diffs: Vec::new(),
+                active_diff: None,
+                diff_return: None,
                 runtime_picker: workspace::runtime_picker::RuntimePickerState::default(),
                 send_to_chat: None,
                 send_to_chat_capture: None,
@@ -308,10 +295,10 @@ impl FarcasterApp {
                 text_editor_input: inputs.text_editor,
                 text_editor_error: None,
                 proxy_save: None,
-                mcp_error: None,
                 expand_transcript_folders: persisted.expand_transcript_folders,
                 transcript_error: None,
                 stage_changes_like_vscode: persisted.stage_changes_like_vscode,
+                hide_unchanged_lines: persisted.hide_unchanged_lines,
                 source_control_view: persisted.source_control_view,
                 source_control_sort: persisted.source_control_sort,
                 source_control_error: None,
@@ -337,10 +324,6 @@ impl FarcasterApp {
                 transcript: regions.transcript,
                 composer: regions.composer,
                 run_panel: regions.run_panel,
-                workgraph: regions.workgraph,
-                workgraph_detail: regions.workgraph_detail,
-                workgraph_sidebar: regions.workgraph_sidebar,
-                workgraph_inspector_issue: None,
                 notification_panel: ui::primitives::ResizeState::restored(
                     persisted.panel_layout.notifications_height,
                     persisted.panel_layout.notifications_collapsed,
@@ -356,9 +339,9 @@ impl FarcasterApp {
                 image_preview: None,
                 image_preview_focus: cx.focus_handle(),
                 image_preview_return_focus: None,
-                repository_diff: None,
+
                 repository_diff_focus: cx.focus_handle(),
-                repository_diff_return_focus: None,
+
                 sheet_focus: cx.focus_handle(),
                 sheet_return_focus: None,
                 post_render_focus: None,
@@ -370,11 +353,8 @@ impl FarcasterApp {
                 _performance_task: performance.task,
                 _window_placement_subscription: subscriptions.window_placement,
                 _event_task: tasks.runtime_events,
-                _workgraph_update_task: tasks.workgraph_updates,
                 _worker_update_task: tasks.worker_updates,
-                _worker_notice_task: tasks.worker_notices,
             },
-            worker_notices: notice_board,
         };
         this.activate_theme(cx);
         this.initialize_chat_navigation(window, cx);

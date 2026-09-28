@@ -22,7 +22,6 @@ pub(in crate::app) mod send_to_chat;
 mod surfaces;
 mod terminal;
 pub(in crate::app) mod theme_settings;
-pub(in crate::app) mod worker_tasks;
 
 pub(crate) use surfaces::{CycleWorkspaceBackward, CycleWorkspaceForward};
 

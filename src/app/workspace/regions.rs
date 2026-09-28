@@ -54,9 +54,6 @@ impl FarcasterApp {
         self.notify_session_rail(cx);
         self.notify_composer(cx);
         self.notify_run_panel(cx);
-        Self::notify_region(&self.views.workgraph, cx);
-        Self::notify_region(&self.views.workgraph_detail, cx);
-        Self::notify_region(&self.views.workgraph_sidebar, cx);
         self.views.transcript.update(cx, |transcript, cx| {
             transcript.list.remeasure_items(0..transcript.rows.len());
             cx.notify();

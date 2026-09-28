@@ -32,7 +32,6 @@ pub(in crate::app) struct SessionState {
 pub(in crate::app) struct ActivityState {
     pub(in crate::app) agents: HashMap<String, AgentActivity>,
     pub(in crate::app) row_focus: HashMap<String, FocusHandle>,
-    pub(in crate::app) background_jobs: Vec<BackgroundJob>,
     pub(in crate::app) run_statuses: HashMap<String, String>,
     pub(in crate::app) recent_completions: HashMap<String, Instant>,
     pub(in crate::app) recent_completion_expiries: HashMap<String, (Instant, Task<()>)>,

@@ -433,25 +433,6 @@ fn modified_jk_navigates_chat_sessions_with_composer_focus() {
 }
 
 #[test]
-fn workgraph_backspace_does_not_navigate_from_inputs() {
-    let keymap = gpui::Keymap::new(bindings());
-    let stroke = gpui::Keystroke::parse("backspace").expect("test operation should succeed");
-    let board = gpui::KeyContext::parse(crate::app::WORKGRAPH_KEY_CONTEXT)
-        .expect("test operation should succeed");
-    let (matches, _) =
-        keymap.bindings_for_input(std::slice::from_ref(&stroke), std::slice::from_ref(&board));
-    assert!(!matches.is_empty());
-    let (matches, _) = keymap.bindings_for_input(
-        &[stroke],
-        &[
-            board,
-            gpui::KeyContext::parse("Input").expect("test operation should succeed"),
-        ],
-    );
-    assert!(matches.is_empty());
-}
-
-#[test]
 fn copy_shortcuts_route_through_the_application_command() {
     let shortcuts = registry();
     assert!(shortcuts.iter().any(|shortcut| {
