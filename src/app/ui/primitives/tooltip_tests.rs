@@ -121,6 +121,29 @@ fn the_same_trigger_keeps_what_is_already_up(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_same_trigger_shows_again_after_it_hides(cx: &mut TestAppContext) {
+    let (overlay, cx) = cx.add_window_view(|_, _| TooltipOverlay::new());
+
+    show(cx, &overlay, 0.0, 0.0);
+    pump(cx, SHOW_DELAY);
+    assert!(visible(cx, &overlay));
+
+    // The pointer leaves the row and the tooltip goes away.
+    hide(cx, &overlay);
+    pump(cx, HIDE_DELAY);
+    assert!(!visible(cx, &overlay));
+
+    // Coming back to the same row is a fresh visit, not a request to keep
+    // something that is no longer there: it waits, then shows again.
+    show(cx, &overlay, 0.0, 0.0);
+    pump(cx, Duration::ZERO);
+    assert!(!visible(cx, &overlay), "the countdown starts over");
+
+    pump(cx, SHOW_DELAY);
+    assert!(visible(cx, &overlay), "the same trigger shows again");
+}
+
+#[gpui::test]
 fn a_tooltip_lingers_then_dismisses(cx: &mut TestAppContext) {
     let (overlay, cx) = cx.add_window_view(|_, _| TooltipOverlay::new());
 

@@ -150,14 +150,20 @@ impl TooltipOverlay {
         self.hide_task = None;
         let trigger_bounds = content.trigger_bounds;
         if self.requested_bounds == Some(trigger_bounds) {
-            // The same trigger asking again: a re-render, or the pointer moving
-            // inside it. Refresh the content in place and let the countdown, if
-            // it is still running, finish.
             if self.content.is_some() {
+                // The same trigger asking again while its tooltip is up: a
+                // re-render, or the pointer moving inside it. Refresh the
+                // content in place rather than starting over.
                 self.content = Some(content);
                 cx.notify();
+                return;
             }
-            return;
+            if self.show_task.is_some() {
+                // Its countdown is already running; leave it alone.
+                return;
+            }
+            // The tooltip has been and gone, so this is a fresh visit to the
+            // same trigger and it waits again, like any other trigger.
         }
 
         // A different trigger replaces whatever is showing and waits its turn,
