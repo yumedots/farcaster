@@ -5,7 +5,7 @@ use gpui::{App, AssetSource, Result, SharedString};
 use gpui_component::IconNamed;
 
 const ICON_ROOT: &str = "icons/phosphor";
-const ICON_PATHS: [&str; 63] = [
+const ICON_PATHS: [&str; 64] = [
     "icons/phosphor/archive.svg",
     "icons/phosphor/arrows-clockwise.svg",
     "icons/phosphor/arrows-out.svg",
@@ -17,6 +17,7 @@ const ICON_PATHS: [&str; 63] = [
     "icons/phosphor/caret-down.svg",
     "icons/phosphor/caret-left.svg",
     "icons/phosphor/caret-right.svg",
+    "icons/phosphor/caret-up.svg",
     "icons/phosphor/chat-circle.svg",
     "icons/phosphor/chat-circle-dots.svg",
     "icons/phosphor/chalkboard.svg",
@@ -158,6 +159,9 @@ impl AssetSource for AppAssets {
             )),
             "icons/phosphor/caret-right.svg" => Some(include_bytes!(
                 "../../../assets/phosphor-icons/caret-right.svg"
+            )),
+            "icons/phosphor/caret-up.svg" => Some(include_bytes!(
+                "../../../assets/phosphor-icons/caret-up.svg"
             )),
             "icons/phosphor/chat-circle.svg" => Some(include_bytes!(
                 "../../../assets/phosphor-icons/chat-circle.svg"
@@ -342,6 +346,7 @@ pub(crate) enum AppIcon {
     Binoculars,
     CaretDown,
     CaretRight,
+    CaretUp,
     ChatCircle,
     ChatCircleDots,
     Check,
@@ -355,7 +360,6 @@ pub(crate) enum AppIcon {
     Folder,
     FolderPlus,
     Ghostty,
-    GitBranch,
     GitFork,
     Helix,
     Hourglass,
@@ -423,6 +427,7 @@ impl IconNamed for AppIcon {
             Self::Binoculars => "binoculars",
             Self::CaretDown => "caret-down",
             Self::CaretRight => "caret-right",
+            Self::CaretUp => "caret-up",
             Self::ChatCircle => "chat-circle",
             Self::ChatCircleDots => "chat-circle-dots",
             Self::Check => "check",
@@ -436,7 +441,6 @@ impl IconNamed for AppIcon {
             Self::Folder => "folder",
             Self::FolderPlus => "folder-plus",
             Self::Ghostty => return "icons/workbench/ghostty.svg".into(),
-            Self::GitBranch => "git-branch",
             Self::GitFork => "git-fork",
             Self::Helix => return "icons/workbench/helix.svg".into(),
             Self::Hourglass => "hourglass",

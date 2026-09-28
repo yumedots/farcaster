@@ -11,7 +11,6 @@ mod live_e2e_tests;
 pub(crate) mod test_support;
 #[allow(unused_imports)]
 pub(crate) use infrastructure::{launch, paths, persistence, shell_environment};
-pub(crate) mod mcp_server;
 mod navigation;
 mod project;
 pub(crate) mod runtime;
@@ -19,7 +18,7 @@ mod session;
 mod session_folders;
 pub(crate) mod ui;
 pub(crate) mod views;
-pub(crate) mod worker_notices;
+pub(crate) mod worker_pool;
 mod workspace;
 use change_detection::*;
 pub(crate) use composer::ComposerImage;
@@ -31,11 +30,9 @@ use project::{registry as project_registry, repository};
 use session::{archive, drafts, status::roots_waiting_for_descendants};
 pub(crate) use views::OVERLAY_KEY_CONTEXT;
 pub(crate) use views::transcript::list::TRANSCRIPT_SELECTION_KEY_CONTEXT;
-pub(crate) use views::workgraph::{WORKGRAPH_KEY_CONTEXT, WORKGRAPH_NAV_KEY_CONTEXT};
-use views::workgraph::{WorkGraphBoardView, WorkGraphSidebarView};
 use views::{
     ComposerView, InactiveSessionRailView, RunPanelView, SessionRailKind, SessionRailView,
-    TranscriptView, WorkGraphDetailView,
+    TranscriptView,
 };
 
 use std::{
@@ -62,7 +59,7 @@ use crate::{
     app::extensions::ExtensionUiState,
     app::views::transcript::list::TranscriptListState,
     projects,
-    protocol::{BackgroundJob, Model},
+    protocol::Model,
     runtime::{RuntimeCommand, RuntimeEvent, RuntimeHandle, RuntimeSnapshot},
     sessions::{
         SessionRootIndex, SessionSummary, SessionTarget, descendant_sessions_for_root,
@@ -132,14 +129,7 @@ actions!(
         ComposerCompletionNext,
         ShowKeybindings,
         IncreaseTranscriptFontSize,
-        DecreaseTranscriptFontSize,
-        ShowWorkGraph,
-        WorkPreviousIssue,
-        WorkNextIssue,
-        WorkFocusSearch,
-        WorkCreateIssue,
-        WorkDismiss,
-        WorkBack
+        DecreaseTranscriptFontSize
     ]
 );
 
@@ -155,7 +145,7 @@ pub(super) enum AppSurface {
     Chat,
     Editor,
     Terminal,
-    Work,
+    Diff,
 }
 
 enum PostRenderFocus {
@@ -191,6 +181,12 @@ pub(crate) struct RepositoryDiff {
     /// Whether the changed lines are shown against each other or stacked.
     /// Side by side is what a diff opens as, the way an editor does it.
     pub(crate) split: bool,
+    pub(crate) hide_unchanged: bool,
+    pub(crate) opened: Vec<usize>,
+
+    pub(crate) widest_line: gpui::Pixels,
+    pub(crate) rows: Vec<crate::repository::DiffRow>,
+    pub(crate) scroll: gpui::ScrollHandle,
     generation: u64,
 }
 
@@ -210,12 +206,79 @@ impl RepositoryDiff {
             error: None,
             applying: None,
             split: true,
+            hide_unchanged: false,
+            opened: Vec::new(),
+            widest_line: gpui::px(0.0),
+            rows: Vec::new(),
+            scroll: gpui::ScrollHandle::new(),
             generation: 0,
         }
     }
 
     pub(crate) fn preparing(&self) -> bool {
         self.diff.is_none() && self.error.is_none()
+    }
+
+    pub(crate) fn split_reading(&self) -> bool {
+        self.split
+            && !self
+                .diff
+                .as_ref()
+                .is_some_and(crate::repository::FileDiff::is_new_file)
+    }
+
+    pub(crate) fn set_diff(
+        &mut self,
+        diff: crate::repository::FileDiff,
+        hide_unchanged: bool,
+        text_system: &gpui::TextSystem,
+    ) {
+        self.additions = diff.hunks.iter().map(|hunk| hunk.additions as u64).sum();
+        self.deletions = diff.hunks.iter().map(|hunk| hunk.deletions as u64).sum();
+        self.widest_line = widest_line_width(&diff, text_system);
+        self.hide_unchanged = hide_unchanged;
+        self.diff = Some(diff);
+        self.opened.clear();
+        self.build_rows();
+    }
+
+    pub(crate) fn set_split(&mut self, split: bool) {
+        if self.split == split {
+            return;
+        }
+        self.split = split;
+        self.build_rows();
+        self.scroll
+            .set_offset(gpui::point(gpui::px(0.0), gpui::px(0.0)));
+    }
+
+    pub(crate) fn set_hide_unchanged(&mut self, hidden: bool) {
+        if self.hide_unchanged == hidden {
+            return;
+        }
+        self.hide_unchanged = hidden;
+        self.opened.clear();
+        self.build_rows();
+    }
+
+    pub(crate) fn toggle_span(&mut self, span: usize) {
+        match self.opened.iter().position(|open| *open == span) {
+            Some(index) => {
+                self.opened.remove(index);
+            }
+            None => self.opened.push(span),
+        }
+        self.build_rows();
+    }
+
+    fn build_rows(&mut self) {
+        let split = self.split;
+        let hidden = self.hide_unchanged;
+        let opened = self.opened.clone();
+        self.rows = self
+            .diff
+            .as_ref()
+            .map_or_else(Vec::new, |diff| diff.rows(split, hidden, &opened));
     }
 
     /// Which hunk actions this file's section allows.
@@ -240,6 +303,36 @@ impl RepositoryDiff {
     }
 }
 
+pub(in crate::app) fn diff_text(text: &str) -> String {
+    text.replace('\t', "    ")
+}
+
+fn widest_line_width(
+    file: &crate::repository::FileDiff,
+    text_system: &gpui::TextSystem,
+) -> gpui::Pixels {
+    let font_size = crate::app::ui::theme::theme().type_scale.caption;
+    let font_id = text_system.resolve_font(&gpui::font(crate::app::ui::theme::MONO_FONT_FAMILY));
+    let cell = text_system
+        .ch_advance(font_id, font_size)
+        .unwrap_or_else(|_| gpui::px(0.0));
+    let width = |text: &str| {
+        diff_text(text)
+            .chars()
+            .map(|character| {
+                if character.is_ascii() {
+                    cell
+                } else {
+                    text_system
+                        .advance(font_id, font_size, character)
+                        .map_or(cell, |advance| advance.width)
+                }
+            })
+            .fold(gpui::px(0.0), |width, character| width + character)
+    };
+    gpui::px(file.widest_line(|text| f32::from(width(text))))
+}
+
 pub(crate) struct FarcasterApp {
     runtime: RuntimeHandle,
     pub(crate) snapshot: Arc<RuntimeSnapshot>,
@@ -255,7 +348,6 @@ pub(crate) struct FarcasterApp {
     views: views::AppViews,
     overlays: views::AppOverlays,
     lifecycle: infrastructure::AppLifecycle,
-    worker_notices: worker_notices::NoticeBoard,
 }
 
 #[cfg(test)]
