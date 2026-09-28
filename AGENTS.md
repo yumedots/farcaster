@@ -2,7 +2,7 @@
 
 # Rules
 
-Do not write comments in code
+Do not write comments in code. No line or block comments, no doc comments (`///`, `//!`, `#!`), no commented-out code, and no comments inside assets the code serves or embeds. Every non-obvious decision is explained in the reply, not in the file. Remove comments you find in lines you touch; do not sweep unrelated files.
 Always reply in tldr mode: the fewest words that still explain everything clearly. No fluff, no repetition, no filler. Binding, not optional.
 NEVER commit or run any git write command until the user explicitly says commit or anything similar, no commits on your own ever
 When the user asks to commit, commit in small coherent blocks, never one big commit: stage whatever files each change touches
