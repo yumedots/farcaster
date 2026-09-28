@@ -1181,8 +1181,8 @@ fn process_omits_farcaster_mcp_environment() -> TestResult {
 #[test]
 fn packaged_pi_path_wins_over_the_project_environment() {
     assert_eq!(
-        pi_program(Some("/nix/store/pi/bin/pi".into())),
-        PathBuf::from("/nix/store/pi/bin/pi")
+        pi_program(Some("/opt/pi/bin/pi".into())),
+        PathBuf::from("/opt/pi/bin/pi")
     );
     assert_eq!(pi_program(None), PathBuf::from("pi"));
 }
