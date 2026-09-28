@@ -62,9 +62,7 @@ In theory, any harness supporting ACP could be integrated through the app's ACP 
 
 ## Getting Started
 
-Download the latest build for your platform from the [releases page](https://github.com/behzade/farcaster/releases). Builds for macOS ARM64 and x86_64 Linux are currently available.
-
-On Linux, make the downloaded AppImage executable with `chmod +x /path/to/Farcaster.AppImage`, even when using `appimage-run`, so desktop launchers can resolve its app icon.
+Download the latest build from the [releases page](https://github.com/behzade/farcaster/releases). Builds for macOS ARM64 are currently available; on Linux, build from a local checkout as described under [Development](#development).
 
 The macOS app uses ad hoc signing; it is not notarized.
 If macOS blocks the app because it is not notarized and you trust the download, follow [Apple's instructions](https://support.apple.com/102445) to allow it through System Settings → Privacy & Security → Open Anyway.

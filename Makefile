@@ -50,7 +50,7 @@ release-preview release-publish:
 bundle bundle-relaunch:
 	BUNDLE_FORMATS="$(BUNDLE_FORMATS)" PROJECT="$(PROJECT)" ./scripts/bundle.sh $(if $(filter bundle-relaunch,$@),--relaunch)
 package:
-	test -n "$(FORMAT)" || (echo "usage: make package FORMAT=app|dmg|appimage|deb|pacman" >&2; exit 1)
+	test -n "$(FORMAT)" || (echo "usage: make package FORMAT=app|dmg|deb|pacman" >&2; exit 1)
 	BUNDLE_FORMATS="$(FORMAT)" ./scripts/bundle.sh
 logs:
 	tail $(TAIL_ARGS) "$(LOG_FILE)"
