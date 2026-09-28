@@ -2,3 +2,6 @@
 	path = third_party/gpui
 	url = https://github.com/yumedots/gpui.git
 	branch = master
+[submodule "third_party/gpui-libghostty"]
+	path = third_party/gpui-libghostty
+	url = https://github.com/yumedots/gpui-libghostty

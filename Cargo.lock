@@ -2577,7 +2577,6 @@ dependencies = [
 [[package]]
 name = "gpui-libghostty"
 version = "0.2.5"
-source = "git+https://github.com/yumedots/gpui-libghostty?rev=12a310c80a9686217288a199a3830fa2bc344c5d#12a310c80a9686217288a199a3830fa2bc344c5d"
 dependencies = [
  "async-channel",
  "gpui",
