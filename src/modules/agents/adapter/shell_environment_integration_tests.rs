@@ -92,7 +92,7 @@ set -gx CAPTURE_CONFIG_VALUE 'left=right
 snowman: ☃'
 set -gx CAPTURE_EMPTY ''
 set -gx CAPTURE_OVERRIDE configured
-# Model direnv-style first-prompt exports, including a project-local executable.
+# Model a prompt hook's exports, including a project-local executable.
 function capture_first_prompt --on-event fish_prompt
     set -gx CAPTURE_PROMPT loaded
     set -gx CAPTURE_PROJECT "$PWD"
