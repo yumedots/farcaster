@@ -71,10 +71,9 @@ You'll also need the agent harness you want to use installed and signed in. To u
 
 ## Development
 
-The repository includes a Nix development shell. To build and run from a local checkout:
+To build and run from a local checkout:
 
 ```sh
-nix develop
 cargo run --locked --bin farcaster
 ```
 

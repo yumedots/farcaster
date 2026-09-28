@@ -20,7 +20,7 @@ PRUNE = status=$$?; size=$$(du -sm "$(INCREMENTAL_DIR)" 2>/dev/null | cut -f1); 
 CARGO_TARGETS := build run test e2e measure debug isolated release release-debug release-preview release-publish bundle bundle-relaunch package clippy check
 
 .SILENT:
-.PHONY: $(CARGO_TARGETS) logs fmt check-flake clean prune-incremental libcxx
+.PHONY: $(CARGO_TARGETS) logs fmt clean prune-incremental libcxx
 
 $(CARGO_TARGETS): | $(INCREMENTAL_STAMP) libcxx
 libcxx:
@@ -60,8 +60,6 @@ clippy:
 	cargo clippy --all-targets -- -D warnings; $(PRUNE)
 check:
 	cargo fmt --check && cargo test && cargo check && cargo clippy --all-targets -- -D warnings; $(PRUNE)
-check-flake:
-	nix flake check
 clean:
 	cargo clean
 prune-incremental:
