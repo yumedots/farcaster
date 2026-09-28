@@ -373,24 +373,6 @@ impl StateStore {
             .collect()
     }
 
-    pub(crate) fn load_worker_profiles(&self) -> Result<crate::agents::WorkerProfiles, String> {
-        let tasks = self
-            .load_json_setting("worker_tasks_json", "worker profiles")?
-            .map(crate::agents::WorkerProfiles::from_saved)
-            .transpose()?
-            .unwrap_or_default();
-        tasks.validate()?;
-        Ok(tasks)
-    }
-
-    pub(crate) fn save_worker_profiles(
-        &self,
-        tasks: &crate::agents::WorkerProfiles,
-    ) -> Result<(), String> {
-        tasks.validate()?;
-        self.save_json_setting("worker_tasks_json", "worker profiles", tasks)
-    }
-
     pub(crate) fn load_window_placement(&self) -> Result<Option<WindowPlacement>, String> {
         self.load_json_setting("window_placement_json", "window placement")
     }
@@ -422,30 +404,6 @@ impl StateStore {
             .execute("UPDATE ui_state SET network_proxy=?1 WHERE id=1", [proxy])
             .map(|_| ())
             .map_err(|error| format!("save network proxy: {error}"))
-    }
-
-    pub(crate) fn load_builtin_mcp_enabled(&self) -> Result<bool, String> {
-        let value = self
-            .connection
-            .query_row(
-                "SELECT builtin_mcp_enabled FROM ui_state WHERE id=1",
-                [],
-                |row| row.get::<_, i64>(0),
-            )
-            .optional()
-            .map_err(|error| format!("load built-in MCP setting: {error}"))?;
-        Ok(!matches!(value, Some(0)))
-    }
-
-    pub(crate) fn save_builtin_mcp_enabled(&self, enabled: bool) -> Result<(), String> {
-        self.ensure_ui_state()?;
-        self.connection
-            .execute(
-                "UPDATE ui_state SET builtin_mcp_enabled=?1 WHERE id=1",
-                [i64::from(enabled)],
-            )
-            .map(|_| ())
-            .map_err(|error| format!("save built-in MCP setting: {error}"))
     }
 
     pub(crate) fn load_configuration_catalogs(

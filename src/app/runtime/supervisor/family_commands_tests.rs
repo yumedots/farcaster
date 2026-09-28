@@ -244,7 +244,7 @@ fn supervisor_waits_for_pool_shutdown_before_archiving_and_leaves_other_families
     let (supervisor, events) =
         supervisor_for_family(state, vec![root.clone(), child, unrelated.clone()]);
 
-    crate::app::mcp_server::with_test_worker_pool(pool.clone(), || {
+    crate::app::worker_pool::with_test_worker_pool(pool.clone(), || {
         let path = root.path.clone();
         let handle = thread::spawn(move || {
             let mut supervisor = supervisor;
@@ -307,7 +307,7 @@ fn supervisor_does_not_archive_or_report_stopped_when_pool_close_fails() -> Resu
     start_worker(&pool, temp.path(), "family-child", &root.path)?;
     let (mut supervisor, events) = supervisor_for_family(state, vec![root.clone()]);
 
-    crate::app::mcp_server::with_test_worker_pool(pool, || {
+    crate::app::worker_pool::with_test_worker_pool(pool, || {
         assert!(
             supervisor.handle_session_family_command(&RuntimeCommand::StopSessionFamily {
                 path: root.path.clone(),
@@ -356,7 +356,7 @@ fn supervisor_does_not_archive_or_report_stopped_when_actor_close_fails() -> Res
         },
     );
 
-    crate::app::mcp_server::with_test_worker_pool(pool, || {
+    crate::app::worker_pool::with_test_worker_pool(pool, || {
         assert!(
             supervisor.handle_session_family_command(&RuntimeCommand::StopSessionFamily {
                 path: root.path.clone(),

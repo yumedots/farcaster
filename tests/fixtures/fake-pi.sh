@@ -26,9 +26,6 @@ done
 
 if [ "$case_name" = "project-directory" ]; then
   printf '%s' "$PWD" > "$PWD/process-project"
-  printf '%s' "${FARCASTER_MCP_URL-}" > "$PWD/process-mcp-url"
-  printf '%s' "${FARCASTER_MCP_HEADER-}" > "$PWD/process-mcp-header"
-  printf '%s' "${FARCASTER_MCP_CALLER-}" > "$PWD/process-mcp-caller"
 fi
 
 if [ "$case_name" = "ignore-term" ]; then

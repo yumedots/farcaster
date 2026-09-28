@@ -553,28 +553,6 @@ impl RuntimeOwner {
     }
 }
 
-pub(super) fn update_session_goal_from_event(
-    goal: &mut Option<crate::agents::SessionGoal>,
-    kind: &SessionActivityKind,
-    event: &Value,
-) -> bool {
-    if kind != &SessionActivityKind::SessionGoalChanged {
-        return false;
-    }
-    let Some(value) = event.get("goal") else {
-        return false;
-    };
-    let Ok(updated) = serde_json::from_value::<Option<crate::agents::SessionGoal>>(value.clone())
-    else {
-        return false;
-    };
-    if *goal == updated {
-        return false;
-    }
-    *goal = updated;
-    true
-}
-
 #[cfg(test)]
 #[path = "projection_tests.rs"]
 mod tests;

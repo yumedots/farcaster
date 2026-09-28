@@ -167,7 +167,7 @@ fn session(command: &AgentLaunchConfig, project: &Path) -> ClaudeSession {
         None,
     );
     let id = TEST_SESSION_ID;
-    let process = Process::spawn(command, project, id, false, None, None, true)
+    let process = Process::spawn(command, project, id, false, None, true)
         .expect("test operation should succeed");
     attach(process, caller, id, command.access_mode)
         .expect("test operation should succeed")
@@ -407,7 +407,7 @@ fn cli_launch_and_image_envelopes_are_source_typed() {
         ),
     ] {
         let mut command = std::process::Command::new("claude");
-        super::super::process::configure(&mut command, access, "id", true, None, false);
+        super::super::process::configure(&mut command, access, "id", true, false);
         let args = command
             .get_args()
             .map(|arg| arg.to_str().expect("test operation should succeed"))
@@ -495,10 +495,7 @@ fn catalog_probe_and_main_resume_launch_without_sending_a_prompt() {
         .expect("test operation should succeed");
     assert!(args.lines().any(|arg| arg == format!("--resume={id}")));
     assert!(!args.lines().any(|arg| arg == "--no-session-persistence"));
-    if super::super::super::farcaster_mcp::enabled() {
-        assert!(args.lines().any(|arg| arg == "--mcp-config"));
-        assert!(args.contains("farcaster-caller"));
-    }
+    assert!(!args.lines().any(|arg| arg == "--mcp-config"));
     let requests = std::fs::read_to_string(directory.path().join("claude-fixture.requests"))
         .expect("test operation should succeed");
     assert!(!requests.contains("\"type\":\"user\""));

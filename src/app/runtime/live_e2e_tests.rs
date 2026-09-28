@@ -48,7 +48,7 @@ use crate::{
 };
 
 use crate::agents::live_e2e_support::{
-    McpGuard, TEST_IMAGE, TURN_TIMEOUT, alternate_image, bounded_command_permission, e2e_case_dir,
+    TEST_IMAGE, TURN_TIMEOUT, alternate_image, bounded_command_permission, e2e_case_dir,
     isolated_locator_root, live_access_mode_for_harness, selected_live_harnesses,
 };
 
@@ -251,7 +251,6 @@ fn live_e2e_runtime_accepted_prompt_survives_restart_without_duplicate_or_replay
     isolated_live_runtime(
         "accepted_prompt_survives_restart_without_duplicate_or_replay",
         || {
-            let _mcp = McpGuard::disabled();
             let harness = selected_harness()?;
             let project = live_project("restart")?;
             let config = live_config(harness)?;
@@ -387,7 +386,6 @@ fn live_e2e_runtime_navigation_keeps_pending_receipts_in_their_origin_session() 
     isolated_live_runtime(
         "navigation_keeps_pending_receipts_in_their_origin_session",
         || {
-            let _mcp = McpGuard::disabled();
             let harness = selected_harness()?;
             let project = live_project("navigation")?;
             let config = live_config(harness)?;
@@ -536,7 +534,6 @@ fn live_e2e_runtime_navigation_keeps_pending_receipts_in_their_origin_session() 
 /// queue presentation before acknowledgement.
 fn live_e2e_runtime_accepted_steer_and_follow_up_queue_until_delivery() -> Result<(), String> {
     isolated_live_runtime("accepted_steer_and_follow_up_queue_until_delivery", || {
-        let _mcp = McpGuard::disabled();
         let harness = selected_harness()?;
         let project = live_project("pre-delivery-receipts")?;
         let draft_id = unique("pre-delivery-draft");

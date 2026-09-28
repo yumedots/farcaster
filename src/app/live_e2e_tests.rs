@@ -751,10 +751,6 @@ fn with_live_app(
     ) -> Result<(), String>,
 ) -> Result<(), String> {
     let config = live_config()?;
-    // The UI app speaks to the installed harness directly. Its test process is
-    // not a registered Farcaster MCP caller, so do not let an inherited host
-    // MCP configuration add an unrelated server failure to model context.
-    let _mcp = live_e2e_support::McpGuard::disabled();
     phase("config-validated");
     let case_dir = live_e2e_support::e2e_case_dir()?;
     let project = tempfile::tempdir_in(&case_dir)
@@ -786,22 +782,13 @@ fn with_live_app(
         cx.bind_keys(super::ui::keybindings::bindings());
     });
     phase("gpui-initialized");
-    let (workgraph_updates, workgraph_rx) = async_channel::unbounded();
     let (worker_updates, worker_rx) = async_channel::unbounded();
     phase("window-creating");
     // `add_window_view` unconditionally runs GPUI's scheduler to quiescence.
     // Bootstrap owns permanent runtime/update receiver tasks, so use the same
     // real window/app construction without that unbounded test-only drain.
     let window = cx.add_window(|window, cx| {
-        FarcasterApp::new(
-            project_path.clone(),
-            true,
-            workgraph_rx,
-            worker_rx,
-            crate::app::worker_notices::NoticeBoard::default(),
-            window,
-            cx,
-        )
+        FarcasterApp::new(project_path.clone(), true, worker_rx, window, cx)
     });
     let app = window
         .root(cx)
@@ -811,7 +798,7 @@ fn with_live_app(
     phase("window-created");
     // Keep actual subscription senders alive for the full app test. They are
     // deliberately empty; the runtime/session supplies every observed event.
-    let _updates = (workgraph_updates, worker_updates);
+    let _updates = worker_updates;
     focus_composer(cx, &app);
     phase("composer-focused");
     // `NewSession` stages a disconnected draft; the first real composer

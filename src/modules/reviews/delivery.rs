@@ -1,4 +1,7 @@
-//! The MCP response is a compatibility path; the local journal owns delivery.
+//! Revision tracking for the review journal.
+//!
+//! The runtime keeps a subscriber handle and re-reads review artifacts when the
+//! revision moves.
 use std::sync::{
     Arc, Mutex, OnceLock, Weak,
     atomic::{AtomicU64, Ordering},
@@ -28,20 +31,4 @@ pub(crate) fn subscribe() -> Arc<std::thread::Thread> {
     listeners.retain(|listener| listener.strong_count() > 0);
     listeners.push(Arc::downgrade(&thread));
     thread
-}
-
-pub(crate) fn notify() {
-    updates().revision.fetch_add(1, Ordering::Release);
-    let mut listeners = updates()
-        .listeners
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-    listeners.retain(|listener| {
-        if let Some(thread) = listener.upgrade() {
-            thread.unpark();
-            true
-        } else {
-            false
-        }
-    });
 }

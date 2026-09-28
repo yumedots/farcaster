@@ -837,7 +837,7 @@ fn subagent_results_keep_custom_context_but_use_dedicated_transcript_rows() {
 }
 
 #[test]
-fn background_job_results_wake_the_agent_without_becoming_transcript_rows() {
+fn custom_history_rows_stay_in_agent_context_without_becoming_transcript_rows() {
     let mut state = ConversationState::default();
     state.replace_history(&[
         json!({

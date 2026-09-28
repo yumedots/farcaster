@@ -2,7 +2,6 @@ use std::{collections::HashMap, path::Path};
 
 use crate::{
     app::composer::{sessions::session_target, submissions::PendingSubmission},
-    protocol::{BackgroundJob, BackgroundJobState},
     runtime::RuntimeSnapshot,
     sessions::{SessionSummary, session_family_for_path},
 };
@@ -27,7 +26,6 @@ pub(in crate::app) fn application_has_active_work(
     snapshot: &RuntimeSnapshot,
     submissions: &HashMap<String, PendingSubmission>,
     sessions: &[SessionSummary],
-    jobs: &[BackgroundJob],
 ) -> bool {
     statuses
         .values()
@@ -35,12 +33,6 @@ pub(in crate::app) fn application_has_active_work(
         || snapshot_has_active_work(snapshot)
         || !submissions.is_empty()
         || sessions.iter().any(|session| session.is_running)
-        || jobs.iter().any(|job| {
-            matches!(
-                job.state,
-                BackgroundJobState::Starting | BackgroundJobState::Running
-            )
-        })
 }
 
 pub(in crate::app) fn session_has_live_work(

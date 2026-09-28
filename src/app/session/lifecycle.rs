@@ -25,10 +25,6 @@ impl FarcasterApp {
             self.dismiss_surface(window, cx);
             return;
         }
-        if self.workspace.surface == AppSurface::Work {
-            self.show_chat_surface(window, cx);
-            return;
-        }
         if self.workspace.surface == AppSurface::Editor {
             self.close_editor(cx);
             return;

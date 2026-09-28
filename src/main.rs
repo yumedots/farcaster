@@ -1,5 +1,4 @@
 mod app;
-mod builtin_mcp;
 mod infrastructure;
 #[cfg(target_os = "linux")]
 mod linux_graphics;
@@ -64,11 +63,6 @@ fn main() -> std::process::ExitCode {
         Err(error) => return fail(error),
     };
     let state_store = app::persistence::StateStore::open().ok();
-    let builtin_mcp_enabled = state_store
-        .as_ref()
-        .and_then(|store| store.load_builtin_mcp_enabled().ok())
-        .unwrap_or(true);
-    builtin_mcp::set_enabled(builtin_mcp_enabled);
     let worker_command = startup_worker_command(&data_root, state_store.as_ref());
     let worker_proxy = worker_command.app_proxy.clone();
     let (factories, default_backend) = agents::worker_factories(worker_command);
@@ -92,27 +86,12 @@ fn main() -> std::process::ExitCode {
         Err(error) => return fail(format!("initialize worker pool: {error}")),
     };
     let worker_updates = worker_pool.updates();
-    let (workgraph_updates, workgraph_update_receiver) = async_channel::bounded(1);
-    let notice_board = app::worker_notices::NoticeBoard::default();
-    let _mcp_server = match app::persistence::state_path().and_then(|database| {
-        app::mcp_server::start(
-            database,
-            worker_pool,
-            workgraph_updates,
-            notice_board.clone(),
-        )
-    }) {
-        Ok(server) => server,
-        Err(error) => return fail(format!("start MCP server: {error}")),
-    };
+    if let Err(error) = app::worker_pool::install(worker_pool) {
+        return fail(format!("install worker pool: {error}"));
+    }
 
     drop(prepare_timing);
-    match app::launch::run(
-        project,
-        workgraph_update_receiver,
-        worker_updates,
-        notice_board,
-    ) {
+    match app::launch::run(project, worker_updates) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => fail(error),
     }

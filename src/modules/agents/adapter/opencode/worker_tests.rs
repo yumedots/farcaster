@@ -665,13 +665,14 @@ fn sandboxed_permission_requests_keep_native_choices() {
 }
 
 #[test]
-fn native_startup_merges_direct_farcaster_mcp() {
+fn native_startup_leaves_configured_mcp_servers_alone() {
     let mut command = std::process::Command::new("opencode");
     command.env(
             "OPENCODE_CONFIG_CONTENT",
             r#"{"model":"provider/model","mcp":{"servers":{"other":{"type":"remote","url":"https://example.test/mcp"}}}}"#,
         );
-    configure_farcaster_mcp(&mut command, "caller-1").expect("MCP config");
+    configure_opencode_server(&mut command, crate::agents::HarnessAccessMode::Full)
+        .expect("access mode config");
     let value = command
         .get_envs()
         .find(|(name, _)| *name == "OPENCODE_CONFIG_CONTENT")
@@ -679,20 +680,17 @@ fn native_startup_merges_direct_farcaster_mcp() {
         .and_then(|value| serde_json::from_str::<Value>(&value.to_string_lossy()).ok())
         .expect("inline config");
     assert_eq!(value["model"], "provider/model");
+    assert_eq!(value["permission"], "allow");
     assert_eq!(
         value["mcp"]["servers"]["other"]["url"],
         "https://example.test/mcp"
     );
     assert_eq!(
-        value["mcp"]["servers"]["farcaster"]["url"],
-        farcaster_mcp::URL
+        value["mcp"]["servers"]
+            .as_object()
+            .map(serde_json::Map::len),
+        Some(1)
     );
-    assert_eq!(
-        value["mcp"]["servers"]["farcaster"]["headers"][farcaster_mcp::CALLER_HEADER],
-        "caller-1"
-    );
-    assert_eq!(value["mcp"]["servers"]["farcaster"]["codemode"], true);
-    assert_eq!(value["mcp"]["servers"]["farcaster"]["oauth"], false);
 }
 
 #[test]

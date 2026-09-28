@@ -70,7 +70,7 @@ fn editor_completion_is_scoped_to_its_request_session_and_view() {
         (1, None, AppSurface::Editor),
         (1, Some(11), AppSurface::Chat),
         (1, Some(11), AppSurface::Terminal),
-        (1, Some(11), AppSurface::Work),
+        (1, Some(11), AppSurface::Diff),
     ] {
         assert!(!editor_completion_is_current(
             1, generation, 11, tab, surface

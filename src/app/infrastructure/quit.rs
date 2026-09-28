@@ -50,7 +50,6 @@ impl FarcasterApp {
             &self.snapshot,
             &self.composer.pending_submissions,
             &self.sessions.all,
-            &self.activity.background_jobs,
         );
         if !active {
             cx.quit();

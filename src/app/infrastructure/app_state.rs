@@ -8,7 +8,5 @@ pub(in crate::app) struct AppLifecycle {
     pub(in crate::app) _performance_task: Option<Task<()>>,
     pub(in crate::app) _window_placement_subscription: Subscription,
     pub(in crate::app) _event_task: Task<()>,
-    pub(in crate::app) _workgraph_update_task: Task<()>,
     pub(in crate::app) _worker_update_task: Task<()>,
-    pub(in crate::app) _worker_notice_task: Task<()>,
 }

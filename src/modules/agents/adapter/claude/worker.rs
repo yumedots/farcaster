@@ -61,13 +61,11 @@ impl WorkerSessionFactory for ClaudeWorkerFactory {
                 launch.access_mode,
             )?
             .with_slot(launch.slot);
-        // Child sessions use the shared parent/inbox path, never the Farcaster MCP server.
         let process = Process::spawn(
             &command,
             &launch.project,
             &id,
             resume,
-            None,
             None,
             !launch.ephemeral,
         )?;
@@ -98,7 +96,6 @@ pub(in crate::modules::agents::adapter) fn load_configuration(
         project,
         &uuid::Uuid::new_v4().to_string(),
         false,
-        None,
         None,
         false,
     )?;
@@ -135,7 +132,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
         &launch.project,
         &id,
         resume,
-        Some(caller.token()),
         launch.wake.clone(),
         true,
     )?;

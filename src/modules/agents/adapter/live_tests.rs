@@ -40,18 +40,6 @@ pub(crate) const LIVE_HARNESSES: [&str; 6] = [
 ];
 pub(crate) const TEST_IMAGE: &str = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKklEQVR4nGP4EKBBU8QwasGoBaMWjFowasGoBaMWjFowasGoBaMWDBULACvxoEydbL2eAAAAAElFTkSuQmCC";
 
-pub(crate) struct McpGuard {
-    _guard: crate::builtin_mcp::McpDisabledForTest,
-}
-
-impl McpGuard {
-    pub(crate) fn disabled() -> Self {
-        Self {
-            _guard: crate::builtin_mcp::McpDisabledForTest::new(),
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Coverage {
     history: bool,
@@ -128,7 +116,6 @@ pub(crate) fn descriptor(harness: Backend) -> Result<AgentBackendDescriptor, Str
 #[test]
 #[ignore = "runs all six backends against live LLM accounts; consumes usage and retains sessions when deletion is unsupported"]
 fn live_e2e_session_catalog_model_resume_move_delete() -> Result<(), String> {
-    let _mcp = McpGuard::disabled();
     let selected = std::env::var("FARCASTER_E2E_HARNESS").ok();
     for harness in select_harnesses(selected.as_deref())? {
         let harness = harness.parse::<Backend>()?;
@@ -1011,7 +998,7 @@ fn require_assistant_text(conversation: &ConversationState, expected: &str) -> R
 pub(crate) mod support {
     use super::*;
 
-    pub(crate) use super::{McpGuard, TEST_IMAGE, TURN_TIMEOUT};
+    pub(crate) use super::{TEST_IMAGE, TURN_TIMEOUT};
 
     pub(crate) const EVENT_POLL: Duration = Duration::from_millis(20);
 
@@ -1033,15 +1020,6 @@ pub(crate) mod support {
     pub(crate) enum PromptObservation {
         CorrelatedDelivery,
         NativeHistoryOnly,
-    }
-
-    /// The exact provider/model pair accepted by a short-lived real harness
-    /// session.  Child E2E profiles use this instead of guessing from the
-    /// first entry in a possibly stale configuration catalog.
-    #[derive(Clone, Debug, Eq, PartialEq)]
-    pub(crate) struct LiveWorkerModel {
-        pub(crate) provider: String,
-        pub(crate) model: String,
     }
 
     #[derive(Clone, Debug)]
@@ -1428,7 +1406,6 @@ pub(crate) mod support {
         started_at: Instant,
         program_version: String,
         model_identity: Option<String>,
-        _mcp: McpGuard,
     }
 
     impl LiveSession {
@@ -1457,7 +1434,6 @@ pub(crate) mod support {
             };
             let resolved_config = super::super::launch_configuration(&config, harness)?;
             let program_version = program_version(&resolved_config.program);
-            let _mcp = McpGuard::disabled();
             let transport = spawn_session(
                 &config,
                 SessionLaunch {
@@ -1486,7 +1462,6 @@ pub(crate) mod support {
                 started_at: Instant::now(),
                 program_version,
                 model_identity: None,
-                _mcp,
             };
             let state = live.load_state()?;
             live.path = state
@@ -2326,37 +2301,6 @@ pub(crate) mod support {
             }
         }
 
-        /// Closes a LoadState-only model probe.  It deliberately does not ask
-        /// the native client to delete the locator: Codex rejects that request
-        /// before a prompt has created a rollout.  Real E2E turns continue to
-        /// use `close_cleanup`, which keeps deletion errors strict.
-        fn close_model_probe(mut self) -> Result<(), String> {
-            if self.submitted_prompt || !self.gates.is_empty() {
-                return Err("refusing probe-only cleanup after a live prompt or gate".into());
-            }
-            let close = self.transport.close();
-            let evidence = self.write_evidence();
-            let identity = external_session_locator(self.harness, &self.path)
-                .unwrap_or_else(|| self.path.display().to_string());
-            eprintln!(
-                "E2E_LIMIT: {} LoadState-only model probe retained no-turn native locator {identity}; skipping deletion because no persisted rollout was established",
-                self.harness
-            );
-            match (close, evidence) {
-                (Ok(()), Ok(())) => Ok(()),
-                (close, evidence) => Err([
-                    close
-                        .err()
-                        .map(|error| format!("close live {} model probe: {error}", self.harness)),
-                    evidence.err(),
-                ]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>()
-                .join("; ")),
-            }
-        }
-
         fn request(&mut self, command: SessionCommand) -> Result<Payload, String> {
             let operation = command.response_operation();
             let id = self.transport.send(command)?;
@@ -2469,52 +2413,6 @@ pub(crate) mod support {
         select_harnesses(std::env::var("FARCASTER_E2E_HARNESS").ok().as_deref())
     }
 
-    /// Resolves a child model from the installed harness's real `LoadState`.
-    /// An explicit `FARCASTER_E2E_MODEL` must agree with that actual selection;
-    /// this helper never asks for a catalog or changes a model.  The probe
-    /// always closes before its caller can launch MCP-backed child workers,
-    /// which restores the scoped MCP guard.
-    pub(crate) fn selected_live_worker_model(harness: Backend) -> Result<LiveWorkerModel, String> {
-        let mut probe = LiveSession::start(harness)?;
-        let outcome = (|| {
-            let state = probe.load_state()?;
-            let model = state.model.ok_or_else(|| {
-                format!(
-                    "E2E_BLOCKED: {harness} LoadState omitted a selected model; refusing to choose an arbitrary catalog entry"
-                )
-            })?;
-            if model.provider.trim().is_empty() || model.id.trim().is_empty() {
-                return Err(format!(
-                    "E2E_BLOCKED: {harness} LoadState reported an incomplete model identity provider={:?} model={:?}",
-                    model.provider, model.id
-                ));
-            }
-            if let Some(model_id) = std::env::var("FARCASTER_E2E_MODEL")
-                .ok()
-                .filter(|model_id| !model_id.trim().is_empty())
-            {
-                let matches_selected = model_id == model.id
-                    || model.resolved_model.as_deref() == Some(model_id.as_str());
-                if !matches_selected {
-                    return Err(format!(
-                        "FARCASTER_E2E_MODEL {model_id:?} differs from {harness} LoadState model {}/{}; this child probe will not guess from a catalog or send a model-selection request",
-                        model.provider, model.id
-                    ));
-                }
-            }
-            Ok(LiveWorkerModel {
-                provider: model.provider,
-                model: model.id,
-            })
-        })();
-        let cleanup = probe.close_model_probe();
-        match (outcome, cleanup) {
-            (Ok(model), Ok(())) => Ok(model),
-            (Err(error), Ok(())) | (Ok(_), Err(error)) => Err(error),
-            (Err(error), Err(cleanup)) => Err(format!("{error}; probe cleanup: {cleanup}")),
-        }
-    }
-
     pub(crate) fn e2e_case_dir() -> Result<PathBuf, String> {
         require_e2e_isolation()
     }
@@ -2568,33 +2466,6 @@ pub(crate) mod support {
             };
         }
         live_access_mode(&descriptor(harness)?.capabilities)
-    }
-
-    pub(crate) fn native_questions_available(harness: Backend) -> Result<bool, String> {
-        Ok(
-            descriptor(harness)?.capabilities.interactions.questions
-                == CapabilitySupport::Available,
-        )
-    }
-
-    pub(crate) fn native_approvals_available(harness: Backend) -> Result<bool, String> {
-        Ok(
-            descriptor(harness)?.capabilities.interactions.approvals
-                == CapabilitySupport::Available,
-        )
-    }
-
-    pub(crate) fn require_native_input_support(harness: Backend) -> Result<(), String> {
-        let capabilities = descriptor(harness)?.capabilities;
-        if capabilities.interactions.questions == CapabilitySupport::Available
-            || capabilities.interactions.approvals == CapabilitySupport::Available
-        {
-            Ok(())
-        } else {
-            Err(format!(
-                "E2E_BLOCKED: {harness} declares both native questions and approvals unavailable"
-            ))
-        }
     }
 
     pub(crate) fn for_each_selected(

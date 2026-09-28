@@ -2,26 +2,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use serde_json::json;
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub(crate) enum BackgroundJobState {
-    Starting,
-    Running,
-    Completed,
-    Exited,
-    Failed,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct BackgroundJob {
-    pub name: String,
-    pub command: String,
-    pub state: BackgroundJobState,
-    #[serde(default)]
-    pub exit_code: Option<i32>,
-}
-
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SessionState {

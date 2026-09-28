@@ -7,10 +7,9 @@ use crate::app::{
     AbortRun, AddProject, CloseCurrent, ComposerEscape, DismissSurface, FocusComposer,
     FocusSessionSearch, NewSession, NextSession, PickerBack, PickerScope, PreviousSession,
     ProjectPickerIntent, RemoveProject, ShowActionPicker, ShowEditor, ShowKeybindings,
-    ShowTerminal, ShowWorkGraph, SubmitFollowUp, SubmitPrompt, SwitchSession0, SwitchSession1,
-    SwitchSession2, SwitchSession3, SwitchSession4, SwitchSession5, SwitchSession6, SwitchSession7,
-    SwitchSession8, SwitchSession9, ToggleArchivedSessions, WorkCreateIssue, WorkDismiss,
-    WorkFocusSearch, WorkNextIssue, WorkPreviousIssue,
+    ShowTerminal, SubmitFollowUp, SubmitPrompt, SwitchSession0, SwitchSession1, SwitchSession2,
+    SwitchSession3, SwitchSession4, SwitchSession5, SwitchSession6, SwitchSession7, SwitchSession8,
+    SwitchSession9, ToggleArchivedSessions,
 };
 
 pub(super) fn bind(root: gpui::Div, cx: &mut Context<FarcasterApp>) -> gpui::Div {
@@ -146,43 +145,6 @@ fn bind_actions(root: gpui::Div, cx: &mut Context<FarcasterApp>) -> gpui::Div {
     }))
     .on_action(cx.listener(|this, _: &ShowKeybindings, window, cx| {
         this.open_keybindings_help(window, cx);
-    }))
-    .on_action(cx.listener(|this, _: &ShowWorkGraph, window, cx| {
-        this.toggle_workgraph_surface(window, cx);
-    }))
-    .on_action(cx.listener(|this, _: &WorkPreviousIssue, _, cx| {
-        this.views
-            .workgraph
-            .update(cx, |view, cx| view.move_selection(-1, cx));
-    }))
-    .on_action(cx.listener(|this, _: &WorkNextIssue, _, cx| {
-        this.views
-            .workgraph
-            .update(cx, |view, cx| view.move_selection(1, cx));
-    }))
-    .on_action(cx.listener(|this, _: &WorkFocusSearch, window, cx| {
-        this.views
-            .workgraph
-            .update(cx, |view, cx| view.focus_search(window, cx));
-    }))
-    .on_action(cx.listener(|this, _: &WorkCreateIssue, window, cx| {
-        this.views
-            .workgraph
-            .update(cx, |view, cx| view.start_create(window, cx));
-    }))
-    .on_action(cx.listener(|this, _: &crate::app::WorkBack, window, cx| {
-        this.views
-            .workgraph
-            .update(cx, |view, cx| view.back_to_plans(window, cx));
-    }))
-    .on_action(cx.listener(|this, _: &WorkDismiss, window, cx| {
-        let handled = this
-            .views
-            .workgraph
-            .update(cx, |view, cx| view.dismiss_work_state(window, cx));
-        if !handled {
-            this.show_chat_surface(window, cx);
-        }
     }))
     .on_action(cx.listener(|this, _: &SwitchSession0, window, cx| {
         this.switch_to_session_number(10, window, cx);

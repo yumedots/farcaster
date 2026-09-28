@@ -81,19 +81,6 @@ pub(crate) struct ConfigurationCatalog {
     pub(crate) sandbox_adapter: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct SessionGoal {
-    pub(crate) objective: String,
-    pub(crate) status: String,
-    #[serde(default)]
-    pub(crate) token_budget: Option<u64>,
-    #[serde(default)]
-    pub(crate) tokens_used: u64,
-    #[serde(default)]
-    pub(crate) time_used_seconds: u64,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct QueuedPrompt {
     pub(crate) id: i64,
@@ -148,7 +135,6 @@ pub(crate) enum SessionActivityKind {
     SessionChanged,
     ServiceStatusChanged,
     RateLimitsChanged,
-    SessionGoalChanged,
     ChildSessionsChanged,
     Other(String),
 }
@@ -177,7 +163,6 @@ impl SessionActivityKind {
             "session_info_changed" => Self::SessionChanged,
             "service_status_changed" => Self::ServiceStatusChanged,
             "rate_limits_changed" => Self::RateLimitsChanged,
-            "session_goal_changed" => Self::SessionGoalChanged,
             "child_sessions_changed" => Self::ChildSessionsChanged,
             other => Self::Other(other.to_owned()),
         }
@@ -432,7 +417,6 @@ pub(crate) struct ConfigurationCapabilities {
     pub reset_reasoning_effort: CapabilitySupport,
     pub modes: CapabilitySupport,
     pub commands: CapabilitySupport,
-    pub mcp_servers: CapabilitySupport,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

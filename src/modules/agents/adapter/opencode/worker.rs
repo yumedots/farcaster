@@ -24,7 +24,7 @@ use crate::{
         WorkerEvent, WorkerInput, WorkerInputResponse, WorkerLaunch, WorkerSendMode, WorkerSession,
         WorkerSessionFactory, WorkerUsage,
     },
-    modules::agents::adapter::{child_stderr, farcaster_mcp, main_session},
+    modules::agents::adapter::{child_stderr, main_session},
 };
 
 #[derive(Clone)]
@@ -200,9 +200,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
         launch.wake.clone(),
         command.access_mode,
     );
-    if farcaster_mcp::enabled() {
-        configure_farcaster_mcp(&mut prepared, caller_identity.token())?;
-    }
     let password = worker_password()?;
     configure_opencode_server(&mut prepared, command.access_mode)?;
     let mut child = prepared
@@ -2133,29 +2130,6 @@ fn configure_opencode_server(
         .env("OPENCODE_DISABLE_AUTOUPDATE", "true")
         .args(["serve", "--stdio", "--print-logs"]);
     Ok(())
-}
-
-fn configure_farcaster_mcp(
-    command: &mut std::process::Command,
-    caller_token: &str,
-) -> Result<(), String> {
-    merge_opencode_config(
-        command,
-        serde_json::json!({
-            "mcp": {
-                "servers": {
-                    "farcaster": {
-                        "type": "remote",
-                        "url": farcaster_mcp::URL,
-                        "headers": {(farcaster_mcp::CALLER_HEADER): caller_token},
-                        "oauth": false,
-                        "codemode": true
-                    }
-                }
-            }
-        }),
-        "MCP",
-    )
 }
 
 fn merge_opencode_config(

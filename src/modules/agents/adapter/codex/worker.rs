@@ -26,12 +26,11 @@ use super::{
 };
 use crate::{
     agents::{
-        AgentLaunchConfig, CommonTool, PeerMessage, SessionGoal, TokenUsage, ToolReviewState,
-        WorkerActivity, WorkerActivityState, WorkerContext, WorkerEvent, WorkerInput,
-        WorkerInputResponse, WorkerLaunch, WorkerSendMode, WorkerSession, WorkerSessionFactory,
-        WorkerUsage,
+        AgentLaunchConfig, CommonTool, PeerMessage, TokenUsage, ToolReviewState, WorkerActivity,
+        WorkerActivityState, WorkerContext, WorkerEvent, WorkerInput, WorkerInputResponse,
+        WorkerLaunch, WorkerSendMode, WorkerSession, WorkerSessionFactory, WorkerUsage,
     },
-    modules::agents::adapter::{child_stderr, farcaster_mcp, main_session},
+    modules::agents::adapter::{child_stderr, main_session},
 };
 
 #[derive(Clone)]
@@ -222,9 +221,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
         command.access_mode,
     );
     configure_codex_app_server(&mut prepared, command.access_mode);
-    if farcaster_mcp::enabled() {
-        configure_farcaster_mcp(&mut prepared, caller_identity.token(), command.access_mode);
-    }
     let mut child = prepared
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -275,7 +271,7 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
             ))
         })
         .collect();
-    let mut session = CodexWorkerSession {
+    let session = CodexWorkerSession {
         caller_identity,
         child,
         writer: Some(writer),
@@ -317,11 +313,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
         events: VecDeque::new(),
         turn_error: None,
     };
-    let goal_request =
-        session.request("thread/goal/get", json!({"threadId": thread_id.clone()}))?;
-    session
-        .pending
-        .insert(goal_request, PendingRequest::LoadGoal);
     Ok((Box::new(session), thread_id, metadata))
 }
 
@@ -579,7 +570,6 @@ enum PendingRequest {
     LoadSkills,
     ObsoleteSkills,
     StartTurn,
-    LoadGoal,
     ChildStatus {
         id: String,
         title: Option<String>,
@@ -1038,26 +1028,6 @@ impl WorkerSession for CodexWorkerSession {
                             return Some(WorkerEvent::Started);
                         }
                     }
-                    Some(PendingRequest::LoadGoal) => {
-                        let Some(goal) = result.get("goal") else {
-                            log_bad_codex_notification(
-                                "thread/goal/get",
-                                &result,
-                                "goal response is missing goal",
-                            );
-                            continue;
-                        };
-                        match decode_codex_goal(goal) {
-                            Ok(goal) => {
-                                return Some(WorkerEvent::Activity(
-                                    WorkerActivity::SessionGoalChanged(goal),
-                                ));
-                            }
-                            Err(reason) => {
-                                log_bad_codex_notification("thread/goal/get", &result, &reason);
-                            }
-                        }
-                    }
                     Some(PendingRequest::ChildStatus { id, title }) => {
                         if let Some(is_running) = super::subagents::observe_thread(
                             &self.thread_id,
@@ -1201,14 +1171,6 @@ impl WorkerSession for CodexWorkerSession {
                         ) => continue,
                         Some(PendingRequest::ChildStatus { .. }) => {
                             zlog::warn!("Codex child status could not be read: {}", error.message);
-                            continue;
-                        }
-                        Some(PendingRequest::LoadGoal) => {
-                            zlog::warn!(
-                                "Codex thread goal could not be read: {}: {}",
-                                error.code,
-                                error.message
-                            );
                             continue;
                         }
                         Some(PendingRequest::StartTurn) => {
@@ -1581,31 +1543,6 @@ impl WorkerSession for CodexWorkerSession {
                                 reported_usage,
                             )));
                         }
-                        CodexMethod::GoalUpdated => {
-                            let Some(goal) = params.get("goal") else {
-                                log_bad_codex_notification(
-                                    method_name,
-                                    &params,
-                                    "goal update is missing goal",
-                                );
-                                continue;
-                            };
-                            match decode_codex_goal(goal) {
-                                Ok(goal) => {
-                                    return Some(WorkerEvent::Activity(
-                                        WorkerActivity::SessionGoalChanged(goal),
-                                    ));
-                                }
-                                Err(reason) => {
-                                    log_bad_codex_notification(method_name, &params, &reason);
-                                }
-                            }
-                        }
-                        CodexMethod::GoalCleared => {
-                            return Some(WorkerEvent::Activity(
-                                WorkerActivity::SessionGoalChanged(None),
-                            ));
-                        }
                         CodexMethod::TurnCompleted => {
                             let Some(completed_turn) =
                                 params["turn"]["id"].as_str().map(str::to_owned)
@@ -1721,6 +1658,8 @@ impl WorkerSession for CodexWorkerSession {
                         CodexMethod::ThreadStatusChanged
                         | CodexMethod::TurnDiffUpdated
                         | CodexMethod::TurnPlanUpdated
+                        | CodexMethod::GoalUpdated
+                        | CodexMethod::GoalCleared
                         | CodexMethod::ServerRequestResolved
                         | CodexMethod::TerminalInteraction
                         | CodexMethod::FileChangeOutputDelta => {}
@@ -2495,31 +2434,6 @@ fn configure_codex_app_server(
     command.args(["app-server", "--stdio", "--enable", "mcp_2026_07_28"]);
 }
 
-fn configure_farcaster_mcp(
-    command: &mut std::process::Command,
-    caller_token: &str,
-    access_mode: crate::agents::HarnessAccessMode,
-) {
-    let url = serde_json::to_string(farcaster_mcp::URL).expect("static MCP URL encodes");
-    let header =
-        serde_json::to_string(farcaster_mcp::CALLER_HEADER).expect("static MCP header encodes");
-    let token = serde_json::to_string(caller_token).expect("caller token encodes");
-    command
-        .arg("-c")
-        .arg(format!("mcp_servers.farcaster.url={url}"))
-        .arg("-c")
-        .arg(format!(
-            "mcp_servers.farcaster.http_headers={{{header}={token}}}"
-        ))
-        .arg("-c")
-        .arg("mcp_servers.farcaster.required=true");
-    if access_mode == crate::agents::HarnessAccessMode::Full {
-        command
-            .arg("-c")
-            .arg("mcp_servers.farcaster.default_tools_approval_mode=\"approve\"");
-    }
-}
-
 const STEER_CLIENT_ID_PREFIX: &str = "farcaster-steer-";
 const QUEUE_CLIENT_ID_PREFIX: &str = "farcaster-queue-";
 const HANDOFF_CLIENT_ID_PREFIX: &str = "farcaster-handoff-";
@@ -2595,15 +2509,6 @@ fn codex_agent_message_text(item: &Value) -> Option<String> {
         })
 }
 
-fn decode_codex_goal(value: &Value) -> Result<Option<SessionGoal>, String> {
-    if value.is_null() {
-        return Ok(None);
-    }
-    serde_json::from_value(value.clone())
-        .map(Some)
-        .map_err(|error| format!("decode thread goal: {error}"))
-}
-
 fn codex_usage(value: &Value) -> TokenUsage {
     let input = value
         .get("inputTokens")
@@ -2630,18 +2535,6 @@ fn codex_usage(value: &Value) -> TokenUsage {
 
 fn codex_telemetry(method: CodexMethod<'_>, params: &Value) -> Option<WorkerActivity> {
     match method {
-        CodexMethod::McpServerStartupStatusUpdated => Some(WorkerActivity::ServiceStatusChanged {
-            name: params.get("name")?.as_str()?.to_owned(),
-            status: params.get("status")?.as_str()?.to_owned(),
-            error: params
-                .get("error")
-                .filter(|value| !value.is_null())
-                .cloned(),
-            failure_reason: params
-                .get("failureReason")
-                .filter(|value| !value.is_null())
-                .cloned(),
-        }),
         CodexMethod::AccountRateLimitsUpdated => Some(WorkerActivity::RateLimitsChanged {
             limits: params.get("rateLimits")?.clone(),
         }),

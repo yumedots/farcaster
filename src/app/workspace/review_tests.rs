@@ -23,7 +23,7 @@ fn sidebar_is_scoped_to_the_editors_session() {
     let review = active();
     assert!(review.is_visible(AppSurface::Editor, "session:a"));
     assert!(!review.is_visible(AppSurface::Editor, "session:b"));
-    for surface in [AppSurface::Chat, AppSurface::Terminal, AppSurface::Work] {
+    for surface in [AppSurface::Chat, AppSurface::Terminal, AppSurface::Diff] {
         assert!(!review.is_visible(surface, "session:a"));
     }
 }

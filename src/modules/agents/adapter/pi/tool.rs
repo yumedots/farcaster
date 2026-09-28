@@ -97,13 +97,7 @@ fn pi_tool_metadata(name: &str, args: &Value, native: Value) -> ToolMetadata {
         "worker_send" => (ToolCategory::Delegate, Some("Message worker"), &[]),
         "worker_wait" => (ToolCategory::Delegate, Some("Wait for worker"), &[]),
         "worker_list" => (ToolCategory::Delegate, Some("List workers"), &[]),
-        "worker_notices" => (ToolCategory::Other, Some("Worker notices"), &[]),
         "submit_review" => (ToolCategory::Other, Some("Submit review"), &[]),
-        "workgraph_search" => (ToolCategory::Other, Some("Search workgraph"), &[]),
-        "workgraph_patch" => (ToolCategory::Other, Some("Patch workgraph"), &[]),
-        "workgraph_claim" => (ToolCategory::Other, Some("Claim workgraph task"), &[]),
-        "workgraph_release" => (ToolCategory::Other, Some("Release workgraph task"), &[]),
-        "workgraph_complete" => (ToolCategory::Other, Some("Complete workgraph task"), &[]),
         _ => (ToolCategory::Other, None, &[]),
     };
     let targets = string_targets(args, target_keys);

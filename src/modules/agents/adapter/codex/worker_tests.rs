@@ -768,19 +768,6 @@ fn answer_before_reasoning_uses_a_separate_content_slot() {
 
 #[test]
 fn maps_codex_telemetry() {
-    assert_eq!(
-        codex_telemetry(
-            CodexMethod::McpServerStartupStatusUpdated,
-            &json!({"name": "farcaster", "status": "ready"}),
-        ),
-        Some(WorkerActivity::ServiceStatusChanged {
-            name: "farcaster".into(),
-            status: "ready".into(),
-            error: None,
-            failure_reason: None,
-        })
-    );
-
     let limits = json!({"primary": {"usedPercent": 40}});
     assert_eq!(
         codex_telemetry(
@@ -789,27 +776,6 @@ fn maps_codex_telemetry() {
         ),
         Some(WorkerActivity::RateLimitsChanged { limits })
     );
-}
-
-#[test]
-fn decodes_codex_goal_state() {
-    assert_eq!(
-        decode_codex_goal(&json!({
-            "objective": "Ship the release",
-            "status": "active",
-            "tokenBudget": 200000,
-            "tokensUsed": 10000,
-            "timeUsedSeconds": 60
-        })),
-        Ok(Some(SessionGoal {
-            objective: "Ship the release".into(),
-            status: "active".into(),
-            token_budget: Some(200000),
-            tokens_used: 10000,
-            time_used_seconds: 60,
-        }))
-    );
-    assert_eq!(decode_codex_goal(&Value::Null), Ok(None));
 }
 
 #[test]
@@ -1067,49 +1033,36 @@ fn codex_usage_separates_cached_tokens_from_reported_input() {
 }
 
 #[test]
-fn native_startup_configures_required_farcaster_mcp() {
-    let mut command = std::process::Command::new("codex");
-    configure_codex_app_server(&mut command, crate::agents::HarnessAccessMode::Full);
-    configure_farcaster_mcp(
-        &mut command,
-        "caller-1",
-        crate::agents::HarnessAccessMode::Full,
-    );
-    let arguments = command
-        .get_args()
-        .map(|argument| argument.to_string_lossy().into_owned())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        &arguments[..5],
-        [
-            "--dangerously-bypass-approvals-and-sandbox",
-            "app-server",
-            "--stdio",
-            "--enable",
-            "mcp_2026_07_28",
-        ]
-    );
-    assert!(arguments.contains(&format!(
-        "mcp_servers.farcaster.url=\"{}\"",
-        farcaster_mcp::URL
-    )));
-    assert!(arguments.contains(
-        &"mcp_servers.farcaster.http_headers={\"farcaster-caller\"=\"caller-1\"}".to_owned()
-    ));
-    assert!(arguments.contains(&"mcp_servers.farcaster.required=true".to_owned()));
-    assert!(
-        arguments
-            .contains(&"mcp_servers.farcaster.default_tools_approval_mode=\"approve\"".to_owned())
-    );
+fn native_startup_never_configures_a_farcaster_mcp_server() {
     for access_mode in [
         crate::agents::HarnessAccessMode::Sandboxed,
         crate::agents::HarnessAccessMode::Auto,
+        crate::agents::HarnessAccessMode::Full,
     ] {
         let mut command = std::process::Command::new("codex");
-        configure_farcaster_mcp(&mut command, "caller-1", access_mode);
-        assert!(!command.get_args().any(|argument| {
-            argument == "mcp_servers.farcaster.default_tools_approval_mode=\"approve\""
-        }));
+        configure_codex_app_server(&mut command, access_mode);
+        let arguments = command
+            .get_args()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert!(
+            !arguments
+                .iter()
+                .any(|argument| argument.starts_with("mcp_servers.")),
+            "codex must not receive a Farcaster MCP server: {arguments:?}"
+        );
+        if access_mode == crate::agents::HarnessAccessMode::Full {
+            assert_eq!(
+                &arguments[..5],
+                [
+                    "--dangerously-bypass-approvals-and-sandbox",
+                    "app-server",
+                    "--stdio",
+                    "--enable",
+                    "mcp_2026_07_28",
+                ]
+            );
+        }
     }
 }
 

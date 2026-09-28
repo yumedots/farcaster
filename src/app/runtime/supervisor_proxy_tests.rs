@@ -20,7 +20,7 @@ fn supervisor_proxy_changes_reach_later_worker_launches() -> Result<(), String> 
         AgentLaunchConfig::test_script(&script, vec!["normal".into()]),
     );
 
-    crate::app::mcp_server::with_test_worker_pool(pool.clone(), || -> Result<(), String> {
+    crate::app::worker_pool::with_test_worker_pool(pool.clone(), || -> Result<(), String> {
         let proxy = "http://127.0.0.1:8118";
         commands
             .send(RuntimeCommand::SetAppProxy(Some(proxy.into())))

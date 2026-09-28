@@ -19,8 +19,6 @@ pub(crate) struct RunPanelView {
     review_scroll: ScrollHandle,
     pub(crate) review_tree: super::super::run_panel::change_tree::ChangeTreeState,
     review_id: Option<u64>,
-    completed_agents_expanded: bool,
-    limited_agents_expanded: bool,
 }
 
 impl RunPanelView {
@@ -37,8 +35,6 @@ impl RunPanelView {
             review_scroll: ScrollHandle::new(),
             review_tree: Default::default(),
             review_id: None,
-            completed_agents_expanded: false,
-            limited_agents_expanded: false,
         }
     }
 
@@ -71,14 +67,6 @@ impl RunPanelView {
 
     pub(crate) fn finish_resize(&mut self) -> bool {
         self.resize_start.take().is_some()
-    }
-
-    pub(crate) fn toggle_completed_agents(&mut self) {
-        self.completed_agents_expanded = !self.completed_agents_expanded;
-    }
-
-    pub(crate) fn toggle_limited_agents(&mut self) {
-        self.limited_agents_expanded = !self.limited_agents_expanded;
     }
 }
 
@@ -146,8 +134,6 @@ impl Render for RunPanelView {
             .render_run_panel(
                 self.app.clone(),
                 cx.entity().downgrade(),
-                self.completed_agents_expanded,
-                self.limited_agents_expanded,
                 &super::super::run_panel::RepositoryView {
                     state: &self.changes,
                     search,

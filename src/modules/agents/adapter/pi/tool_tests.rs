@@ -85,17 +85,20 @@ fn farcaster_tools_keep_app_titles() {
         "role": "assistant",
         "content": [{
             "type": "toolCall",
-            "id": "search-1",
-            "name": "farcaster_workgraph_search",
-            "arguments": {"query": "tasks"}
+            "id": "list-1",
+            "name": "farcaster_worker_list",
+            "arguments": {}
         }]
     });
     annotate_pi_message(&mut prefixed);
     assert_eq!(
         prefixed["content"][0]["toolMetadata"]["title"],
-        "Search workgraph"
+        "List workers"
     );
-    assert_eq!(prefixed["content"][0]["toolMetadata"]["category"], "other");
+    assert_eq!(
+        prefixed["content"][0]["toolMetadata"]["category"],
+        "delegate"
+    );
 }
 
 #[test]

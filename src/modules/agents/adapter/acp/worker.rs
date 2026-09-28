@@ -24,7 +24,7 @@ use crate::{
         WorkerActivityState, WorkerEvent, WorkerInput, WorkerInputResponse, WorkerLaunch,
         WorkerSendMode, WorkerSession, WorkerSessionFactory,
     },
-    modules::agents::adapter::{child_stderr, farcaster_mcp, main_session},
+    modules::agents::adapter::{child_stderr, main_session},
 };
 
 #[derive(Clone)]
@@ -98,7 +98,7 @@ impl WorkerSessionFactory for AcpWorkerFactory {
             }
         };
         let (mut session, _, _) =
-            spawn_session(&command, &self.profile, &launch.project, resume, None, None)?;
+            spawn_session(&command, &self.profile, &launch.project, resume, None)?;
         if let Some(model) = launch.model.as_deref() {
             session.select_model(
                 launch
@@ -152,7 +152,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
         profile,
         &launch.project,
         resume.as_deref(),
-        Some(caller_identity.token()),
         launch.wake.clone(),
     )?;
     let locator = session.session_id.clone();
@@ -170,7 +169,6 @@ fn spawn_session(
     profile: &AcpProfile,
     project: &std::path::Path,
     resume: Option<&str>,
-    caller_token: Option<&str>,
     wake: Option<thread::Thread>,
 ) -> Result<
     (
@@ -197,15 +195,7 @@ fn spawn_session(
         config_ids,
         features,
         history,
-    } = match setup_connection(
-        &mut child,
-        profile,
-        project,
-        resume,
-        caller_token,
-        wake,
-        &runtime_key,
-    ) {
+    } = match setup_connection(&mut child, profile, project, resume, wake, &runtime_key) {
         Ok(setup) => setup,
         Err(error) => {
             let _ = child.kill();
@@ -286,7 +276,6 @@ fn setup_connection(
     profile: &AcpProfile,
     project: &std::path::Path,
     resume: Option<&str>,
-    caller_token: Option<&str>,
     wake: Option<thread::Thread>,
     runtime_key: &super::configuration::AcpRuntimeKey,
 ) -> Result<AcpSetup, String> {
@@ -307,7 +296,6 @@ fn setup_connection(
     let features = AcpFeatures::from_initialize(&initialized);
     let params = json!({
         "cwd": project.to_string_lossy(),
-        "mcpServers": acp_mcp_servers(caller_token),
     });
     let response = if let Some(session_id) = resume {
         connection.request_blocking(
@@ -405,22 +393,6 @@ pub(in crate::modules::agents::adapter) fn configure_command(
     }
     command.args(profile.arguments);
     Ok(())
-}
-
-fn acp_mcp_servers(caller_token: Option<&str>) -> Vec<Value> {
-    if !farcaster_mcp::enabled() {
-        return Vec::new();
-    }
-    caller_token
-        .map(|token| {
-            vec![json!({
-                "type": "http",
-                "name": "farcaster",
-                "url": farcaster_mcp::URL,
-                "headers": [{"name": farcaster_mcp::CALLER_HEADER, "value": token}],
-            })]
-        })
-        .unwrap_or_default()
 }
 
 struct AcpFeatures {

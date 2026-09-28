@@ -55,7 +55,6 @@ pub(super) fn descriptor() -> crate::agents::contract::AgentBackendDescriptor {
                 reset_reasoning_effort: Unsupported,
                 modes: Available,
                 commands: Available,
-                mcp_servers: Available,
             },
             interactions: InteractionCapabilities {
                 approvals: Available,

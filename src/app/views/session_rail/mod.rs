@@ -37,8 +37,9 @@ use crate::{
 };
 
 pub(in crate::app) use groups::SessionRailKind;
-pub(in crate::app) use hover::{session_hover_details, session_tooltip_content};
-pub(in crate::app) use rows::{project_label, status_visual};
+pub(in crate::app) use rows::project_label;
+#[cfg(test)]
+pub(in crate::app) use rows::status_visual;
 
 #[cfg(test)]
 use self::{rendering::subagent_counts, rows::session_accessible_label};

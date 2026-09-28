@@ -5,7 +5,7 @@ use gpui_component::input::{Copy, Cut, Paste, Redo, SelectAll, Undo};
 
 use crate::app::{
     AddProject, CloseCurrent, NewSession, QuitApplication, ShowActionPicker, ShowEditor,
-    ShowKeybindings, ShowTerminal, ShowWorkGraph,
+    ShowKeybindings, ShowTerminal,
 };
 
 actions!(
@@ -90,7 +90,6 @@ pub(super) fn install(cx: &mut App) {
             MenuItem::action("Action Picker…", ShowActionPicker),
             MenuItem::action("Editor", ShowEditor),
             MenuItem::action("Terminal", ShowTerminal),
-            MenuItem::action("Work Graph", ShowWorkGraph),
         ]),
         // GPUI registers this name as the native Windows menu, allowing macOS
         // to add its own window navigation and management items.

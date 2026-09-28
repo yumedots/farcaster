@@ -91,7 +91,6 @@ enum PickerCommand {
     OpenSessions,
     StartCodeTask,
     AddProject(Option<ProjectPickerIntent>),
-    OpenWorkGraph,
     OpenSettings,
     ImportSessions,
     NewSession {
@@ -482,10 +481,6 @@ impl FarcasterApp {
                 self.close_picker(window, cx);
                 self.choose_project_folder(intent, window, cx);
             }
-            PickerCommand::OpenWorkGraph => {
-                self.close_picker(window, cx);
-                self.open_workgraph_surface(window, cx);
-            }
             PickerCommand::OpenSettings => {
                 self.close_picker(window, cx);
                 self.open_settings(window, cx);
@@ -605,16 +600,6 @@ impl FarcasterApp {
                     None,
                     Some(application_key("shift-n")),
                     "folder checkout",
-                ),
-                picker_row(
-                    &mut commands,
-                    "action:project-work",
-                    PickerCommand::OpenWorkGraph,
-                    AppIcon::List,
-                    "Project work",
-                    None,
-                    Some(application_key("shift-i")),
-                    "issues tasks",
                 ),
                 picker_row(
                     &mut commands,

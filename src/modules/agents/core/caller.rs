@@ -486,26 +486,6 @@ impl CallerRegistry {
         Ok(())
     }
 
-    pub(crate) fn child_assignment(
-        &self,
-        parent: &CallerContext,
-        name: &str,
-    ) -> Result<Option<(super::WorkerAssignment, crate::agents::HarnessAccessMode)>, String> {
-        let callers = self
-            .callers
-            .lock()
-            .map_err(|_| "worker caller registry is unavailable")?;
-        Ok(callers
-            .values()
-            .find(|child| child.belongs_to(parent) && child.worker_name.eq_ignore_ascii_case(name))
-            .and_then(|child| {
-                child
-                    .assignment
-                    .clone()
-                    .map(|assignment| (assignment, child.access_mode))
-            }))
-    }
-
     pub(crate) fn native_parent_session(
         &self,
         worker_id: &str,
@@ -577,15 +557,6 @@ impl RegisteredCaller {
         })
     }
 
-    fn belongs_to(&self, parent: &CallerContext) -> bool {
-        self.parent_worker_id.as_deref() == Some(parent.worker_id.as_str())
-            || self.parent_session.as_ref().is_some_and(|session| {
-                session.project == parent.project
-                    && session.backend == parent.backend
-                    && session.session == parent.session
-            })
-    }
-
     fn belongs_to_registered(&self, parent: &RegisteredCaller) -> bool {
         self.parent_worker_id.as_deref() == Some(parent.worker_id.as_str())
             || parent
@@ -631,16 +602,6 @@ impl CallerIdentity {
             .unwrap_or(false);
         if missing {
             self.begin_execution(None);
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn bind_execution_for_test(&self, execution: ExecutionBinding) {
-        if let Ok(mut callers) = self.registry.callers.lock()
-            && let Some(caller) = callers.get_mut(&self.token)
-        {
-            caller.session_record = Some(execution.session_record);
-            caller.execution = Some(execution);
         }
     }
 

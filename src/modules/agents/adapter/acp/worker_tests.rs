@@ -46,7 +46,7 @@ done
         session_locator_root: None,
     };
     let profile = &super::super::super::antigravity::PROFILE;
-    let (mut original, _, _) = spawn_session(&command, profile, project.path(), None, None, None)?;
+    let (mut original, _, _) = spawn_session(&command, profile, project.path(), None, None)?;
     let locator = original.session_id.clone();
     // This is the visible conversation retained by restart_process_preserving_transcript.
     let mut conversation = crate::conversation::ConversationState::default();
@@ -58,14 +58,8 @@ done
     original.close()?;
 
     command.access_mode = HarnessAccessMode::Full;
-    let (resumed, metadata, history) = spawn_session(
-        &command,
-        profile,
-        project.path(),
-        Some(&locator),
-        None,
-        None,
-    )?;
+    let (resumed, metadata, history) =
+        spawn_session(&command, profile, project.path(), Some(&locator), None)?;
     assert_eq!(resumed.session_id, locator);
     let mut transport = main_session::WorkerSessionTransport::new(
         project.path(),
@@ -114,7 +108,6 @@ done
         &PROFILE,
         project.path(),
         Some("saved-session"),
-        None,
         None,
     )?;
     loaded.close()?;
@@ -288,7 +281,7 @@ done
                 session_locator_root: None,
             };
             let (mut session, metadata, _) =
-                spawn_session(&command, profile, project.path(), None, None, None)
+                spawn_session(&command, profile, project.path(), None, None)
                     .expect("test operation should succeed");
             assert_eq!(
                 metadata.modes[0]["id"],
@@ -314,7 +307,7 @@ done
                     .is_some()
             );
             let (mut resumed, _, _) =
-                spawn_session(&command, profile, project.path(), Some("one"), None, None)
+                spawn_session(&command, profile, project.path(), Some("one"), None)
                     .expect("test operation should succeed");
             resumed.close().expect("test operation should succeed");
             let requests = std::fs::read_to_string(executable.with_extension("requests"))
@@ -391,8 +384,8 @@ done
         session_locator_root: None,
     };
 
-    let (session, _, _) = spawn_session(&command, &PROFILE, project.path(), None, None, None)
-        .expect("start ACP fixture");
+    let (session, _, _) =
+        spawn_session(&command, &PROFILE, project.path(), None, None).expect("start ACP fixture");
     let mut transport = WorkerSessionTransport::new(
         std::path::Path::new("/locators"),
         PROFILE.backend,
@@ -1095,7 +1088,6 @@ done
             project.path(),
             None,
             None,
-            None,
         )?;
         assert_eq!(metadata.models.len(), 1);
         session.close()?;
@@ -1127,9 +1119,8 @@ fn live_cursor_configuration_and_listing() {
         session_locator_root: None,
     };
     let profile = &super::super::super::cursor::PROFILE;
-    let (mut session, metadata, _) =
-        spawn_session(&command, profile, project.path(), None, None, None)
-            .expect("test operation should succeed");
+    let (mut session, metadata, _) = spawn_session(&command, profile, project.path(), None, None)
+        .expect("test operation should succeed");
     assert!(!metadata.models.is_empty());
     assert!(
         metadata
@@ -1301,7 +1292,6 @@ fn live_cursor_session_round_trip() {
         profile,
         project.path(),
         None,
-        None,
         Some(thread::current()),
     )
     .expect("create live Cursor session");
@@ -1340,7 +1330,6 @@ fn live_cursor_session_round_trip() {
         profile,
         project.path(),
         Some(&locator),
-        None,
         Some(thread::current()),
     )
     .expect("resume live Cursor session");

@@ -1,4 +1,4 @@
-use super::super::{child_stderr, farcaster_mcp};
+use super::super::child_stderr;
 use crate::agents::{AgentLaunchConfig, HarnessAccessMode};
 use claude_sdk_types::{
     SDKControlRequest, SDKControlRequestInner, SDKControlResponse, SDKUserMessage, StdoutMessage,
@@ -54,7 +54,6 @@ pub(super) fn configure(
     access: HarnessAccessMode,
     session_id: &str,
     resume: bool,
-    caller: Option<&str>,
     persist: bool,
 ) {
     command.args([
@@ -89,15 +88,6 @@ pub(super) fn configure(
     if !persist {
         command.arg("--no-session-persistence");
     }
-    if let Some(token) = caller.filter(|_| farcaster_mcp::enabled()) {
-        command.arg("--mcp-config").arg(
-            json!({"mcpServers": {"farcaster": {
-                "type": "http", "url": farcaster_mcp::URL,
-                "headers": {farcaster_mcp::CALLER_HEADER: token}
-            }}})
-            .to_string(),
-        );
-    }
 }
 
 pub(super) fn permission_mode(access: HarnessAccessMode) -> &'static str {
@@ -114,19 +104,11 @@ impl Process {
         project: &Path,
         id: &str,
         resume: bool,
-        caller: Option<&str>,
         wake: Option<thread::Thread>,
         persist: bool,
     ) -> Result<Self, String> {
         let mut command = config.command(project)?;
-        configure(
-            &mut command,
-            config.access_mode,
-            id,
-            resume,
-            caller,
-            persist,
-        );
+        configure(&mut command, config.access_mode, id, resume, persist);
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

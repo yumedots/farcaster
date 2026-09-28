@@ -60,7 +60,6 @@ pub(crate) fn descriptor() -> AgentBackendDescriptor {
                 reset_reasoning_effort: CapabilitySupport::Unsupported,
                 modes: Available,
                 commands: Available,
-                mcp_servers: Available,
             },
             interactions: InteractionCapabilities {
                 approvals: Available,

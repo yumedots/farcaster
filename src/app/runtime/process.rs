@@ -342,11 +342,6 @@ impl RuntimeOwner {
                         conversation_mut(snapshot).reduce_deferred_with_change(event.value());
                     let context_changed =
                         update_context_from_event(&mut snapshot.stats, event.value());
-                    let goal_changed = update_session_goal_from_event(
-                        &mut snapshot.session_goal,
-                        event.kind(),
-                        event.value(),
-                    );
                     let status = run_status(&snapshot.conversation);
                     let status_changed = snapshot.status != status;
                     snapshot.status = status.to_owned();
@@ -358,7 +353,6 @@ impl RuntimeOwner {
                         changed_from.is_some()
                             || conversation_state_changed
                             || context_changed
-                            || goal_changed
                             || status_changed,
                         live_status_changed,
                     )

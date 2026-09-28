@@ -49,7 +49,6 @@ pub(in crate::modules::agents::adapter) fn descriptor(
                 reset_reasoning_effort: Unsupported,
                 modes: Available,
                 commands: Available,
-                mcp_servers: Available,
             },
             interactions: InteractionCapabilities {
                 approvals: Available,

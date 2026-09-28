@@ -7,7 +7,6 @@ mod claude;
 #[allow(dead_code)]
 mod codex;
 mod cursor;
-mod farcaster_mcp;
 #[cfg(test)]
 mod live_basic_tests;
 #[cfg(test)]

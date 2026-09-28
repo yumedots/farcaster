@@ -58,7 +58,6 @@ impl FarcasterApp {
         self.runtime_generation = generation;
         self.extensions.active.reset();
         self.extensions.parked = None;
-        self.activity.background_jobs.clear();
         self.extensions.restored_dialog_id = None;
         self.extensions.dismissed_restored_dialog_id = None;
         self.extensions.notification_expiries.clear();

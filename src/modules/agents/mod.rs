@@ -19,25 +19,26 @@ pub(crate) use contract::{
     AgentLaunchConfig, Backend, ConfigurationCatalog, DiscoveredHistory, DiscoveredSession,
     DiscoveredUsage, HarnessAccessMode, PeerMessage, PromptOutcome, PromptPresentation,
     QueuedPrompt, SandboxState, SessionActivityKind, SessionCommand, SessionContextUsage,
-    SessionEvent, SessionGoal, SessionHistory, SessionLaunch, SessionMetadata, SessionOperation,
+    SessionEvent, SessionHistory, SessionLaunch, SessionMetadata, SessionOperation,
     SessionResponse, SessionResponseErrorKind, SessionResponsePayload, SessionStart,
-    SessionTransport, SessionUsage, SessionUsageTokens, StartWorker, WorkerContext, WorkerInput,
+    SessionTransport, SessionUsage, SessionUsageTokens, WorkerContext, WorkerInput,
     WorkerInputResponse, WorkerSnapshot, effort_rank, model_efforts, valid_worker_name,
     validate_child_access,
 };
 
 #[cfg(test)]
-pub(crate) use contract::WorkerStatus;
+pub(crate) use contract::{StartWorker, WorkerStatus};
 pub(crate) use core::{
     CallerContext, CallerProfile, CallerRegistry, ChildSessionOutcome, CommonTool,
     ExecutionBinding, PromptStore, TokenUsage, ToolCategory, ToolMetadata, ToolReviewState,
-    WorkerActivity, WorkerActivityState, WorkerAssignment, WorkerEvent, WorkerExecution,
-    WorkerFamilyLink, WorkerLaunch, WorkerModelSelection, WorkerPool, WorkerProfile,
-    WorkerProfiles, WorkerRouting, WorkerSendMode, WorkerSession, WorkerSessionFactory,
-    WorkerUsage, begin_prompt, complete_prompt_with_receipt, enqueue_prompt_with_presentation,
-    fail_prompt, has_queued_prompts_for, is_child_input_id, mark_prompt_delivery_unknown,
-    queued_prompts,
+    WorkerActivity, WorkerActivityState, WorkerEvent, WorkerFamilyLink, WorkerLaunch,
+    WorkerModelSelection, WorkerPool, WorkerRouting, WorkerSendMode, WorkerSession,
+    WorkerSessionFactory, WorkerUsage, begin_prompt, complete_prompt_with_receipt,
+    enqueue_prompt_with_presentation, fail_prompt, has_queued_prompts_for, is_child_input_id,
+    mark_prompt_delivery_unknown, queued_prompts,
 };
+#[cfg(test)]
+pub(crate) use core::{WorkerAssignment, WorkerExecution};
 
 #[cfg(test)]
 pub(crate) use adapter::live_tests::support as live_e2e_support;

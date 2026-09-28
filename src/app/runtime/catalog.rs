@@ -217,7 +217,7 @@ impl RuntimeOwner {
     fn catalog_event(&self, all_sessions: Vec<SessionSummary>) -> RuntimeEvent {
         let worker_activities = worker_activities(
             &all_sessions,
-            crate::app::mcp_server::worker_snapshots().unwrap_or_default(),
+            crate::app::worker_pool::worker_snapshots().unwrap_or_default(),
         );
         RuntimeEvent::Sessions {
             generation: self.session_generation,
@@ -247,14 +247,6 @@ fn worker_activities(
             ))
         })
         .collect()
-}
-
-#[cfg(test)]
-pub(crate) fn live_worker_activities(
-    sessions: &[SessionSummary],
-    snapshots: Vec<agents::WorkerSnapshot>,
-) -> HashMap<String, AgentActivity> {
-    worker_activities(sessions, snapshots)
 }
 
 pub(in crate::app) fn native_child_activity(

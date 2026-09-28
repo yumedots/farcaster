@@ -1,6 +1,5 @@
 mod appearance;
 mod editor;
-mod worker_tasks;
 use gpui::{
     AnyElement, InteractiveElement as _, IntoElement as _, ParentElement as _,
     StatefulInteractiveElement as _, Styled as _, WeakEntity, div, prelude::FluentBuilder as _,
@@ -62,7 +61,6 @@ pub(in crate::app::views) fn render(
                         .flex_col()
                         .gap(theme().size(24.0))
                         .p(theme().size(24.0))
-                        .child(worker_tasks::render(app, entity.clone()))
                         .child(appearance::render(app, entity.clone()))
                         .child(transcript_font_size(app.views.transcript.read(cx).font_size, entity.clone()))
                         .child(toggle_setting(
@@ -105,21 +103,6 @@ pub(in crate::app::views) fn render(
                                 .font_weight(gpui::FontWeight::SEMIBOLD)
                                 .child("Connections"),
                         )
-                        .child(toggle_setting(
-                            "builtin-mcp-toggle",
-                            "Built-in MCP",
-                            "Add local tools to new sessions. Turning this off disconnects existing MCP clients.",
-                            crate::builtin_mcp::enabled(),
-                            entity.clone(),
-                            FarcasterApp::toggle_settings_builtin_mcp,
-                        ))
-                        .when_some(app.settings.mcp_error.clone(), |content, error| {
-                            content.child(feedback(
-                                "settings-mcp-error",
-                                error,
-                                FeedbackTone::Error,
-                            ))
-                        })
                         .child(
                             div()
                                 .flex()

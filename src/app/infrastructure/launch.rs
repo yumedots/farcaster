@@ -69,9 +69,7 @@ fn update_app(
 
 pub(crate) fn run(
     project: PathBuf,
-    workgraph_updates: async_channel::Receiver<()>,
     worker_updates: async_channel::Receiver<()>,
-    notice_board: crate::app::worker_notices::NoticeBoard,
 ) -> Result<(), LaunchError> {
     let launch_timing = StartupTiming::always("launch.until_window_open");
     #[cfg(target_os = "linux")]
@@ -206,9 +204,7 @@ pub(crate) fn run(
                         project.clone(),
                         startup_trust,
                         notification_app.clone(),
-                        workgraph_updates.clone(),
                         worker_updates.clone(),
-                        notice_board.clone(),
                         window,
                         cx,
                     )

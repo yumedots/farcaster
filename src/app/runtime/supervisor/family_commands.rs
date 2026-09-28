@@ -29,7 +29,7 @@ impl Supervisor {
                     .map(|session| (session.harness, session.path.clone()))
                     .collect::<Vec<_>>();
                 if let Err(message) =
-                    crate::app::mcp_server::stop_session_family_workers(&project, &worker_paths)
+                    crate::app::worker_pool::stop_session_family_workers(&project, &worker_paths)
                 {
                     let _ = self.event_tx.send(RuntimeEvent::SessionsFailed {
                         generation: self.catalog_generation,
@@ -84,7 +84,7 @@ impl Supervisor {
                     self.selected = self.catalog_key.clone();
                 }
                 if !actor_stop_failures.is_empty() {
-                    let _ = crate::app::mcp_server::finish_session_family_worker_stop(
+                    let _ = crate::app::worker_pool::finish_session_family_worker_stop(
                         &project,
                         &worker_paths,
                     );
@@ -114,7 +114,7 @@ impl Supervisor {
                         });
                     }
                 }
-                if let Err(message) = crate::app::mcp_server::finish_session_family_worker_stop(
+                if let Err(message) = crate::app::worker_pool::finish_session_family_worker_stop(
                     &project,
                     &worker_paths,
                 ) {

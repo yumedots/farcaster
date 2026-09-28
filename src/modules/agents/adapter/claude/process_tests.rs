@@ -84,7 +84,6 @@ fn close_allows_the_cli_to_flush_after_stdin_eof() {
         "00000000-0000-0000-0000-000000000000",
         false,
         None,
-        None,
         true,
     )
     .expect("spawn fixture process");
@@ -115,7 +114,6 @@ fn close_reaps_a_cli_that_writes_valid_frames_continuously() {
         directory.path(),
         "00000000-0000-0000-0000-000000000000",
         false,
-        None,
         None,
         true,
     )

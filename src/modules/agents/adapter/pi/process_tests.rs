@@ -6,18 +6,6 @@ use tempfile::tempdir;
 
 type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 
-struct DisabledMcp {
-    _guard: crate::builtin_mcp::McpDisabledForTest,
-}
-
-impl DisabledMcp {
-    fn new() -> Self {
-        Self {
-            _guard: crate::builtin_mcp::McpDisabledForTest::new(),
-        }
-    }
-}
-
 fn pi_test_command(script: &Path, arguments: Vec<String>) -> AgentLaunchConfig {
     let mut command = AgentLaunchConfig::test_script(script, arguments);
     command.access_mode = HarnessAccessMode::Full;
@@ -154,7 +142,6 @@ fn installed_default_thinking(project: &Path) -> TestResult<Value> {
 #[ignore = "requires installed Pi; real RPC with isolated settings and local provider, no network"]
 fn installed_pi_child_model_does_not_replace_the_users_selected_default() -> TestResult {
     use crate::agents::{WorkerContext, WorkerEvent, WorkerLaunch, WorkerSessionFactory};
-    let _mcp = DisabledMcp::new();
     let project = tempdir()?;
     let command = installed_pi_fixture(project.path())?;
     let mut parent = PiRpcProcess::spawn(&command, project.path(), None)?;
@@ -244,7 +231,6 @@ fn installed_pi_child_model_does_not_replace_the_users_selected_default() -> Tes
 #[ignore = "requires installed Pi; real RPC with isolated settings and local provider, no network"]
 fn installed_pi_abort_preserves_its_model_without_overwriting_another_sessions_selection()
 -> TestResult {
-    let _mcp = DisabledMcp::new();
     let project = tempdir()?;
     let command = installed_pi_fixture(project.path())?;
     let mut first = PiRpcProcess::spawn(&command, project.path(), None)?;
@@ -934,7 +920,6 @@ fn abort_discards_old_peer_reports_but_accepts_new_ones() -> TestResult {
 #[test]
 #[ignore = "requires installed Pi; isolated local provider and tool, no network"]
 fn installed_pi_apply_steering_resumes_after_tool_and_stream_abort() -> TestResult {
-    let _mcp = DisabledMcp::new();
     for initial in ["hold tool", "hold stream"] {
         let project = tempdir()?;
         let command = installed_pi_fixture(project.path())?;
@@ -1005,7 +990,6 @@ fn installed_pi_apply_steering_resumes_after_tool_and_stream_abort() -> TestResu
 #[test]
 #[ignore = "requires Pi 0.84.2 or newer installed on PATH"]
 fn installed_pi_abort_and_apply_steering_control_real_stream_requests() -> TestResult {
-    let _mcp = DisabledMcp::new();
     let project = tempdir()?;
     let command = installed_pi_fixture(project.path())?;
     let mut rpc = PiRpcProcess::spawn(&command, project.path(), None)?;
@@ -1113,7 +1097,6 @@ fn installed_pi_abort_and_apply_steering_control_real_stream_requests() -> TestR
 
 #[test]
 fn process_starts_directly_in_the_project_directory() -> TestResult {
-    let _mcp = crate::builtin_mcp::exclusive_for_test();
     let (temp, command) = fake("project-directory")?;
     let mut rpc = PiRpcProcess::spawn(&command, temp.path(), None)?;
     let process_project = fs::read_to_string(temp.path().join("process-project"))?;
@@ -1121,45 +1104,7 @@ fn process_starts_directly_in_the_project_directory() -> TestResult {
         fs::canonicalize(process_project)?,
         fs::canonicalize(temp.path())?,
     );
-    assert_eq!(
-        fs::read_to_string(temp.path().join("process-mcp-url"))?,
-        "http://127.0.0.1:8765/mcp"
-    );
-    assert_eq!(
-        fs::read_to_string(temp.path().join("process-mcp-header"))?,
-        "farcaster-caller"
-    );
-    assert!(!fs::read_to_string(temp.path().join("process-mcp-caller"))?.is_empty());
-    assert!(!temp.path().join(".mcp.json").exists());
     rpc.terminate()?;
-    Ok(())
-}
-
-#[test]
-fn child_process_omits_farcaster_mcp() -> TestResult {
-    for launch in [
-        SessionLaunch::New,
-        SessionLaunch::Resume(Path::new("/sessions/parent.jsonl")),
-        SessionLaunch::Fork(Path::new("/sessions/parent.jsonl")),
-    ] {
-        let (temp, command) = fake("project-directory")?;
-        let resumed = temp.path().join("fake-session.jsonl");
-        let launch = match launch {
-            SessionLaunch::Resume(_) => SessionLaunch::Resume(&resumed),
-            other => other,
-        };
-        let mut rpc = PiRpcProcess::spawn_worker(
-            &command,
-            temp.path(),
-            launch,
-            "child-worker".into(),
-            "child".into(),
-            None,
-        )?;
-        assert!(fs::read_to_string(temp.path().join("process-mcp-url"))?.is_empty());
-        assert!(fs::read_to_string(temp.path().join("process-mcp-caller"))?.is_empty());
-        rpc.terminate()?;
-    }
     Ok(())
 }
 
@@ -1207,8 +1152,7 @@ fn fork_process_passes_the_source_session_to_pi() -> TestResult {
 }
 
 #[test]
-fn process_omits_builtin_mcp_when_disabled() -> TestResult {
-    let _mcp = DisabledMcp::new();
+fn process_omits_farcaster_mcp_environment() -> TestResult {
     let project = tempdir()?;
     let extension = project.path().join("extension.mjs");
     let process = prepare_rpc(
@@ -1220,7 +1164,6 @@ fn process_omits_builtin_mcp_when_disabled() -> TestResult {
         None,
         None,
         None,
-        "caller-1",
     )?;
     assert!(
         !process

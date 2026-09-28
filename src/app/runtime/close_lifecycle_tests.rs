@@ -86,11 +86,7 @@ fn assert_close_is_idle(scenario: &mut Scenario, mut pending: HashMap<String, Pe
         replies
     );
     assert!(!application_has_active_work(
-        &statuses,
-        snapshot,
-        &pending,
-        &sessions,
-        &[]
+        &statuses, snapshot, &pending, &sessions
     ));
     assert!(
         pending.is_empty(),

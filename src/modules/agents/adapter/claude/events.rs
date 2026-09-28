@@ -280,12 +280,6 @@ impl Events {
                 }
                 "init" => {
                     self.activity(WorkerActivity::ModeChanged(string(frame,"permissionMode").into()));
-                    if let Some(servers) = frame["mcp_servers"].as_array() {
-                        for server in servers {
-                            self.activity(WorkerActivity::ServiceStatusChanged { name:string(server,"name").into(),
-                                status:string(server,"status").into(), error:None, failure_reason:None });
-                        }
-                    }
                 }
                 "status" => {
                     if let Some(mode) = frame["permissionMode"].as_str() {

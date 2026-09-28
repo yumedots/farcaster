@@ -72,23 +72,15 @@ fn with_isolated_app(
         install_component_theme(cx);
         cx.bind_keys(super::ui::keybindings::bindings());
     });
-    let (workgraph_updates, workgraph_rx) = async_channel::unbounded();
     let (worker_updates, worker_rx) = async_channel::unbounded();
     let runtime = runtime(&project_path);
     let window = cx.add_window(|window, cx| {
-        FarcasterApp::new_offline_for_test(
-            project_path.clone(),
-            runtime,
-            workgraph_rx,
-            worker_rx,
-            window,
-            cx,
-        )
+        FarcasterApp::new_offline_for_test(project_path.clone(), runtime, worker_rx, window, cx)
     });
     let app = window.root(cx).expect("offline app root");
     let window: AnyWindowHandle = window.into();
     let cx = VisualTestContext::from_window(window, cx).into_mut();
-    let _updates = (workgraph_updates, worker_updates);
+    let _updates = worker_updates;
     test(cx, &app, project.path());
 }
 

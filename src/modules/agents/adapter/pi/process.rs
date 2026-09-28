@@ -124,29 +124,6 @@ fn rpc_command(
     Ok(prepared)
 }
 
-fn apply_farcaster_tools(command: &mut std::process::Command, caller_token: Option<&str>) {
-    match caller_token {
-        Some(token) => {
-            command
-                .env(
-                    "FARCASTER_MCP_URL",
-                    crate::modules::agents::adapter::farcaster_mcp::URL,
-                )
-                .env(
-                    "FARCASTER_MCP_HEADER",
-                    crate::modules::agents::adapter::farcaster_mcp::CALLER_HEADER,
-                )
-                .env("FARCASTER_MCP_CALLER", token);
-        }
-        None => {
-            command
-                .env_remove("FARCASTER_MCP_URL")
-                .env_remove("FARCASTER_MCP_HEADER")
-                .env_remove("FARCASTER_MCP_CALLER");
-        }
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 fn prepare_rpc(
     command: &AgentLaunchConfig,
@@ -157,7 +134,6 @@ fn prepare_rpc(
     identity: Option<&(String, String)>,
     parent_worker: Option<&str>,
     parent_session: Option<&str>,
-    caller_token: &str,
 ) -> Result<std::process::Command, String> {
     let mut prepared = rpc_command(command, project, launch)?;
     prepared.arg("--extension").arg(extension);
@@ -169,11 +145,6 @@ fn prepare_rpc(
         identity,
         parent_worker,
         parent_session,
-    );
-    apply_farcaster_tools(
-        &mut prepared,
-        (!is_worker && crate::modules::agents::adapter::farcaster_mcp::enabled())
-            .then_some(caller_token),
     );
     Ok(prepared)
 }
@@ -345,7 +316,6 @@ impl PiRpcProcess {
             caller_identity.worker_identity().as_ref(),
             parent.as_ref().map(|(id, _)| id.as_str()),
             parent_session.as_deref(),
-            caller_identity.token(),
         )?;
         let mut child = prepared
             .stdin(Stdio::piped())
@@ -598,7 +568,6 @@ impl PiRpcProcess {
             self.caller_identity.worker_identity().as_ref(),
             self.parent_worker_id.as_deref(),
             self.native_parent_session.as_deref(),
-            self.caller_identity.token(),
         )
         .map_err(|error| restart_error(session.as_deref(), error))?;
         let mut child = prepared

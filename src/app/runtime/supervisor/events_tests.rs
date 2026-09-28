@@ -832,7 +832,6 @@ fn recovered_prompts_do_not_block_app_quit_without_live_agents() -> Result<(), S
             &statuses,
             &RuntimeSnapshot::default(),
             &HashMap::new(),
-            &[],
             &[]
         ),
         "saved recovery prompts are not running agents: {statuses:?}"
@@ -871,7 +870,6 @@ fn recovered_prompts_do_not_block_app_quit_without_live_agents() -> Result<(), S
                 &statuses,
                 &RuntimeSnapshot::default(),
                 &HashMap::new(),
-                &[],
                 &[]
             ),
             status != "Done",

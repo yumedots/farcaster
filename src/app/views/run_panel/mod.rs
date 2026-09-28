@@ -1,5 +1,3 @@
-pub(in crate::app) mod agents;
-mod background_jobs;
 pub(crate) use crate::app::ui::change_tree;
 mod performance;
 mod repository;
@@ -11,26 +9,18 @@ pub(super) mod review;
 mod tests;
 
 use gpui::{
-    InteractiveElement as _, IntoElement, ParentElement as _, ScrollHandle,
-    StatefulInteractiveElement as _, Styled as _, WeakEntity, div, prelude::FluentBuilder as _,
+    IntoElement, ParentElement as _, ScrollHandle, Styled as _, WeakEntity, div,
+    prelude::FluentBuilder as _,
 };
 
 pub(super) use resize::clamped_run_panel_width;
 
-use self::{
-    agents::{
-        AgentSection, MAX_VISIBLE_COMPLETED_AGENTS, RunDisclosure, agent_section,
-        disclosure_control,
-    },
-    background_jobs::background_job_row,
-    performance::render_performance,
-};
+use self::performance::render_performance;
 use super::super::{FarcasterApp, RunPanelView};
 use crate::{
-    agent_activity::AgentActivity,
-    app::ui::primitives::{ButtonTone, button, panel, section_heading},
+    app::ui::primitives::{ButtonTone, button, panel},
     app::ui::theme::theme,
-    sessions::{descendant_sessions_for_root, root_session_for_path},
+    sessions::root_session_for_path,
 };
 
 pub(crate) struct RepositoryView<'a> {
@@ -40,207 +30,17 @@ pub(crate) struct RepositoryView<'a> {
     pub(crate) scroll: &'a ScrollHandle,
 }
 
-fn run_panel_agent_rows<'a>(
-    sessions: &'a [crate::sessions::SessionSummary],
-    activities: &std::collections::HashMap<String, AgentActivity>,
-    selected: Option<&std::path::Path>,
-) -> Vec<(
-    AgentActivity,
-    usize,
-    &'a crate::sessions::SessionSummary,
-    AgentSection,
-)> {
-    let Some(root) = root_session_for_path(sessions, selected) else {
-        return Vec::new();
-    };
-    descendant_sessions_for_root(sessions, root)
-        .into_iter()
-        .filter_map(|(session, depth)| {
-            let activity_key = crate::agent_activity::agent_activity_key(&session.path);
-            let activity = activities
-                .get(&activity_key)
-                .cloned()
-                .unwrap_or_else(|| AgentActivity::limited_fallback(session));
-            let section = agent_section(activity.lifecycle, activity.limited, session.is_running);
-            (section != AgentSection::Hidden).then_some((activity, depth, session, section))
-        })
-        .collect()
-}
-
-#[cfg(test)]
-pub(crate) fn live_run_panel_agent_rows<'a>(
-    sessions: &'a [crate::sessions::SessionSummary],
-    activities: &std::collections::HashMap<String, AgentActivity>,
-    selected: Option<&std::path::Path>,
-) -> Vec<(
-    AgentActivity,
-    usize,
-    &'a crate::sessions::SessionSummary,
-    AgentSection,
-)> {
-    run_panel_agent_rows(sessions, activities, selected)
-}
-
 impl FarcasterApp {
     pub(super) fn render_run_panel(
         &self,
         entity: WeakEntity<Self>,
         run_panel: WeakEntity<RunPanelView>,
-        completed_agents_expanded: bool,
-        limited_agents_expanded: bool,
         browser: &RepositoryView<'_>,
     ) -> impl IntoElement {
         let root = root_session_for_path(
             &self.sessions.all,
             self.snapshot.selected_session.as_deref(),
         );
-        let mut active = Vec::new();
-        let mut completed = Vec::new();
-        let mut limited = Vec::new();
-        for (activity, depth, session, section) in run_panel_agent_rows(
-            &self.sessions.all,
-            &self.activity.agents,
-            self.snapshot.selected_session.as_deref(),
-        ) {
-            match section {
-                AgentSection::Active => active.push((activity, depth, session)),
-                AgentSection::Completed => completed.push((activity, depth, session)),
-                AgentSection::Limited => limited.push((activity, depth, session)),
-                AgentSection::Hidden => {}
-            }
-        }
-        let by_created_at =
-            |left: &(AgentActivity, usize, &crate::sessions::SessionSummary),
-             right: &(AgentActivity, usize, &crate::sessions::SessionSummary)| {
-                right
-                    .2
-                    .timestamp
-                    .cmp(&left.2.timestamp)
-                    .then_with(|| left.2.id.cmp(&right.2.id))
-            };
-        active.sort_by(by_created_at);
-        completed.sort_by(by_created_at);
-        limited.sort_by(by_created_at);
-
-        let completed_control = disclosure_control(
-            "toggle-completed-agents",
-            "Completed agents",
-            completed_agents_expanded,
-            RunDisclosure::Completed,
-            run_panel.clone(),
-        );
-        let limited_control = disclosure_control(
-            "toggle-limited-agents",
-            "Limited agents",
-            limited_agents_expanded,
-            RunDisclosure::Limited,
-            run_panel.clone(),
-        );
-        let activity = div()
-            .id("run-panel-activity")
-            .flex_none()
-            .min_h_0()
-            .max_h(theme().size(240.0))
-            .overflow_y_scroll()
-            .flex()
-            .flex_col()
-            .gap(theme().space.sm)
-            .child(self.views.workgraph_sidebar.clone())
-            .when_some(
-                self.lifecycle
-                    .performance_monitor
-                    .as_ref()
-                    .filter(|monitor| monitor.is_detailed()),
-                |run, monitor| run.child(render_performance(&monitor.summary)),
-            )
-            .when(!active.is_empty(), |run| {
-                run.child(
-                    inspector_section()
-                        .child(section_heading(format!(
-                            "Workers · {} active",
-                            active.len()
-                        )))
-                        .children(active.iter().filter_map(|(activity, depth, session)| {
-                            self.agent_card(activity, session, *depth, entity.clone())
-                        })),
-                )
-            })
-            .when(!self.activity.background_jobs.is_empty(), |run| {
-                run.child(
-                    inspector_section()
-                        .child(section_heading(format!(
-                            "Background jobs ({})",
-                            self.activity.background_jobs.len()
-                        )))
-                        .children(self.activity.background_jobs.iter().map(background_job_row)),
-                )
-            })
-            .when(!completed.is_empty(), |run| {
-                run.child(
-                    inspector_section()
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .justify_between()
-                                .child(section_heading(format!(
-                                    "Completed workers ({})",
-                                    completed.len()
-                                )))
-                                .child(completed_control),
-                        )
-                        .when(completed_agents_expanded, |section| {
-                            section
-                                .children(
-                                    completed
-                                        .iter()
-                                        .take(MAX_VISIBLE_COMPLETED_AGENTS)
-                                        .filter_map(|(activity, depth, session)| {
-                                            self.agent_card(
-                                                activity,
-                                                session,
-                                                *depth,
-                                                entity.clone(),
-                                            )
-                                        }),
-                                )
-                                .when(completed.len() > MAX_VISIBLE_COMPLETED_AGENTS, |section| {
-                                    section.child(
-                                        div()
-                                            .text_size(theme().type_scale.caption)
-                                            .text_color(theme().colors.subtle)
-                                            .child(format!(
-                                                "Showing the {} most recent completed agents",
-                                                MAX_VISIBLE_COMPLETED_AGENTS
-                                            )),
-                                    )
-                                })
-                        }),
-                )
-            })
-            .when(!limited.is_empty(), |run| {
-                run.child(
-                    inspector_section()
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .justify_between()
-                                .child(section_heading(format!(
-                                    "Limited workers ({})",
-                                    limited.len()
-                                )))
-                                .child(limited_control),
-                        )
-                        .when(limited_agents_expanded, |section| {
-                            section.children(limited.iter().filter_map(
-                                |(activity, depth, session)| {
-                                    self.agent_card(activity, session, *depth, entity.clone())
-                                },
-                            ))
-                        }),
-                )
-            });
         let body = div()
             .flex_1()
             .min_h_0()
@@ -251,6 +51,13 @@ impl FarcasterApp {
             .pb(theme().size(14.0))
             .pl(theme().size(18.0))
             .gap(theme().space.md)
+            .when_some(
+                self.lifecycle
+                    .performance_monitor
+                    .as_ref()
+                    .filter(|monitor| monitor.is_detailed()),
+                |run, monitor| run.child(render_performance(&monitor.summary)),
+            )
             .when_some(root, |run, root| {
                 let selected =
                     self.snapshot.selected_session.as_deref() == Some(root.path.as_path());
@@ -282,7 +89,6 @@ impl FarcasterApp {
                     .flex_none(),
                 )
             })
-            .child(activity)
             .when(self.project.repository.backend.is_some(), |run| {
                 run.child(self.render_repository(entity.clone(), run_panel.clone(), browser))
             });
@@ -293,8 +99,4 @@ impl FarcasterApp {
             .bg(theme().colors.inspector)
             .child(body)
     }
-}
-
-fn inspector_section() -> gpui::Div {
-    div().flex().flex_col().gap(theme().size(7.0))
 }

@@ -737,10 +737,6 @@ impl WorkerSessionTransport {
                 "type": "rate_limits_changed",
                 "limits": limits,
             }),
-            WorkerActivity::SessionGoalChanged(goal) => json!({
-                "type": "session_goal_changed",
-                "goal": goal,
-            }),
             WorkerActivity::CompactionStarted => json!({
                 "type": "compaction_start",
                 "reason": "manual",

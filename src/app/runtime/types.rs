@@ -237,7 +237,6 @@ pub(crate) struct RuntimeSnapshot {
     pub configuration_status: ConfigurationStatus,
     pub modes: Vec<AgentMode>,
     pub selected_mode: Option<String>,
-    pub session_goal: Option<crate::agents::SessionGoal>,
     pub stats: Value,
     pub commands: Vec<SlashCommand>,
     pub stderr: String,

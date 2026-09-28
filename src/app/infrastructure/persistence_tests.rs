@@ -360,7 +360,6 @@ fn application_settings_survive_reopen() -> Result<(), Box<dyn std::error::Error
     let temp = tempdir()?;
     let database = temp.path().join("gui.sqlite3");
     let store = StateStore::open_at(&database)?;
-    assert!(store.load_builtin_mcp_enabled()?);
     assert!(!store.load_expand_transcript_folders()?);
     // Staging like VS Code is the default for a database that has never seen
     // the setting, including every database that predates it.
@@ -402,14 +401,12 @@ fn application_settings_survive_reopen() -> Result<(), Box<dyn std::error::Error
     assert!(!StateStore::open_at(&database)?.load_expand_transcript_folders()?);
 
     store.save_network_proxy(Some("http://proxy.example:8080"))?;
-    store.save_builtin_mcp_enabled(false)?;
     assert_eq!(
         StateStore::open_at(&database)?
             .load_network_proxy()?
             .as_deref(),
         Some("http://proxy.example:8080")
     );
-    assert!(!StateStore::open_at(&database)?.load_builtin_mcp_enabled()?);
     Ok(())
 }
 
@@ -426,7 +423,6 @@ fn check_schema_migration(version: i64) -> Result<(), Box<dyn std::error::Error>
     let database = temp.path().join("settings.sqlite3");
     let store = StateStore::open_at(&database)?;
     store.save_network_proxy(Some("http://proxy.example:8080"))?;
-    store.save_builtin_mcp_enabled(false)?;
     drop(store);
     let connection = rusqlite::Connection::open(&database)?;
     if version == 12 {
@@ -447,7 +443,6 @@ fn check_schema_migration(version: i64) -> Result<(), Box<dyn std::error::Error>
         store.load_network_proxy()?.as_deref(),
         Some("http://proxy.example:8080")
     );
-    assert!(!store.load_builtin_mcp_enabled()?);
     let connection = rusqlite::Connection::open(&database)?;
     let has_modifier: bool = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM pragma_table_info('ui_state') WHERE name='application_modifier')",
@@ -1970,51 +1965,10 @@ fn concurrent_state_store_open_waits_for_schema_writers() -> Result<(), Box<dyn 
 }
 
 #[test]
-fn worker_tasks_customization_and_deletion_survive_reopen() -> Result<(), String> {
-    let temp = tempdir().map_err(|error| error.to_string())?;
-    let database = temp.path().join("settings.sqlite3");
-    let store = StateStore::open_at(&database)?;
-    let mut tasks = store.load_worker_profiles()?;
-    assert_eq!(tasks.profiles.len(), 4);
-    tasks.profiles[0].name = "audit".into();
-    tasks.profiles[0].description = "Review security-sensitive changes.".into();
-    tasks.profiles[0].models.swap(0, 1);
-    tasks.profiles[0].models[0].harness = Backend::Codex;
-    tasks.profiles[0].models[0].provider = "openai".into();
-    tasks.profiles.remove(1);
-    store.save_worker_profiles(&tasks)?;
-    assert_eq!(
-        StateStore::open_at(&database)?.load_worker_profiles()?,
-        tasks
-    );
-    tasks.profiles.clear();
-    store.save_worker_profiles(&tasks)?;
-    assert!(
-        StateStore::open_at(&database)?
-            .load_worker_profiles()?
-            .profiles
-            .is_empty()
-    );
-    Ok(())
-}
-
-#[test]
 fn settings_save_independently_and_reject_invalid_values() -> Result<(), String> {
     let temp = tempdir().map_err(|error| error.to_string())?;
     let store = StateStore::open_at(&temp.path().join("settings.sqlite3"))?;
     store.save_network_proxy(Some("http://proxy.example:8080"))?;
-    let original = store.load_worker_profiles()?;
-    let mut invalid = original.clone();
-    invalid.profiles[0].models[0].provider.clear();
-    assert!(store.save_worker_profiles(&invalid).is_err());
-    assert_eq!(
-        store.load_network_proxy()?.as_deref(),
-        Some("http://proxy.example:8080")
-    );
-    assert_eq!(store.load_worker_profiles()?, original);
-    let mut valid = original;
-    valid.profiles[0].name = "audit".into();
-    store.save_worker_profiles(&valid)?;
     assert_eq!(
         store.load_network_proxy()?.as_deref(),
         Some("http://proxy.example:8080")
@@ -2026,7 +1980,6 @@ fn settings_save_independently_and_reject_invalid_values() -> Result<(), String>
     );
     store.save_network_proxy(None)?;
     assert_eq!(store.load_network_proxy()?, None);
-    assert_eq!(store.load_worker_profiles()?, valid);
     Ok(())
 }
 

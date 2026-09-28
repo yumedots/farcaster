@@ -9,8 +9,8 @@ mod run;
 mod tool;
 mod worker;
 pub(crate) use tool::{ToolCategory, ToolMetadata};
-mod worker_tasks;
-pub(crate) use worker_tasks::{WorkerAssignment, WorkerExecution, WorkerProfile, WorkerProfiles};
+mod worker_execution;
+pub(crate) use worker_execution::{WorkerAssignment, WorkerExecution};
 
 pub(crate) use caller::{
     CallerContext, CallerIdentity, CallerProfile, CallerRegistry, ExecutionBinding,
