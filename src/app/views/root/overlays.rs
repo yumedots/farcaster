@@ -155,6 +155,10 @@ impl FarcasterApp {
                 dialogs::image_preview::render(self, entity.clone()),
                 |root, preview| root.child(preview),
             )
+            .when_some(
+                dialogs::repository_diff::render(self, entity.clone()),
+                |root, diff| root.child(diff),
+            )
             .when(self.lifecycle.pending_quit.is_some(), |root| {
                 root.child(dialogs::quit_confirmation::render(self, entity.clone()))
             })

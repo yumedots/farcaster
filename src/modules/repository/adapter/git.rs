@@ -1,14 +1,13 @@
 use std::{ffi::OsString, path::PathBuf, sync::Arc, time::SystemTime};
 
 use super::super::{
-    ChangeKind, ChangeLayer, GitIdentity, RepositoryBackend, RepositoryError, WorkingCopySnapshot,
-    change,
+    ChangeKind, ChangeLayer, DiffResult, DiffTarget, GitIdentity, HunkApply, RepositoryBackend,
+    RepositoryError, WorkingCopySnapshot, change, command_failed,
     core::port::{CommandOutput, RepositoryOperations},
     require_complete_stdout,
 };
 
-#[cfg(test)]
-use super::super::{DiffResult, DiffTarget, command_failed, diff_result};
+use super::super::diff_result;
 
 pub(super) struct GitOperations;
 
@@ -30,13 +29,21 @@ impl RepositoryOperations for GitOperations {
         snapshot(backend)
     }
 
-    #[cfg(test)]
     fn load_diff(
         &self,
         backend: &RepositoryBackend,
         target: DiffTarget,
     ) -> Result<DiffResult, RepositoryError> {
         load_diff(backend, target)
+    }
+
+    fn apply_patch(
+        &self,
+        backend: &RepositoryBackend,
+        patch: &str,
+        mode: HunkApply,
+    ) -> Result<(), RepositoryError> {
+        apply_patch(backend, patch, mode)
     }
 
     fn list_project_files(
@@ -105,7 +112,43 @@ pub(in crate::modules::repository) fn list_project_files(
     Ok(files)
 }
 
-#[cfg(test)]
+pub(in crate::modules::repository) fn apply_patch(
+    backend: &RepositoryBackend,
+    patch: &str,
+    mode: HunkApply,
+) -> Result<(), RepositoryError> {
+    use std::io::Write as _;
+
+    let mut file = tempfile::NamedTempFile::new().map_err(|source| RepositoryError::Io {
+        context: "Write a patch for one hunk".into(),
+        source,
+    })?;
+    file.write_all(patch.as_bytes())
+        .map_err(|source| RepositoryError::Io {
+            context: "Write a patch for one hunk".into(),
+            source,
+        })?;
+    let mut arguments = ["--no-pager", "--literal-pathspecs", "apply"]
+        .map(OsString::from)
+        .to_vec();
+    arguments.extend(
+        match mode {
+            HunkApply::Stage => &["--cached"][..],
+            HunkApply::Unstage => &["--cached", "--reverse"][..],
+            HunkApply::Revert => &["--reverse"][..],
+        }
+        .iter()
+        .map(OsString::from),
+    );
+    arguments.push(file.path().as_os_str().to_os_string());
+    let output = backend.run_sync(&arguments)?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(command_failed(backend.executable(), &output))
+    }
+}
+
 pub(in crate::modules::repository) fn load_diff(
     backend: &RepositoryBackend,
     target: DiffTarget,
@@ -164,7 +207,6 @@ fn status_output(backend: &RepositoryBackend) -> Result<CommandOutput, Repositor
     Ok(output)
 }
 
-#[cfg(test)]
 fn diff_arguments(staged: bool) -> Vec<OsString> {
     let mut arguments = [
         "--no-pager",
@@ -187,7 +229,6 @@ fn diff_arguments(staged: bool) -> Vec<OsString> {
     arguments
 }
 
-#[cfg(test)]
 fn untracked_diff_arguments() -> Vec<OsString> {
     vec![
         OsString::from("--no-pager"),
@@ -201,12 +242,12 @@ fn untracked_diff_arguments() -> Vec<OsString> {
     ]
 }
 
-#[cfg(all(test, unix))]
+#[cfg(unix)]
 fn null_device() -> &'static str {
     "/dev/null"
 }
 
-#[cfg(all(test, windows))]
+#[cfg(windows)]
 fn null_device() -> &'static str {
     "NUL"
 }

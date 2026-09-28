@@ -362,6 +362,40 @@ fn application_settings_survive_reopen() -> Result<(), Box<dyn std::error::Error
     let store = StateStore::open_at(&database)?;
     assert!(store.load_builtin_mcp_enabled()?);
     assert!(!store.load_expand_transcript_folders()?);
+    // Staging like VS Code is the default for a database that has never seen
+    // the setting, including every database that predates it.
+    assert!(store.load_stage_changes_like_vscode()?);
+    assert_eq!(store.load_source_control_view()?, None);
+    assert_eq!(store.load_source_control_sort()?, None);
+    store.save_stage_changes_like_vscode(false)?;
+    store.save_source_control_view("list")?;
+    store.save_source_control_sort("status")?;
+    let reopened = StateStore::open_at(&database)?;
+    assert!(!reopened.load_stage_changes_like_vscode()?);
+    assert_eq!(
+        reopened.load_source_control_view()?.as_deref(),
+        Some("list")
+    );
+    assert_eq!(
+        reopened.load_source_control_sort()?.as_deref(),
+        Some("status")
+    );
+    store.save_stage_changes_like_vscode(true)?;
+    store.save_source_control_view("tree")?;
+    store.save_source_control_sort("path")?;
+    assert!(StateStore::open_at(&database)?.load_stage_changes_like_vscode()?);
+    assert_eq!(
+        StateStore::open_at(&database)?
+            .load_source_control_view()?
+            .as_deref(),
+        Some("tree")
+    );
+    assert_eq!(
+        StateStore::open_at(&database)?
+            .load_source_control_sort()?
+            .as_deref(),
+        Some("path")
+    );
     store.save_expand_transcript_folders(true)?;
     assert!(StateStore::open_at(&database)?.load_expand_transcript_folders()?);
     store.save_expand_transcript_folders(false)?;

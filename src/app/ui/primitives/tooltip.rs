@@ -33,3 +33,7 @@ pub(crate) trait AppTooltip: StatefulInteractiveElement + ElementExt + Sized {
 }
 
 impl<E: StatefulInteractiveElement + ElementExt> AppTooltip for E {}
+
+#[cfg(test)]
+#[path = "tooltip_tests.rs"]
+mod tests;

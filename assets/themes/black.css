@@ -18,9 +18,9 @@
   --skill: #c78ba5;
   --file: #5f9ea8;
   --warning: #d7a13b;
-  --error: #f2554a;
-  --danger: #f2554a;
-  --success: #9bbf3f;
+  --error: #ff5c5c;
+  --danger: #ff5c5c;
+  --success: #4ce07a;
   --backdrop: #000000cc;
   --indicator: #9a9a9a;
 
@@ -222,7 +222,7 @@
   --punctuation-delimiter: #9a9a9a;
   --punctuation-list-marker: #9a9a9a;
   --punctuation-special: #9a9a9a;
-  --string: #9bbf3f;
+  --string: #7ee787;
   --string-escape: #d7a13b;
   --string-regex: #c78ba5;
   --string-special: #d7a13b;

@@ -80,6 +80,21 @@ pub(in crate::app::views) fn render(
                                 FeedbackTone::Error,
                             ))
                         })
+                        .child(toggle_setting(
+                            "source-control-style-toggle",
+                            "Stage changes like VS Code",
+                            "Split the panel into Staged Changes and Changes, with hover actions that write to the index. Off shows every change in one list and commits the files you select.",
+                            app.settings.stage_changes_like_vscode,
+                            entity.clone(),
+                            FarcasterApp::toggle_settings_stage_changes_like_vscode,
+                        ))
+                        .when_some(app.settings.source_control_error.clone(), |content, error| {
+                            content.child(feedback(
+                                "settings-source-control-error",
+                                error,
+                                FeedbackTone::Error,
+                            ))
+                        })
                         .child(editor::render(app, entity.clone()))
                         .child(
                             div()

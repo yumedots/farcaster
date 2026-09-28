@@ -13,6 +13,9 @@ pub(super) struct PersistedState {
     pub(super) submitted_drafts: HashMap<String, Option<PathBuf>>,
     pub(super) saved_proxy: Option<String>,
     pub(super) expand_transcript_folders: bool,
+    pub(super) stage_changes_like_vscode: bool,
+    pub(super) source_control_view: crate::app::ui::change_tree::ChangeView,
+    pub(super) source_control_sort: crate::app::ui::change_tree::ChangeSort,
     pub(super) text_editor: Option<String>,
     pub(super) theme_css: Option<String>,
     pub(super) active_theme: Option<String>,
@@ -120,6 +123,26 @@ pub(super) fn load(project: &Path) -> PersistedState {
             false
         });
 
+    let stage_changes_like_vscode = crate::app::infrastructure::persistence::StateStore::open()
+        .and_then(|store| store.load_stage_changes_like_vscode())
+        .unwrap_or_else(|load_error| {
+            error.get_or_insert(load_error);
+            true
+        });
+
+    let source_control_view = crate::app::infrastructure::persistence::StateStore::open()
+        .and_then(|store| store.load_source_control_view())
+        .unwrap_or_else(|load_error| {
+            error.get_or_insert(load_error);
+            None
+        });
+    let source_control_sort = crate::app::infrastructure::persistence::StateStore::open()
+        .and_then(|store| store.load_source_control_sort())
+        .unwrap_or_else(|load_error| {
+            error.get_or_insert(load_error);
+            None
+        });
+
     let text_editor = crate::app::infrastructure::persistence::StateStore::open()
         .and_then(|store| store.load_text_editor())
         .unwrap_or_else(|load_error| {
@@ -160,6 +183,13 @@ pub(super) fn load(project: &Path) -> PersistedState {
         submitted_drafts,
         saved_proxy,
         expand_transcript_folders,
+        stage_changes_like_vscode,
+        source_control_view: crate::app::ui::change_tree::ChangeView::from_setting(
+            source_control_view.as_deref(),
+        ),
+        source_control_sort: crate::app::ui::change_tree::ChangeSort::from_setting(
+            source_control_sort.as_deref(),
+        ),
         text_editor,
         theme_css,
         active_theme,

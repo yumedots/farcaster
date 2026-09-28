@@ -4,13 +4,67 @@ use std::{
 };
 
 use crate::{
-    app::ui::theme::theme,
+    app::ui::{change_tree::ChangeSort, theme::theme},
     repository::{ChangeKind, ChangeLayer, DiffTargetKey, GitIdentity, WorkingCopyChange},
 };
 
-pub(super) fn repository_row_id(key: &DiffTargetKey) -> u64 {
+/// Ascending order for the list view; ties fall back to the relative path.
+pub(super) fn change_sort_key(
+    sort: ChangeSort,
+    path: &Path,
+    kind: &ChangeKind,
+) -> (String, String) {
+    let path = path.to_string_lossy().into_owned();
+    let primary = match sort {
+        ChangeSort::Path => path.clone(),
+        ChangeSort::Name => Path::new(&path)
+            .file_name()
+            .map_or_else(|| path.clone(), |name| name.to_string_lossy().into_owned()),
+        ChangeSort::Status => kind.status_label().to_owned(),
+    };
+    (primary, path)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ChangeSection {
+    Staged,
+    Changes,
+    Merge,
+}
+
+impl ChangeSection {
+    pub(super) const ALL: [Self; 3] = [Self::Staged, Self::Changes, Self::Merge];
+
+    pub(super) const fn title(self) -> &'static str {
+        match self {
+            Self::Staged => "Staged Changes",
+            Self::Changes => "Changes",
+            Self::Merge => "Merge Changes",
+        }
+    }
+
+    pub(super) const fn key(self) -> &'static str {
+        match self {
+            Self::Staged => "staged",
+            Self::Changes => "changes",
+            Self::Merge => "merge",
+        }
+    }
+
+    pub(super) const fn matches(self, layer: ChangeLayer) -> bool {
+        match self {
+            Self::Staged => matches!(layer, ChangeLayer::Index),
+            Self::Changes => matches!(layer, ChangeLayer::WorkingTree | ChangeLayer::Untracked),
+            Self::Merge => matches!(layer, ChangeLayer::Conflict),
+        }
+    }
+}
+
+pub(super) fn repository_row_id(key: &DiffTargetKey, section: &str) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     key.hash(&mut hasher);
+    // One file can sit in two sections at once, so the section is part of the row.
+    section.hash(&mut hasher);
     hasher.finish()
 }
 
@@ -129,10 +183,13 @@ pub(super) fn change_color(kind: &ChangeKind) -> gpui::Rgba {
     match kind {
         ChangeKind::Added | ChangeKind::Untracked => theme().colors.success,
         ChangeKind::Deleted | ChangeKind::Conflict => theme().colors.error,
-        ChangeKind::Renamed | ChangeKind::Copied | ChangeKind::TypeChanged => {
-            theme().colors.warning
-        }
-        ChangeKind::Modified | ChangeKind::Unknown(_) => theme().colors.accent,
+        // Modified reads as a warning the way the source control view does; the
+        // same token covers the other non-destructive edits.
+        ChangeKind::Modified
+        | ChangeKind::Renamed
+        | ChangeKind::Copied
+        | ChangeKind::TypeChanged => theme().colors.warning,
+        ChangeKind::Unknown(_) => theme().colors.accent,
     }
 }
 

@@ -7,6 +7,7 @@ use crate::{
         RunPanelView,
         ui::{
             assets::AppIcon,
+            change_tree::{ChangeSort, ChangeView},
             primitives::{
                 AppTooltip as _, ButtonTone, activates_button, dropdown_button, icon_button,
                 icon_control, section_heading,
@@ -58,10 +59,14 @@ pub(super) fn repository_header(
 ) -> AnyElement {
     let refresh = entity.clone();
     let clear = entity.clone();
+    let clear_selection = entity.clone();
     let commit = entity.clone();
+    let staged_commit = entity.clone();
     let selected_count = app.project.repository.edits.selection.paths.len();
     let enabled = app.project.repository.execution_allowed;
     let syncing = app.project.repository.sync.action;
+    let pending = app.project.repository.edits.pending.is_some();
+    let commit_like_vscode = app.settings.stage_changes_like_vscode;
     let count = snapshot.map_or(0, |snapshot| {
         snapshot
             .changes
@@ -69,6 +74,14 @@ pub(super) fn repository_header(
             .map(|change| &change.relative_path)
             .collect::<std::collections::BTreeSet<_>>()
             .len()
+    });
+    let staged = snapshot.map_or_else(std::collections::BTreeSet::new, |snapshot| {
+        snapshot
+            .changes
+            .iter()
+            .filter(|change| change.layer == crate::repository::ChangeLayer::Index)
+            .map(|change| change.relative_path.clone())
+            .collect::<std::collections::BTreeSet<_>>()
     });
     let menu = repository_actions(app, snapshot, entity, panel, filtering);
 
@@ -82,7 +95,11 @@ pub(super) fn repository_header(
                 .flex()
                 .items_center()
                 .gap(theme().space.xs)
-                .child(section_heading("Changes"))
+                .child(section_heading(if commit_like_vscode {
+                    "Source control"
+                } else {
+                    "Changes"
+                }))
                 .child(
                     div()
                         .flex_1()
@@ -98,47 +115,87 @@ pub(super) fn repository_header(
                             })
                         }),
                 )
-                .when(snapshot.is_some() && selected_count > 0, |row| {
-                    let selection_button = |id, icon, label: &'static str| {
-                        Button::new(id)
-                            .icon(icon)
-                            .with_size(Size::Small)
-                            .disabled(
-                                syncing.is_some() || app.project.repository.edits.pending.is_some(),
+                .when(
+                    snapshot.is_some() && !commit_like_vscode && selected_count > 0,
+                    |row| {
+                        let selection_button = |id, icon, label: &'static str| {
+                            Button::new(id)
+                                .icon(icon)
+                                .with_size(Size::Small)
+                                .disabled(syncing.is_some() || pending)
+                                .accessibility_label(label)
+                                .tooltip(label)
+                        };
+                        row.child(
+                            selection_button(
+                                "clear-selected-files",
+                                AppIcon::X,
+                                "Clear file selection",
                             )
-                            .accessibility_label(label)
-                            .tooltip(label)
-                    };
+                            .ghost()
+                            .on_click(move |_, _, cx| {
+                                let _ = clear.update(cx, |this, cx| {
+                                    this.clear_repository_selection(cx);
+                                });
+                            }),
+                        )
+                        .child(
+                            selection_button(
+                                "commit-selected-files",
+                                AppIcon::Check,
+                                "Review and commit selected files",
+                            )
+                            .primary()
+                            .on_click(move |_, window, cx| {
+                                let _ = commit.update(cx, |this, cx| {
+                                    this.review_repository_edit(
+                                        RepositoryEdit::Commit,
+                                        None,
+                                        window,
+                                        cx,
+                                    );
+                                });
+                            }),
+                        )
+                    },
+                )
+                .when(commit_like_vscode && selected_count > 0, |row| {
                     row.child(
-                        selection_button(
-                            "clear-selected-files",
-                            AppIcon::X,
-                            "Clear file selection",
-                        )
-                        .ghost()
-                        .on_click(move |_, _, cx| {
-                            let _ = clear.update(cx, |this, cx| {
-                                this.clear_repository_selection(cx);
-                            });
-                        }),
+                        Button::new("clear-selected-files")
+                            .icon(AppIcon::X)
+                            .with_size(Size::Small)
+                            .disabled(syncing.is_some() || pending)
+                            .accessibility_label("Clear file selection")
+                            .tooltip("Clear file selection")
+                            .ghost()
+                            .on_click(move |_, _, cx| {
+                                let _ = clear_selection.update(cx, |this, cx| {
+                                    this.clear_repository_selection(cx);
+                                });
+                            }),
                     )
-                    .child(
-                        selection_button(
-                            "commit-selected-files",
-                            AppIcon::Check,
-                            "Review and commit selected files",
-                        )
-                        .primary()
-                        .on_click(move |_, window, cx| {
-                            let _ = commit.update(cx, |this, cx| {
-                                this.review_repository_edit(
-                                    RepositoryEdit::Commit,
-                                    None,
-                                    window,
-                                    cx,
-                                );
-                            });
-                        }),
+                })
+                .when(commit_like_vscode && !staged.is_empty(), |row| {
+                    let staged_commit_paths = staged.clone();
+                    let label = format!("Commit {} staged changes", staged.len());
+                    row.child(
+                        Button::new("commit-staged-changes")
+                            .icon(AppIcon::Check)
+                            .with_size(Size::Small)
+                            .disabled(syncing.is_some() || pending)
+                            .accessibility_label(label.clone())
+                            .tooltip(label)
+                            .primary()
+                            .on_click(move |_, window, cx| {
+                                let _ = staged_commit.update(cx, |this, cx| {
+                                    this.review_repository_paths(
+                                        RepositoryEdit::CommitIndex,
+                                        staged_commit_paths.clone(),
+                                        window,
+                                        cx,
+                                    );
+                                });
+                            }),
                     )
                 })
                 .when(enabled, |row| {
@@ -177,7 +234,7 @@ pub(super) fn repository_header(
                             .font_family(MONO_FONT_FAMILY)
                             .text_color(theme().colors.subtle)
                             .app_tooltip(detail.clone())
-                            .child(compact_identity_label(snapshot)),
+                            .child(repository_identity_label(snapshot)),
                     ),
             )
         })
@@ -206,6 +263,8 @@ fn repository_actions(
     let enabled = app.project.repository.execution_allowed;
     let syncing = app.project.repository.sync.action;
     let identity = snapshot.map(|snapshot| snapshot.identity.clone());
+    let current_view = app.settings.source_control_view;
+    let current_sort = app.settings.source_control_sort;
     dropdown_button("repository-actions", "⋯", ButtonTone::Quiet, true)
         .dropdown_caret(false)
         .size(theme().controls.icon_button)
@@ -227,6 +286,32 @@ fn repository_actions(
                         });
                     },
                 ));
+            }
+            menu = menu.separator();
+            for (view, label) in [
+                (ChangeView::Tree, "View as tree"),
+                (ChangeView::List, "View as list"),
+            ] {
+                let entity = entity.clone();
+                menu = menu.item(
+                    PopupMenuItem::new(label)
+                        .checked(view == current_view)
+                        .on_click(move |_, _, cx| {
+                            let _ = entity
+                                .update(cx, |this, cx| this.set_source_control_view(view, cx));
+                        }),
+                );
+            }
+            for sort in ChangeSort::ALL {
+                let entity = entity.clone();
+                menu = menu.item(
+                    PopupMenuItem::new(sort.label())
+                        .checked(sort == current_sort)
+                        .on_click(move |_, _, cx| {
+                            let _ = entity
+                                .update(cx, |this, cx| this.set_source_control_sort(sort, cx));
+                        }),
+                );
             }
             menu = menu.separator();
             for action in [
@@ -275,8 +360,4 @@ fn working_copy_totals(additions: Option<u64>, deletions: Option<u64>) -> AnyEle
 
 fn repository_identity_label(snapshot: &WorkingCopySnapshot) -> String {
     git_identity(&snapshot.identity)
-}
-
-fn compact_identity_label(snapshot: &WorkingCopySnapshot) -> String {
-    format!("Git · {}", repository_identity_label(snapshot))
 }

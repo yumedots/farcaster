@@ -1,9 +1,10 @@
 use std::{ffi::OsString, process::ExitStatus};
 
-use super::super::{RepositoryBackend, RepositoryError, WorkingCopySnapshot};
+use super::super::{
+    DiffResult, DiffTarget, RepositoryBackend, RepositoryError, WorkingCopySnapshot,
+};
 
-#[cfg(test)]
-use super::super::{DiffResult, DiffTarget};
+use super::HunkApply;
 
 #[derive(Debug)]
 pub(in crate::modules::repository) struct CommandOutput {
@@ -48,12 +49,19 @@ pub(in crate::modules::repository) trait RepositoryOperations:
 
     /// A diff of a snapshot the caller still holds, verified against the working
     /// copy before and after it is read.
-    #[cfg(test)]
     fn load_diff(
         &self,
         backend: &RepositoryBackend,
         target: DiffTarget,
     ) -> Result<DiffResult, RepositoryError>;
+
+    /// Applies a patch built from one of this backend's diffs.
+    fn apply_patch(
+        &self,
+        backend: &RepositoryBackend,
+        patch: &str,
+        mode: HunkApply,
+    ) -> Result<(), RepositoryError>;
 
     fn list_project_files(
         &self,

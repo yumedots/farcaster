@@ -177,6 +177,65 @@ pub(crate) struct ImagePreview {
     pub(crate) total: usize,
 }
 
+/// An open in-app diff, keyed by the change it was opened from so it can follow
+/// the working copy as it moves.
+pub(crate) struct RepositoryDiff {
+    pub(crate) key: crate::repository::DiffTargetKey,
+    pub(crate) path: PathBuf,
+    pub(crate) layer: crate::repository::ChangeLayer,
+    pub(crate) additions: u64,
+    pub(crate) deletions: u64,
+    pub(crate) diff: Option<crate::repository::FileDiff>,
+    pub(crate) error: Option<String>,
+    pub(crate) applying: Option<usize>,
+    generation: u64,
+}
+
+impl RepositoryDiff {
+    pub(crate) fn new(
+        key: crate::repository::DiffTargetKey,
+        path: PathBuf,
+        layer: crate::repository::ChangeLayer,
+    ) -> Self {
+        Self {
+            key,
+            path,
+            layer,
+            additions: 0,
+            deletions: 0,
+            diff: None,
+            error: None,
+            applying: None,
+            generation: 0,
+        }
+    }
+
+    pub(crate) fn preparing(&self) -> bool {
+        self.diff.is_none() && self.error.is_none()
+    }
+
+    /// Which hunk actions this file's section allows.
+    pub(crate) fn actions(&self) -> &'static [crate::repository::HunkApply] {
+        use crate::repository::{ChangeLayer, HunkApply};
+        match self.layer {
+            ChangeLayer::Index => &[HunkApply::Unstage],
+            ChangeLayer::WorkingTree | ChangeLayer::Untracked => {
+                &[HunkApply::Stage, HunkApply::Revert]
+            }
+            ChangeLayer::Conflict => &[],
+        }
+    }
+
+    pub(crate) fn next_generation(&mut self) -> u64 {
+        self.generation = self.generation.saturating_add(1);
+        self.generation
+    }
+
+    pub(crate) fn generation(&self) -> u64 {
+        self.generation
+    }
+}
+
 pub(crate) struct FarcasterApp {
     runtime: RuntimeHandle,
     pub(crate) snapshot: Arc<RuntimeSnapshot>,

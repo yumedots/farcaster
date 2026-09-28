@@ -46,6 +46,10 @@ pub(in crate::app) struct SettingsState {
     pub(in crate::app) mcp_error: Option<String>,
     pub(in crate::app) expand_transcript_folders: bool,
     pub(in crate::app) transcript_error: Option<String>,
+    pub(in crate::app) stage_changes_like_vscode: bool,
+    pub(in crate::app) source_control_view: crate::app::ui::change_tree::ChangeView,
+    pub(in crate::app) source_control_sort: crate::app::ui::change_tree::ChangeSort,
+    pub(in crate::app) source_control_error: Option<String>,
     pub(in crate::app) _network_proxy_subscription: Subscription,
     pub(in crate::app) _text_editor_subscription: Subscription,
 }

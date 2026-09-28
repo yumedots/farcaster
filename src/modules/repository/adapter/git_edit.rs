@@ -29,6 +29,19 @@ pub(super) fn apply(
             }
             run(backend, &["commit", "--only", "-m", message], &review.paths)
         }
+        RepositoryEdit::CommitIndex => run(backend, &["commit", "-m", message], &[]),
+        RepositoryEdit::Stage => run(backend, &["add"], &review.paths),
+        RepositoryEdit::Unstage => {
+            // Without a commit there is nothing to restore the index from and the
+            // entries are dropped instead.
+            let unborn = review.snapshot.identity.head_oid.is_none();
+            let command: &[&str] = if unborn {
+                &["rm", "--cached", "-r"]
+            } else {
+                &["restore", "--staged"]
+            };
+            run(backend, command, &review.paths)
+        }
         RepositoryEdit::Discard => {
             let tracked = review
                 .paths

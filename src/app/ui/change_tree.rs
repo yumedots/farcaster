@@ -5,6 +5,65 @@ use std::{
 
 const LARGE_CHANGESET: usize = 20;
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum ChangeView {
+    #[default]
+    Tree,
+    List,
+}
+
+impl ChangeView {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Tree => "tree",
+            Self::List => "list",
+        }
+    }
+
+    pub(crate) fn from_setting(value: Option<&str>) -> Self {
+        match value {
+            Some("list") => Self::List,
+            _ => Self::Tree,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum ChangeSort {
+    #[default]
+    Path,
+    Name,
+    Status,
+}
+
+impl ChangeSort {
+    pub(crate) const ALL: [Self; 3] = [Self::Path, Self::Name, Self::Status];
+
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::Path => "Sort by path",
+            Self::Name => "Sort by name",
+            Self::Status => "Sort by status",
+        }
+    }
+
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Path => "path",
+            Self::Name => "name",
+            Self::Status => "status",
+        }
+    }
+
+    pub(crate) fn from_setting(value: Option<&str>) -> Self {
+        match value {
+            Some("name") => Self::Name,
+            Some("status") => Self::Status,
+            _ => Self::Path,
+        }
+    }
+}
+
 #[derive(Clone, Default)]
 pub(crate) struct ChangeTreeState {
     projects: BTreeMap<PathBuf, FolderState>,
@@ -97,6 +156,13 @@ impl Default for Node {
     }
 }
 
+pub(crate) fn matches(path: &Path, original: Option<&Path>, query: &str) -> bool {
+    let query = query.trim().to_lowercase();
+    query.is_empty()
+        || path.to_string_lossy().to_lowercase().contains(&query)
+        || original.is_some_and(|path| path.to_string_lossy().to_lowercase().contains(&query))
+}
+
 pub(crate) fn rows<'a>(
     files: impl Iterator<Item = (usize, &'a Path, Option<&'a Path>, Option<(usize, usize)>)>,
     query: &str,
@@ -107,10 +173,7 @@ pub(crate) fn rows<'a>(
     let mut root = Node::default();
     let mut seen = BTreeSet::new();
     for (index, path, original, counts) in files {
-        if !query.is_empty()
-            && !path.to_string_lossy().to_lowercase().contains(&query)
-            && !original.is_some_and(|path| path.to_string_lossy().to_lowercase().contains(&query))
-        {
+        if !matches(path, original, &query) {
             continue;
         }
         let increment = usize::from(seen.insert(path));

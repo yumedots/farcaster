@@ -56,7 +56,7 @@ impl ChangeKind {
             Self::Renamed => "R",
             Self::Copied => "C",
             Self::TypeChanged => "T",
-            Self::Untracked => "?",
+            Self::Untracked => "U",
             Self::Conflict => "U",
             Self::Unknown(status) => status,
         }
@@ -106,7 +106,6 @@ pub(crate) struct WorkingCopySnapshot {
     pub(crate) captured_at: SystemTime,
 }
 
-#[cfg(test)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DiffResult {
     pub(crate) target: DiffTarget,

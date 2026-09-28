@@ -15,6 +15,7 @@ pub(in crate::app) mod code_tasks;
 mod editor;
 pub(in crate::app) mod editor_session;
 mod regions;
+mod repository_diff;
 pub(in crate::app) mod review;
 pub(in crate::app) mod runtime_picker;
 pub(in crate::app) mod send_to_chat;

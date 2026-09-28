@@ -3,6 +3,7 @@ pub(super) mod delete_confirmation;
 pub(super) mod image_preview;
 pub(super) mod project_trust;
 pub(super) mod quit_confirmation;
+pub(super) mod repository_diff;
 pub(super) mod repository_edit;
 pub(in crate::app) mod send_to_chat;
 pub(super) mod session_import;

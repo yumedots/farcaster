@@ -11,6 +11,7 @@ use crate::{
 #[derive(Default)]
 pub(in crate::app) struct FileSelection {
     pub paths: BTreeSet<PathBuf>,
+    anchor: Option<PathBuf>,
 }
 
 impl FileSelection {
@@ -20,6 +21,31 @@ impl FileSelection {
         }
     }
 
+    /// A modifier click: the row toggles itself and becomes the new anchor.
+    pub fn toggle_from(&mut self, path: PathBuf) {
+        self.anchor = Some(path.clone());
+        self.toggle(path);
+    }
+
+    /// A shift click: every visible row between the anchor and the row is added.
+    pub fn extend_to(&mut self, path: PathBuf, visible: &[PathBuf]) {
+        let anchor = self
+            .anchor
+            .as_ref()
+            .and_then(|anchor| visible.iter().position(|row| row == anchor));
+        let (Some(anchor), Some(end)) = (anchor, visible.iter().position(|row| row == &path))
+        else {
+            self.toggle_from(path);
+            return;
+        };
+        let (start, end) = if anchor <= end {
+            (anchor, end)
+        } else {
+            (end, anchor)
+        };
+        self.paths.extend(visible[start..=end].iter().cloned());
+    }
+
     pub fn retain(&mut self, snapshot: &WorkingCopySnapshot) {
         self.paths.retain(|path| {
             snapshot
@@ -27,6 +53,13 @@ impl FileSelection {
                 .iter()
                 .any(|change| &change.relative_path == path)
         });
+        if self
+            .anchor
+            .as_ref()
+            .is_some_and(|anchor| !self.paths.contains(anchor))
+        {
+            self.anchor = None;
+        }
     }
 }
 
@@ -34,6 +67,7 @@ impl FileSelection {
 pub(in crate::app) struct RepositoryEditState {
     pub selection: FileSelection,
     pub pending: Option<PendingRepositoryEdit>,
+    pub staging: bool,
     generation: u64,
 }
 
@@ -66,8 +100,7 @@ impl PendingRepositoryEdit {
         self.review.is_some()
             && self.error.is_none()
             && !self.applying
-            && (self.action != RepositoryEdit::Commit
-                || !self.input.read(cx).value().trim().is_empty())
+            && (!self.action.requires_message() || !self.input.read(cx).value().trim().is_empty())
     }
 }
 
@@ -86,10 +119,106 @@ impl FarcasterApp {
         }
     }
 
+    pub(in crate::app) fn toggle_repository_selection(
+        &mut self,
+        path: PathBuf,
+        cx: &mut Context<Self>,
+    ) {
+        if self.repository_edit_available() {
+            self.project.repository.edits.selection.toggle_from(path);
+            self.notify_run_panel(cx);
+        }
+    }
+
+    pub(in crate::app) fn extend_repository_selection(
+        &mut self,
+        path: PathBuf,
+        visible: Vec<PathBuf>,
+        cx: &mut Context<Self>,
+    ) {
+        if self.repository_edit_available() {
+            self.project
+                .repository
+                .edits
+                .selection
+                .extend_to(path, &visible);
+            self.notify_run_panel(cx);
+        }
+    }
+
+    fn repository_edit_available(&self) -> bool {
+        self.project.repository.edits.pending.is_none()
+            && !self.project.repository.edits.staging
+            && self.project.repository.execution_allowed
+    }
+
+    /// Files a row's context menu acts on: the whole selection when the row is
+    /// part of it, otherwise just that row.
+    pub(in crate::app) fn repository_menu_paths(&self, path: &PathBuf) -> Vec<PathBuf> {
+        let selection = &self.project.repository.edits.selection.paths;
+        if selection.len() > 1 && selection.contains(path) {
+            selection.iter().cloned().collect()
+        } else {
+            vec![path.clone()]
+        }
+    }
+
+    pub(in crate::app) fn stage_repository_paths(
+        &mut self,
+        action: RepositoryEdit,
+        paths: BTreeSet<PathBuf>,
+        cx: &mut Context<Self>,
+    ) {
+        if !matches!(action, RepositoryEdit::Stage | RepositoryEdit::Unstage)
+            || paths.is_empty()
+            || !self.project.repository.execution_allowed
+            || self.project.repository.sync.action.is_some()
+            || self.project.repository.edits.pending.is_some()
+            || self.project.repository.edits.staging
+        {
+            return;
+        }
+        let Some(backend) = self.project.repository.backend.clone() else {
+            return;
+        };
+        self.project.repository.edits.staging = true;
+        self.notify_run_panel(cx);
+        let task = cx.background_spawn(async move {
+            let snapshot = backend.snapshot()?;
+            let review = backend.prepare_edit(&snapshot, &paths)?;
+            backend.apply_edit(&review, action, "")
+        });
+        cx.spawn(async move |weak, cx| {
+            let result = task.await;
+            let _ = weak.update(cx, |this, cx| {
+                this.project.repository.edits.staging = false;
+                if let Err(error) = result {
+                    this.project.repository.error = Some(error.to_string());
+                }
+                this.request_repository_refresh(cx);
+                this.notify_run_panel(cx);
+            });
+        })
+        .detach();
+    }
+
     pub(in crate::app) fn review_repository_edit(
         &mut self,
         action: RepositoryEdit,
         path: Option<PathBuf>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let selected = path
+            .map(|path| BTreeSet::from([path]))
+            .unwrap_or_else(|| self.project.repository.edits.selection.paths.clone());
+        self.review_repository_paths(action, selected, window, cx);
+    }
+
+    pub(in crate::app) fn review_repository_paths(
+        &mut self,
+        action: RepositoryEdit,
+        selected: BTreeSet<PathBuf>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -105,9 +234,6 @@ impl FarcasterApp {
         ) else {
             return;
         };
-        let selected = path
-            .map(|path| BTreeSet::from([path]))
-            .unwrap_or_else(|| self.project.repository.edits.selection.paths.clone());
         if selected.is_empty() {
             return;
         }
@@ -116,7 +242,7 @@ impl FarcasterApp {
             cx,
             |input| input.auto_grow(2, 6).placeholder("Commit message"),
             move |this, window, cx| {
-                if action == RepositoryEdit::Commit {
+                if action.requires_message() {
                     this.confirm_repository_edit(window, cx);
                 }
             },
@@ -124,7 +250,7 @@ impl FarcasterApp {
         let focus = cx.focus_handle();
         let return_focus = window.focused(cx);
         self.cover_native_workspace_surface(cx);
-        if action == RepositoryEdit::Commit {
+        if action.requires_message() {
             input.read(cx).focus_handle(cx).focus(window, cx);
         } else {
             focus.focus(window, cx);

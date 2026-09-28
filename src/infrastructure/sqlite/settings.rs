@@ -53,6 +53,65 @@ impl StateStore {
             .map_err(|error| format!("save transcript folder setting: {error}"))
     }
 
+    pub(crate) fn load_stage_changes_like_vscode(&self) -> Result<bool, String> {
+        self.connection
+            .query_row(
+                "SELECT value FROM meta WHERE key='stage_changes_like_vscode'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map(|value| value.as_deref() != Some("false"))
+            .map_err(|error| format!("load source control setting: {error}"))
+    }
+
+    pub(crate) fn save_stage_changes_like_vscode(&self, enabled: bool) -> Result<(), String> {
+        self.connection
+            .execute(
+                "INSERT INTO meta(key, value) VALUES('stage_changes_like_vscode', ?1)
+             ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                [if enabled { "true" } else { "false" }],
+            )
+            .map(|_| ())
+            .map_err(|error| format!("save source control setting: {error}"))
+    }
+
+    pub(crate) fn load_source_control_view(&self) -> Result<Option<String>, String> {
+        self.optional_setting("source_control_view", "load source control view")
+    }
+
+    pub(crate) fn save_source_control_view(&self, view: &str) -> Result<(), String> {
+        self.save_setting("source_control_view", view, "save source control view")
+    }
+
+    pub(crate) fn load_source_control_sort(&self) -> Result<Option<String>, String> {
+        self.optional_setting("source_control_sort", "load source control sort")
+    }
+
+    pub(crate) fn save_source_control_sort(&self, sort: &str) -> Result<(), String> {
+        self.save_setting("source_control_sort", sort, "save source control sort")
+    }
+
+    fn optional_setting(&self, key: &str, context: &str) -> Result<Option<String>, String> {
+        self.connection
+            .query_row("SELECT value FROM meta WHERE key=?1", [key], |row| {
+                row.get::<_, String>(0)
+            })
+            .optional()
+            .map_err(|error| format!("{context}: {error}"))
+    }
+
+    fn save_setting(&self, key: &str, value: &str, context: &str) -> Result<(), String> {
+        self.connection
+            .execute(
+                "INSERT INTO meta(key, value) VALUES(?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                [key, value],
+            )
+            .map(|_| ())
+            .map_err(|error| format!("{context}: {error}"))
+    }
+
     pub(crate) fn load_text_editor(&self) -> Result<Option<String>, String> {
         self.connection
             .query_row(

@@ -115,7 +115,7 @@ fn stable_keys_do_not_use_lossy_path_display() {
         second.target.relative_path.to_string_lossy()
     );
     assert_eq!(first.target.layer, ChangeLayer::Untracked);
-    assert_eq!(first.target.kind.status_label(), "?");
+    assert_eq!(first.target.kind.status_label(), "U");
     assert_ne!(first.target.key, second.target.key);
 }
 

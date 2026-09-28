@@ -27,7 +27,7 @@ pub(in crate::app::views) fn render(
         .pending
         .as_ref()
         .expect("visible repository review");
-    let commit = pending.action == RepositoryEdit::Commit;
+    let commit = pending.action.requires_message();
     let deletes = pending
         .review
         .as_ref()
@@ -41,6 +41,13 @@ pub(in crate::app::views) fn render(
         "Delete file?".to_owned()
     } else {
         "Discard changes?".to_owned()
+    };
+    let detail = if pending.action == RepositoryEdit::CommitIndex {
+        Some("Commits the staged changes. Unstaged edits stay in the working tree.")
+    } else if commit {
+        Some("Includes staged and unstaged changes.")
+    } else {
+        None
     };
     let label = if pending.applying {
         if commit {
@@ -73,12 +80,12 @@ pub(in crate::app::views) fn render(
                     .flex_col()
                     .gap(theme().space.sm)
                     .child(div().text_size(theme().type_scale.body).child(title))
-                    .when(!commit && !deletes, |body| {
+                    .when_some(detail, |body, detail| {
                         body.child(
                             div()
                                 .text_size(theme().type_scale.caption)
                                 .text_color(theme().colors.muted)
-                                .child("Includes staged and unstaged changes."),
+                                .child(detail),
                         )
                     })
                     .child(

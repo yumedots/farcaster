@@ -1,7 +1,4 @@
-use std::{
-    rc::Rc,
-    time::{Duration, Instant},
-};
+use std::{rc::Rc, time::Duration};
 
 use gpui::{
     AnyElement, AnyView, App, Bounds, Context, Div, ElementId, InteractiveElement, IntoElement,
@@ -12,10 +9,11 @@ use gpui::{
 use crate::{Placement, Positioner};
 
 const WINDOW_MARGIN: Pixels = px(4.);
-// Long enough that moving the pointer from one trigger to a sibling one keeps
-// the tooltip on screen and swaps its content instead of hiding and waiting out
-// the show delay again.
-const GRACE_PERIOD: Duration = Duration::from_millis(600);
+// How long a tooltip stays up after the pointer leaves its trigger.
+const HIDE_DELAY: Duration = Duration::from_millis(600);
+// How long the pointer has to rest on a trigger before its tooltip appears.
+// Every new trigger pays this, so sweeping down a list of rows does not flash
+// each row's tooltip on the way past.
 const SHOW_DELAY: Duration = Duration::from_millis(400);
 
 type TooltipBuilder = Rc<dyn Fn(&mut Window, &mut App) -> AnyView>;
@@ -100,7 +98,10 @@ pub struct TooltipOverlay {
     content: Option<TooltipRequest>,
     previous_bounds: Option<Bounds<Pixels>>,
     epoch: usize,
-    last_hide: Option<Instant>,
+    /// The trigger the current countdown or content belongs to. A request from
+    /// any other trigger restarts the countdown; a repeat from this one does
+    /// not.
+    requested_bounds: Option<Bounds<Pixels>>,
     animation_epoch: usize,
     is_switching: bool,
     show_task: Option<Task<()>>,
@@ -114,7 +115,7 @@ impl TooltipOverlay {
             content: None,
             previous_bounds: None,
             epoch: 0,
-            last_hide: None,
+            requested_bounds: None,
             animation_epoch: 0,
             is_switching: false,
             show_task: None,
@@ -125,16 +126,6 @@ impl TooltipOverlay {
 
     pub fn is_visible(&self) -> bool {
         self.content.is_some()
-    }
-
-    /// Whether a tooltip was hidden recently enough that the next one may
-    /// appear without the show delay. Reading the deadline instead of latching
-    /// a flag keeps the delay honest: cancelling the hide timer (which happens
-    /// whenever the pointer lands on a sibling trigger) can no longer leave
-    /// every later tooltip immediate.
-    fn had_recent_tooltip(&self) -> bool {
-        self.last_hide
-            .is_some_and(|hidden_at| hidden_at.elapsed() < GRACE_PERIOD)
     }
 
     pub fn render_with(
@@ -157,17 +148,25 @@ impl TooltipOverlay {
         cx: &mut Context<Self>,
     ) {
         self.hide_task = None;
-        let was_visible = self.content.is_some();
-        if was_visible || self.had_recent_tooltip() {
-            self.previous_bounds = self.content.as_ref().map(|content| content.trigger_bounds);
-            self.content = Some(content);
-            self.show_task = None;
-            self.is_switching = was_visible;
-            self.animation_epoch += 1;
-            cx.notify();
+        let trigger_bounds = content.trigger_bounds;
+        if self.requested_bounds == Some(trigger_bounds) {
+            // The same trigger asking again: a re-render, or the pointer moving
+            // inside it. Refresh the content in place and let the countdown, if
+            // it is still running, finish.
+            if self.content.is_some() {
+                self.content = Some(content);
+                cx.notify();
+            }
             return;
         }
 
+        // A different trigger replaces whatever is showing and waits its turn,
+        // so the tooltip reflects where the pointer stopped rather than where
+        // it passed.
+        self.requested_bounds = Some(trigger_bounds);
+        self.content = None;
+        self.previous_bounds = None;
+        self.is_switching = false;
         let epoch = self.next_epoch();
         self.show_task = Some(cx.spawn_in(window, async move |this, cx| {
             cx.background_executor().timer(SHOW_DELAY).await;
@@ -189,9 +188,8 @@ impl TooltipOverlay {
             return;
         }
         let epoch = self.next_epoch();
-        self.last_hide = Some(Instant::now());
         self.hide_task = Some(cx.spawn_in(window, async move |this, cx| {
-            cx.background_executor().timer(GRACE_PERIOD).await;
+            cx.background_executor().timer(HIDE_DELAY).await;
             let _ = this.update_in(cx, |this, _, cx| {
                 if this.epoch == epoch {
                     this.content = None;
@@ -205,12 +203,12 @@ impl TooltipOverlay {
     pub fn hide(&mut self, cx: &mut Context<Self>) {
         let changed = self.content.is_some()
             || self.previous_bounds.is_some()
-            || self.had_recent_tooltip()
+            || self.requested_bounds.is_some()
             || self.show_task.is_some()
             || self.hide_task.is_some();
         self.content = None;
         self.previous_bounds = None;
-        self.last_hide = None;
+        self.requested_bounds = None;
         self.is_switching = false;
         self.show_task = None;
         self.hide_task = None;
@@ -283,63 +281,5 @@ impl IntoElement for TooltipPositioner {
 
     fn into_element(self) -> Self::Element {
         self.0
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use gpui::{AppContext as _, point, size};
-
-    fn bounds(x: f32, y: f32, width: f32, height: f32) -> Bounds<Pixels> {
-        Bounds::new(point(px(x), px(y)), size(px(width), px(height)))
-    }
-
-    #[gpui::test]
-    fn provider_owns_grace_switch_and_dismiss(cx: &mut gpui::TestAppContext) {
-        let state = cx.update(|cx| cx.new(|_| TooltipOverlay::new()));
-        let cx = cx.add_empty_window();
-        cx.update(|window, cx| {
-            state.update(cx, |tooltip, cx| {
-                tooltip.last_hide = Some(Instant::now());
-                tooltip.request_show(
-                    TooltipRequest::new(bounds(0., 0., 20., 20.), |_, _| {
-                        panic!("content is not rendered by this lifecycle test")
-                    }),
-                    window,
-                    cx,
-                );
-            });
-        });
-        cx.update(|_, cx| assert!(state.read(cx).content.is_some()));
-
-        cx.update(|_, cx| {
-            state.update(cx, |tooltip, cx| tooltip.hide(cx));
-        });
-        cx.update(|_, cx| assert!(state.read(cx).content.is_none()));
-    }
-
-    #[gpui::test]
-    fn grace_expires_so_the_next_hover_pays_the_show_delay_again(
-        cx: &mut gpui::TestAppContext,
-    ) {
-        let state = cx.update(|cx| cx.new(|_| TooltipOverlay::new()));
-        let cx = cx.add_empty_window();
-        cx.update(|window, cx| {
-            state.update(cx, |tooltip, cx| {
-                tooltip.content = Some(TooltipRequest::new(bounds(0., 0., 20., 20.), |_, _| {
-                    panic!("content is not rendered by this lifecycle test")
-                }));
-                tooltip.request_hide(window, cx);
-                assert!(tooltip.had_recent_tooltip());
-            });
-        });
-
-        cx.update(|_, cx| {
-            state.update(cx, |tooltip, _| {
-                tooltip.last_hide = Some(Instant::now() - GRACE_PERIOD * 2);
-            });
-        });
-        cx.update(|_, cx| assert!(!state.read(cx).had_recent_tooltip()));
     }
 }

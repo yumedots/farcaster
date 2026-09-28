@@ -85,6 +85,7 @@ fn asset_source_serves_only_themeable_icons() {
         AppIcon::List,
         AppIcon::MagnifyingGlass,
         AppIcon::Micro,
+        AppIcon::Minus,
         AppIcon::Nano,
         AppIcon::Neovim,
         AppIcon::OpenCode,

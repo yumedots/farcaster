@@ -93,14 +93,14 @@ impl FarcasterApp {
             ))
         } else if self.overlays.image_preview.is_some() {
             Some(self.overlays.image_preview_focus.clone())
+        } else if self.overlays.repository_diff.is_some() {
+            Some(self.overlays.repository_diff_focus.clone())
         } else if let Some(pending) = &self.project.repository.edits.pending {
-            Some(
-                if pending.action == crate::repository::RepositoryEdit::Commit {
-                    pending.input.read(cx).focus_handle(cx)
-                } else {
-                    pending.focus.clone()
-                },
-            )
+            Some(if pending.action.requires_message() {
+                pending.input.read(cx).focus_handle(cx)
+            } else {
+                pending.focus.clone()
+            })
         } else if let Some(pending) = &self.sessions.pending_delete {
             Some(pending.focus.clone())
         } else if let Some(dialog) = &self.sessions.import {
@@ -427,7 +427,9 @@ impl FarcasterApp {
         };
         match request {
             PostRenderFocus::ImagePreview => {
-                if self.overlays.image_preview.is_some() {
+                if self.overlays.repository_diff.is_some() {
+                    self.overlays.repository_diff_focus.focus(window, cx);
+                } else if self.overlays.image_preview.is_some() {
                     self.overlays.image_preview_focus.focus(window, cx);
                 }
             }
@@ -480,6 +482,7 @@ impl FarcasterApp {
             || self.sessions.pending_delete.is_some()
             || self.sessions.import.is_some()
             || self.overlays.image_preview.is_some()
+            || self.overlays.repository_diff.is_some()
             || self.project.repository.edits.pending.is_some()
     }
 
@@ -885,6 +888,66 @@ impl FarcasterApp {
         cx.notify();
     }
 
+    pub(in crate::app) fn toggle_settings_stage_changes_like_vscode(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
+        let enabled = !self.settings.stage_changes_like_vscode;
+        match crate::app::infrastructure::persistence::StateStore::open()
+            .and_then(|store| store.save_stage_changes_like_vscode(enabled))
+        {
+            Ok(()) => {
+                self.settings.stage_changes_like_vscode = enabled;
+                self.settings.source_control_error = None;
+                self.notify_run_panel(cx);
+            }
+            Err(error) => self.settings.source_control_error = Some(error),
+        }
+        cx.notify();
+    }
+
+    pub(in crate::app) fn set_source_control_view(
+        &mut self,
+        view: crate::app::ui::change_tree::ChangeView,
+        cx: &mut Context<Self>,
+    ) {
+        if self.settings.source_control_view == view {
+            return;
+        }
+        match crate::app::infrastructure::persistence::StateStore::open()
+            .and_then(|store| store.save_source_control_view(view.as_str()))
+        {
+            Ok(()) => {
+                self.settings.source_control_view = view;
+                self.settings.source_control_error = None;
+                self.notify_run_panel(cx);
+            }
+            Err(error) => self.settings.source_control_error = Some(error),
+        }
+        cx.notify();
+    }
+
+    pub(in crate::app) fn set_source_control_sort(
+        &mut self,
+        sort: crate::app::ui::change_tree::ChangeSort,
+        cx: &mut Context<Self>,
+    ) {
+        if self.settings.source_control_sort == sort {
+            return;
+        }
+        match crate::app::infrastructure::persistence::StateStore::open()
+            .and_then(|store| store.save_source_control_sort(sort.as_str()))
+        {
+            Ok(()) => {
+                self.settings.source_control_sort = sort;
+                self.settings.source_control_error = None;
+                self.notify_run_panel(cx);
+            }
+            Err(error) => self.settings.source_control_error = Some(error),
+        }
+        cx.notify();
+    }
+
     pub(in crate::app) fn save_settings_proxy(&mut self, cx: &mut Context<Self>) {
         self.settings.proxy_save = None;
         let value = self
@@ -1092,6 +1155,8 @@ impl FarcasterApp {
             self.close_send_to_chat(window, cx);
         } else if self.overlays.image_preview.is_some() {
             self.close_image_preview(window, cx);
+        } else if self.overlays.repository_diff.is_some() {
+            self.close_repository_diff(window, cx);
         } else if self.project.repository.edits.pending.is_some() {
             self.close_repository_edit(window, cx);
         } else if self.sessions.pending_delete.is_some() {

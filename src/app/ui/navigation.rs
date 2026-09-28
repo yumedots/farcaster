@@ -212,6 +212,9 @@ impl FarcasterApp {
         if self.overlays.image_preview.is_some() {
             self.close_image_preview(window, cx);
         }
+        if self.overlays.repository_diff.is_some() {
+            self.close_repository_diff(window, cx);
+        }
         if self.navigation.picker.is_some() {
             self.close_picker(window, cx);
         }

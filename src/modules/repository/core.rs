@@ -1,17 +1,16 @@
+mod diff;
 mod edit;
 mod file_counts;
 pub(super) mod port;
 mod sync;
 
+pub(crate) use diff::{DiffLine, DiffLineKind, FileDiff, HunkApply};
 pub(crate) use edit::{RepositoryEdit, RepositoryEditReview};
 
 use super::contract::{
-    ChangeKind, ChangeLayer, DiffTarget, DiffTargetKey, RepositoryError, RepositoryLocation,
-    WorkingCopyChange, WorkingCopySnapshot,
+    ChangeKind, ChangeLayer, DiffResult, DiffTarget, DiffTargetKey, RepositoryError,
+    RepositoryLocation, WorkingCopyChange, WorkingCopySnapshot,
 };
-
-#[cfg(test)]
-use super::contract::DiffResult;
 
 use std::{
     ffi::OsString,
@@ -150,11 +149,32 @@ impl RepositoryBackend {
         ))
     }
 
-    #[cfg(test)]
     pub(crate) fn load_diff(&self, target: DiffTarget) -> Result<DiffResult, RepositoryError> {
         self.validate_target(&target)?;
         let _operation = repository_operation()?;
         self.operations.load_diff(self, target)
+    }
+
+    /// The file's diff, split into hunks that can each be applied on their own.
+    pub(crate) fn file_diff(&self, target: &DiffTarget) -> Result<FileDiff, RepositoryError> {
+        let result = self.load_diff(target.clone())?;
+        Ok(FileDiff::parse(&result.patch))
+    }
+
+    /// Applies one hunk's patch. The patch comes straight from a diff this
+    /// backend produced, so a failure means the file moved on underneath it.
+    pub(crate) fn apply_hunk_patch(
+        &self,
+        patch: &str,
+        mode: HunkApply,
+    ) -> Result<(), RepositoryError> {
+        if patch.trim().is_empty() {
+            return Err(RepositoryError::InvalidRepository(
+                "There is no hunk to apply".into(),
+            ));
+        }
+        let _operation = repository_operation()?;
+        self.operations.apply_patch(self, patch, mode)
     }
 
     pub(crate) fn list_project_files(&self) -> Result<Vec<String>, RepositoryError> {
@@ -171,7 +191,6 @@ impl RepositoryBackend {
         }
     }
 
-    #[cfg(test)]
     fn validate_target(&self, target: &DiffTarget) -> Result<(), RepositoryError> {
         if target.workspace_root != self.location.workspace_root {
             return Err(RepositoryError::TargetMismatch(format!(
@@ -371,7 +390,6 @@ pub(super) fn change(
     })
 }
 
-#[cfg(test)]
 pub(super) fn diff_result(target: DiffTarget, patch: String) -> DiffResult {
     let (additions, deletions) = patch_counts(&patch);
     let exists = target.absolute_path().exists();

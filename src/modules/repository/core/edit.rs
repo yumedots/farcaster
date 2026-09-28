@@ -13,7 +13,16 @@ use crate::repository::{ChangeKind, RepositoryError, WorkingCopySnapshot};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum RepositoryEdit {
     Commit,
+    CommitIndex,
     Discard,
+    Stage,
+    Unstage,
+}
+
+impl RepositoryEdit {
+    pub(crate) const fn requires_message(self) -> bool {
+        matches!(self, Self::Commit | Self::CommitIndex)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -109,7 +118,7 @@ impl RepositoryBackend {
                 "Review belongs to another repository".into(),
             ));
         }
-        if action == RepositoryEdit::Commit && message.trim().is_empty() {
+        if action.requires_message() && message.trim().is_empty() {
             return Err(RepositoryError::InvalidRepository(
                 "Enter a commit message".into(),
             ));

@@ -82,6 +82,32 @@ impl EditRepo {
         self.command(&["add", "."]);
         self.command(&["commit", "-m", "base"]);
     }
+
+    fn target(&self, path: &str, layer: ChangeLayer) -> DiffTarget {
+        self.backend
+            .snapshot()
+            .expect("test operation should succeed")
+            .changes
+            .into_iter()
+            .find(|change| change.relative_path == Path::new(path) && change.layer == layer)
+            .map(|change| change.target)
+            .expect("change in the snapshot")
+    }
+
+    /// A committed file with two changes far enough apart to land in separate
+    /// hunks, one on line 2 and one on line 19.
+    fn two_hunk_file(&self, path: &str) {
+        let lines = (1..=24)
+            .map(|line| format!("line {line}\n"))
+            .collect::<String>();
+        self.write(path, &lines);
+        self.command(&["add", path]);
+        self.command(&["commit", "-m", "wide"]);
+        let edited = lines
+            .replace("line 2\n", "line two\n")
+            .replace("line 19\n", "line nineteen\n");
+        self.write(path, &edited);
+    }
 }
 
 #[test]
@@ -115,17 +141,27 @@ fn git_review_rejects_same_status_binary_edits_and_empty_message() {
     repo.base();
     repo.write("selected", b"\0one");
     let review = repo.review(&["selected"]);
-    assert!(
-        repo.backend
-            .apply_edit(&review, RepositoryEdit::Commit, " \n")
-            .is_err()
-    );
+    for action in [RepositoryEdit::Commit, RepositoryEdit::CommitIndex] {
+        assert!(
+            repo.backend.apply_edit(&review, action, " \n").is_err(),
+            "{action:?}"
+        );
+    }
     repo.write("selected", b"\0two");
-    for action in [RepositoryEdit::Commit, RepositoryEdit::Discard] {
-        assert!(matches!(
-            repo.backend.apply_edit(&review, action, "message"),
-            Err(RepositoryError::StaleSnapshot)
-        ));
+    for action in [
+        RepositoryEdit::Commit,
+        RepositoryEdit::CommitIndex,
+        RepositoryEdit::Discard,
+        RepositoryEdit::Stage,
+        RepositoryEdit::Unstage,
+    ] {
+        assert!(
+            matches!(
+                repo.backend.apply_edit(&review, action, "message"),
+                Err(RepositoryError::StaleSnapshot)
+            ),
+            "{action:?}"
+        );
     }
     assert_eq!(
         fs::read(repo.root().join("selected")).expect("test operation should succeed"),
@@ -180,6 +216,127 @@ fn git_discard_handles_renames_and_new_files() {
 }
 
 #[test]
+fn git_stage_moves_every_kind_of_working_change_into_the_index() {
+    let repo = EditRepo::new();
+    repo.base();
+    repo.write("selected", "staged\n");
+    repo.write("fresh", "new\n");
+    fs::remove_file(repo.root().join("other")).expect("test operation should succeed");
+
+    let review = repo.review(&["selected", "fresh", "other"]);
+    repo.backend
+        .apply_edit(&review, RepositoryEdit::Stage, "")
+        .expect("test operation should succeed");
+
+    let snapshot = repo
+        .backend
+        .snapshot()
+        .expect("test operation should succeed");
+    for (path, kind) in [
+        ("selected", ChangeKind::Modified),
+        ("fresh", ChangeKind::Added),
+        ("other", ChangeKind::Deleted),
+    ] {
+        let change = snapshot
+            .changes
+            .iter()
+            .find(|change| change.relative_path == Path::new(path))
+            .expect("staged row");
+        assert_eq!(change.layer, ChangeLayer::Index, "{path}");
+        assert_eq!(change.kind, kind, "{path}");
+    }
+    assert_eq!(snapshot.changes.len(), 3);
+    assert_eq!(
+        repo.command(&["diff", "--cached", "--name-only"]),
+        "fresh\nother\nselected\n"
+    );
+    assert_eq!(repo.command(&["diff", "--name-only"]), "");
+
+    let review = repo.review(&["selected", "fresh", "other"]);
+    repo.backend
+        .apply_edit(&review, RepositoryEdit::Unstage, "")
+        .expect("test operation should succeed");
+
+    let snapshot = repo
+        .backend
+        .snapshot()
+        .expect("test operation should succeed");
+    for (path, layer, kind) in [
+        ("selected", ChangeLayer::WorkingTree, ChangeKind::Modified),
+        ("fresh", ChangeLayer::Untracked, ChangeKind::Untracked),
+        ("other", ChangeLayer::WorkingTree, ChangeKind::Deleted),
+    ] {
+        let change = snapshot
+            .changes
+            .iter()
+            .find(|change| change.relative_path == Path::new(path))
+            .expect("unstaged row");
+        assert_eq!(change.layer, layer, "{path}");
+        assert_eq!(change.kind, kind, "{path}");
+    }
+    assert_eq!(repo.command(&["diff", "--cached", "--name-only"]), "");
+    assert_eq!(repo.read("selected"), "staged\n");
+    assert!(!repo.root().join("other").exists());
+}
+
+#[test]
+fn git_stage_collapses_a_file_that_is_staged_and_modified_again() {
+    let repo = EditRepo::new();
+    repo.base();
+    repo.write("selected", "first\n");
+    repo.command(&["add", "selected"]);
+    repo.write("selected", "second\n");
+
+    let snapshot = repo
+        .backend
+        .snapshot()
+        .expect("test operation should succeed");
+    assert_eq!(
+        snapshot.changes.len(),
+        2,
+        "one staged row and one working row"
+    );
+
+    repo.backend
+        .apply_edit(&repo.review(&["selected"]), RepositoryEdit::Stage, "")
+        .expect("test operation should succeed");
+
+    let snapshot = repo
+        .backend
+        .snapshot()
+        .expect("test operation should succeed");
+    assert_eq!(snapshot.changes.len(), 1);
+    assert_eq!(snapshot.changes[0].layer, ChangeLayer::Index);
+    assert_eq!(repo.command(&["show", ":selected"]), "second\n");
+}
+
+#[test]
+fn git_unstage_drops_index_entries_before_the_first_commit() {
+    let repo = EditRepo::new();
+    repo.write("selected", "new\n");
+    repo.command(&["add", "selected"]);
+
+    let snapshot = repo
+        .backend
+        .snapshot()
+        .expect("test operation should succeed");
+    assert_eq!(snapshot.changes.len(), 1);
+    assert_eq!(snapshot.changes[0].layer, ChangeLayer::Index);
+
+    repo.backend
+        .apply_edit(&repo.review(&["selected"]), RepositoryEdit::Unstage, "")
+        .expect("test operation should succeed");
+
+    let snapshot = repo
+        .backend
+        .snapshot()
+        .expect("test operation should succeed");
+    assert_eq!(snapshot.changes.len(), 1);
+    assert_eq!(snapshot.changes[0].layer, ChangeLayer::Untracked);
+    assert_eq!(repo.read("selected"), "new\n");
+}
+
+#[test]
 fn git_initial_commit_selects_only_chosen_new_file() {
     let repo = EditRepo::new();
     repo.write("selected", "new\n");
@@ -200,6 +357,165 @@ fn git_initial_commit_selects_only_chosen_new_file() {
         repo.command(&["diff", "--cached", "--name-only"]),
         "other\n"
     );
+}
+
+#[test]
+fn git_index_commit_leaves_unstaged_edits_and_unrelated_files_alone() {
+    let repo = EditRepo::new();
+    repo.base();
+    repo.write("selected", "staged\n");
+    repo.write("fresh", "new\n");
+    repo.command(&["add", "selected", "fresh"]);
+    repo.write("selected", "working\n");
+    repo.write("other", "unstaged\n");
+
+    repo.backend
+        .apply_edit(
+            &repo.review(&["selected", "fresh"]),
+            RepositoryEdit::CommitIndex,
+            "staged contents",
+        )
+        .expect("test operation should succeed");
+
+    assert_eq!(repo.command(&["show", "HEAD:selected"]), "staged\n");
+    assert_eq!(repo.command(&["show", "HEAD:fresh"]), "new\n");
+    assert_eq!(repo.command(&["show", "HEAD:other"]), "base\n");
+    assert_eq!(repo.read("selected"), "working\n");
+    assert_eq!(repo.read("other"), "unstaged\n");
+    assert_eq!(repo.command(&["diff", "--name-only"]), "other\nselected\n");
+    assert_eq!(repo.command(&["diff", "--cached", "--name-only"]), "");
+}
+
+#[test]
+fn git_index_commit_fails_when_nothing_is_staged() {
+    let repo = EditRepo::new();
+    repo.base();
+    repo.write("selected", "working\n");
+    let head = repo.command(&["rev-parse", "HEAD"]);
+
+    assert!(
+        repo.backend
+            .apply_edit(
+                &repo.review(&["selected"]),
+                RepositoryEdit::CommitIndex,
+                "nothing staged"
+            )
+            .is_err()
+    );
+
+    assert_eq!(repo.command(&["rev-parse", "HEAD"]), head);
+    assert_eq!(repo.read("selected"), "working\n");
+}
+
+#[test]
+fn git_hunk_staging_moves_one_hunk_into_the_index() {
+    let repo = EditRepo::new();
+    repo.base();
+    repo.two_hunk_file("wide");
+
+    let diff = repo
+        .backend
+        .file_diff(&repo.target("wide", ChangeLayer::WorkingTree))
+        .expect("test operation should succeed");
+    assert_eq!(diff.hunks.len(), 2);
+
+    let patch = diff.patch_for(0).expect("first hunk");
+    repo.backend
+        .apply_hunk_patch(&patch, HunkApply::Stage)
+        .expect("test operation should succeed");
+
+    let staged = repo.command(&["show", ":wide"]);
+    assert!(staged.contains("line two\n"));
+    assert!(staged.contains("line 19\n"));
+    assert!(!staged.contains("line nineteen\n"));
+    assert!(repo.read("wide").contains("line nineteen\n"));
+
+    // The staged hunk can be taken back out of the index on its own.
+    let diff = repo
+        .backend
+        .file_diff(&repo.target("wide", ChangeLayer::Index))
+        .expect("test operation should succeed");
+    assert_eq!(diff.hunks.len(), 1);
+    let patch = diff.patch_for(0).expect("only hunk");
+    repo.backend
+        .apply_hunk_patch(&patch, HunkApply::Unstage)
+        .expect("test operation should succeed");
+
+    // Unstaging leaves the index on the commit again, working tree untouched.
+    let index = repo.command(&["show", ":wide"]);
+    assert!(index.contains("line 2\n"));
+    assert!(!index.contains("line two\n"));
+    assert!(repo.read("wide").contains("line two\n"));
+    assert!(repo.read("wide").contains("line nineteen\n"));
+}
+
+#[test]
+fn git_hunk_revert_restores_only_that_hunk_in_the_working_tree() {
+    let repo = EditRepo::new();
+    repo.base();
+    repo.two_hunk_file("wide");
+
+    let diff = repo
+        .backend
+        .file_diff(&repo.target("wide", ChangeLayer::WorkingTree))
+        .expect("test operation should succeed");
+    let patch = diff.patch_for(1).expect("second hunk");
+    repo.backend
+        .apply_hunk_patch(&patch, HunkApply::Revert)
+        .expect("test operation should succeed");
+
+    let contents = repo.read("wide");
+    assert!(contents.contains("line two\n"));
+    assert!(contents.contains("line 19\n"));
+    assert!(!contents.contains("line nineteen\n"));
+    assert!(
+        repo.command(&["diff", "--cached", "--name-only"])
+            .is_empty()
+    );
+}
+
+#[test]
+fn git_hunk_patch_reports_an_index_that_moved_on() {
+    let repo = EditRepo::new();
+    repo.base();
+    repo.two_hunk_file("wide");
+
+    let diff = repo
+        .backend
+        .file_diff(&repo.target("wide", ChangeLayer::WorkingTree))
+        .expect("test operation should succeed");
+    let patch = diff.patch_for(1).expect("second hunk");
+    // Stage the whole file, so the hunk's context is no longer in the index.
+    repo.command(&["add", "wide"]);
+
+    assert!(
+        repo.backend
+            .apply_hunk_patch(&patch, HunkApply::Stage)
+            .is_err()
+    );
+    // A failed hunk leaves the staged file exactly as it was.
+    assert_eq!(repo.command(&["diff", "--cached", "--name-only"]), "wide\n");
+    assert_eq!(repo.command(&["show", ":wide"]), repo.read("wide"));
+    assert!(repo.backend.apply_hunk_patch("", HunkApply::Stage).is_err());
+}
+
+#[test]
+fn git_hunk_staging_covers_a_new_file() {
+    let repo = EditRepo::new();
+    repo.base();
+    repo.write("fresh", "one\ntwo\nthree\n");
+
+    let diff = repo
+        .backend
+        .file_diff(&repo.target("fresh", ChangeLayer::Untracked))
+        .expect("test operation should succeed");
+    assert_eq!(diff.hunks.len(), 1);
+    let patch = diff.patch_for(0).expect("only hunk");
+    repo.backend
+        .apply_hunk_patch(&patch, HunkApply::Stage)
+        .expect("test operation should succeed");
+
+    assert_eq!(repo.command(&["show", ":fresh"]), "one\ntwo\nthree\n");
 }
 
 #[test]
