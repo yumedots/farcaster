@@ -54,14 +54,13 @@ GPL-3.0-or-later licensing. Their license texts are included as
 `THIRD_PARTY_LICENSES/ZED-GPUI-GPL-3.0.txt`; detailed provenance remains with
 the corresponding source.
 
-The `gpui-libghostty` dependency uses crates.io release `0.2.1` from
-<https://github.com/behzade/gpui-libghostty>. It and the pinned Ghostty source
-are distributed under MIT. The local Neovim transport in
-`src/app/workspace/neovim.rs` is derived from that project's `gpui-neovim` 0.1.6.
-Their licenses are included at
-`THIRD_PARTY_LICENSES/GPUI-LIBGHOSTTY-MIT.txt` and
-`THIRD_PARTY_LICENSES/GHOSTTY-MIT.txt`; detailed provenance remains in the
-upstream source.
+The terminal component is the `gpui-libghostty` crate, built from the submodule
+at `third_party/gpui-libghostty` (<https://github.com/yumedots/gpui-libghostty>).
+It is our own MIT-licensed code, so no separate notice is included for it. It
+embeds Ghostty, which is distributed under MIT and whose license is included at
+`THIRD_PARTY_LICENSES/GHOSTTY-MIT.txt`. The local Neovim transport in
+`src/app/workspace/neovim.rs` is derived from that project's `gpui-neovim` 0.1.6,
+which was distributed under MIT.
 
 Application icons copied from Phosphor Icons are distributed under MIT. The
 exact upstream license is included at
