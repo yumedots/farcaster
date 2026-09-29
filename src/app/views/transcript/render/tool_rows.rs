@@ -1,8 +1,9 @@
 use std::{path::Path, sync::Arc};
 
 use gpui::{
-    AnyElement, InteractiveElement as _, IntoElement as _, ParentElement as _,
-    StatefulInteractiveElement as _, Styled as _, WeakEntity, div, prelude::FluentBuilder as _, px,
+    Animation, AnimationExt as _, AnyElement, InteractiveElement as _, IntoElement as _,
+    ParentElement as _, StatefulInteractiveElement as _, Styled as _, Transformation, WeakEntity,
+    div, percentage, prelude::FluentBuilder as _, px,
 };
 
 use crate::{
@@ -150,7 +151,7 @@ pub(super) fn render_tool(
             .when(!opens_file, |row| row.aria_expanded(expanded))
             .when(
                 status.is_some_and(|status| status != ToolStatus::Succeeded),
-                |row| row.child(status_slot(status)),
+                |row| row.child(status_slot(status, key)),
             )
             .when_some(presentation, |row, presentation| {
                 let label = tool_changes::file_label(
@@ -457,7 +458,7 @@ fn file_targets(item: &TranscriptItem) -> impl Iterator<Item = &str> {
         .filter(move |path| enabled && !path.is_empty() && seen.insert(*path))
 }
 
-fn status_slot(status: Option<ToolStatus>) -> AnyElement {
+fn status_slot(status: Option<ToolStatus>, key: usize) -> AnyElement {
     div()
         .w(theme().icons.control)
         .h(theme().icons.control)
@@ -466,8 +467,16 @@ fn status_slot(status: Option<ToolStatus>) -> AnyElement {
         .items_center()
         .justify_center()
         .when_some(status, |slot, status| {
-            slot.text_color(status.color())
-                .child(app_icon(status.icon(), AppIconSize::Inline))
+            let slot = slot.text_color(status.color());
+            if status == ToolStatus::Running {
+                slot.child(app_icon(status.icon(), AppIconSize::Inline).with_animation(
+                    ("tool-status-spin", key),
+                    Animation::new(std::time::Duration::from_millis(800)).repeat(),
+                    |icon, delta| icon.transform(Transformation::rotate(percentage(delta))),
+                ))
+            } else {
+                slot.child(app_icon(status.icon(), AppIconSize::Inline))
+            }
         })
         .into_any_element()
 }

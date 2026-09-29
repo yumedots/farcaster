@@ -1,11 +1,14 @@
-use gpui::{IntoElement, ParentElement as _, Styled as _, WeakEntity, div};
+use gpui::{
+    InteractiveElement as _, IntoElement, ParentElement as _, StatefulInteractiveElement as _,
+    Styled as _, WeakEntity, div,
+};
 
 use crate::app::{
     FarcasterApp, PickerScope,
     ui::{
         assets::AppIcon,
         layout::{LayoutMode, shows_left_inline, shows_right_inline},
-        primitives::{ButtonTone, icon_button},
+        primitives::{AppTooltip as _, ButtonTone, icon_button},
         theme::theme,
     },
 };
@@ -28,7 +31,7 @@ impl FarcasterApp {
         };
         let rail_toggle = entity.clone();
         let panel_toggle = entity.clone();
-        let actions = entity;
+        let actions = entity.clone();
         div()
             .flex_none()
             .flex()
@@ -75,5 +78,55 @@ impl FarcasterApp {
                     });
                 },
             ))
+            .child(self.render_folder_counts(entity))
+    }
+
+    pub(in crate::app::views) fn render_folder_counts(
+        &self,
+        entity: WeakEntity<Self>,
+    ) -> impl IntoElement {
+        let live = self
+            .sessions
+            .visible
+            .iter()
+            .filter(|session| !session.archived)
+            .map(|session| (session.app_session_id, session.project.as_path()))
+            .collect::<Vec<_>>();
+        div()
+            .flex_none()
+            .flex()
+            .items_center()
+            .gap(theme().space.xs)
+            .children(self.sessions.folders.folders.iter().map(|folder| {
+                let count = live
+                    .iter()
+                    .filter(|(id, project)| {
+                        self.sessions.folders.folder_for_session(*id, project) == Some(folder.id)
+                    })
+                    .count();
+                let tooltip = if count == 1 {
+                    format!("{} · 1 session", folder.name)
+                } else {
+                    format!("{} · {count} sessions", folder.name)
+                };
+                let folder_id = folder.id;
+                let click = entity.clone();
+                div()
+                    .id(format!("folder-count-{folder_id}"))
+                    .flex_none()
+                    .px(theme().space.xs)
+                    .rounded(theme().radius)
+                    .text_size(theme().type_scale.caption)
+                    .text_color(theme().colors.muted)
+                    .cursor_pointer()
+                    .hover(|chip| chip.bg(theme().colors.highlight))
+                    .app_tooltip(tooltip)
+                    .on_click(move |_, window, cx| {
+                        let _ = click.update(cx, |this, cx| {
+                            this.open_folder_sessions(folder_id, window, cx)
+                        });
+                    })
+                    .child(count.to_string())
+            }))
     }
 }

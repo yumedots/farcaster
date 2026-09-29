@@ -118,9 +118,8 @@ pub(super) fn session_rail_lists(
     }
 
     active.sort_by(|left, right| {
-        right
-            .app_session_id()
-            .cmp(&left.app_session_id())
+        left.app_session_id()
+            .cmp(&right.app_session_id())
             .then_with(|| active_kind_rank(left).cmp(&active_kind_rank(right)))
     });
     active.dedup_by(|left, right| {
@@ -145,8 +144,8 @@ fn apply_manual_order<T>(items: &mut [T], order: &[i64], app_session_id: impl Fn
             rank.get(&app_session_id(right)),
         ) {
             (Some(left), Some(right)) => left.cmp(right),
-            (None, Some(_)) => std::cmp::Ordering::Less,
-            (Some(_), None) => std::cmp::Ordering::Greater,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (Some(_), None) => std::cmp::Ordering::Less,
             (None, None) => std::cmp::Ordering::Equal,
         }
     });

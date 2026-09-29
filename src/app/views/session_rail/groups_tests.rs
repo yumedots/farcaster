@@ -33,7 +33,7 @@ fn drafts_and_sessions_share_one_order() {
             .iter()
             .map(ActiveSessionItem::app_session_id)
             .collect::<Vec<_>>(),
-        [3, 2, 1]
+        [1, 2, 3]
     );
 }
 
@@ -103,7 +103,7 @@ fn manual_order_moves_a_session_above_a_draft() {
 }
 
 #[test]
-fn manual_order_overrides_id_order_and_new_ids_stay_first() {
+fn manual_order_overrides_id_order_and_new_ids_stay_last() {
     let project = PathBuf::from("/project");
     let sessions = vec![
         session("new", 4, &project, false),
@@ -120,7 +120,7 @@ fn manual_order_overrides_id_order_and_new_ids_stay_first() {
             .iter()
             .map(ActiveSessionItem::app_session_id)
             .collect::<Vec<_>>(),
-        [4, 1, 3, 2]
+        [1, 3, 2, 4]
     );
 }
 

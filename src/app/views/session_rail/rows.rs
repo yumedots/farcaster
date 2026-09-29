@@ -5,10 +5,10 @@ use std::{
 };
 
 use gpui::{
-    AnyElement, App, AppContext as _, CursorStyle, Entity, FontWeight, InteractiveElement as _,
-    IntoElement, MouseButton, ParentElement as _, Pixels, RenderOnce, Rgba, Role,
-    StatefulInteractiveElement as _, Styled as _, WeakEntity, Window, div,
-    prelude::FluentBuilder as _,
+    Animation, AnimationExt as _, AnyElement, App, AppContext as _, CursorStyle, Entity,
+    FontWeight, InteractiveElement as _, IntoElement, MouseButton, ParentElement as _, Pixels,
+    RenderOnce, Rgba, Role, StatefulInteractiveElement as _, Styled as _, Transformation,
+    WeakEntity, Window, div, percentage, prelude::FluentBuilder as _,
 };
 use gpui_component::{
     input::{Escape, Input, InputState},
@@ -644,7 +644,17 @@ pub(super) fn session_row_age(age: String) -> AnyElement {
 pub(super) fn session_status_icon(app_session_id: i64, status: &str) -> Option<AnyElement> {
     let (icon, color) = status_visual(status)?;
     let tooltip = status.to_owned();
-    let icon = app_icon(icon, AppIconSize::Inline).into_any_element();
+    let icon = if status == "Working" {
+        app_icon(icon, AppIconSize::Inline)
+            .with_animation(
+                format!("session-status-spin-{app_session_id}"),
+                Animation::new(Duration::from_millis(800)).repeat(),
+                |icon, delta| icon.transform(Transformation::rotate(percentage(delta))),
+            )
+            .into_any_element()
+    } else {
+        app_icon(icon, AppIconSize::Inline).into_any_element()
+    };
     Some(
         div()
             .id(format!("session-status-{app_session_id}"))
