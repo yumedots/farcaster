@@ -3,8 +3,7 @@ use crate::{
     app::ui::file_icons::file_icon,
     app::ui::layout::{TRAFFIC_LIGHT_INSET, shows_left_inline},
     app::ui::primitives::{
-        AppIconSize, AppTooltip as _, ButtonTone, IndicatorEdge, app_icon, icon_button,
-        icon_control, line_indicator,
+        AppIconSize, AppTooltip as _, IndicatorEdge, app_icon, icon_control, line_indicator,
     },
     app::ui::theme::theme,
     app::{AppSurface, FarcasterApp, RepositoryDiff},
@@ -77,7 +76,6 @@ impl FarcasterApp {
         let surface = self.workspace.surface;
         let active_diff = self.workspace.active_diff.as_ref();
         let hover = entity.clone();
-        let rail_toggle = entity.clone();
         div()
             .id("workspace-tabs")
             .flex_none()
@@ -97,20 +95,6 @@ impl FarcasterApp {
                     app.set_workspace_bar_hovered(*hovered, cx);
                 });
             })
-            .when(
-                shows_left_inline(mode) && self.workspace.session_rail_hidden,
-                |row| {
-                    row.child(icon_button(
-                        "toggle-session-rail",
-                        AppIcon::SidebarLeft,
-                        "Show sessions",
-                        ButtonTone::Quiet,
-                        move |_, cx| {
-                            let _ = rail_toggle.update(cx, |this, cx| this.toggle_session_rail(cx));
-                        },
-                    ))
-                },
-            )
             .child(
                 div()
                     .id("workspace-tab-strip")

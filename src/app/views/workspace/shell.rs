@@ -7,7 +7,8 @@ use crate::app::{
     ui::{
         assets::AppIcon,
         layout::{
-            LayoutMode, shows_right_inline, shows_run_sheet_button, shows_session_sheet_button,
+            LayoutMode, shows_left_inline, shows_right_inline, shows_run_sheet_button,
+            shows_session_sheet_button,
         },
         primitives::{ButtonTone, icon_button},
         theme::theme,
@@ -21,6 +22,7 @@ impl FarcasterApp {
         entity: WeakEntity<Self>,
     ) -> impl IntoElement {
         let sessions = entity.clone();
+        let rail_toggle = entity.clone();
         let panel_toggle = entity.clone();
         div()
             .flex_none()
@@ -28,6 +30,36 @@ impl FarcasterApp {
             .items_center()
             .gap(theme().space.xs)
             .pr(theme().space.sm)
+            .when(shows_left_inline(mode), |controls| {
+                controls.child(icon_button(
+                    "toggle-session-rail",
+                    AppIcon::SidebarLeft,
+                    if self.workspace.session_rail_hidden {
+                        "Show sessions"
+                    } else {
+                        "Hide sessions"
+                    },
+                    ButtonTone::Quiet,
+                    move |_, cx| {
+                        let _ = rail_toggle.update(cx, |this, cx| this.toggle_session_rail(cx));
+                    },
+                ))
+            })
+            .when(shows_right_inline(mode), |controls| {
+                controls.child(icon_button(
+                    "toggle-run-panel",
+                    AppIcon::GitFork,
+                    if self.workspace.run_panel_hidden {
+                        "Show source control"
+                    } else {
+                        "Hide source control"
+                    },
+                    ButtonTone::Quiet,
+                    move |_, cx| {
+                        let _ = panel_toggle.update(cx, |this, cx| this.toggle_run_panel(cx));
+                    },
+                ))
+            })
             .when(shows_session_sheet_button(mode), |controls| {
                 controls.child(icon_button(
                     "open-sessions",
@@ -48,21 +80,6 @@ impl FarcasterApp {
                     ButtonTone::Quiet,
                     move |window, cx| {
                         let _ = entity.update(cx, |this, cx| this.open_run_sheet(window, cx));
-                    },
-                ))
-            })
-            .when(shows_right_inline(mode), |controls| {
-                controls.child(icon_button(
-                    "toggle-run-panel",
-                    AppIcon::SidebarLeft,
-                    if self.workspace.run_panel_hidden {
-                        "Show source control"
-                    } else {
-                        "Hide source control"
-                    },
-                    ButtonTone::Quiet,
-                    move |_, cx| {
-                        let _ = panel_toggle.update(cx, |this, cx| this.toggle_run_panel(cx));
                     },
                 ))
             })
