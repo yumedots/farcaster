@@ -254,6 +254,8 @@ impl FarcasterApp {
                     view: None,
                     terminals: HashMap::new(),
                     active_target: None,
+                    layouts: HashMap::new(),
+                    closing: Vec::new(),
                 },
                 native_surface_snapshot: None,
                 native_surface_refresh: None,

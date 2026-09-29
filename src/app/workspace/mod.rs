@@ -21,6 +21,7 @@ pub(in crate::app) mod runtime_picker;
 pub(in crate::app) mod send_to_chat;
 mod surfaces;
 mod terminal;
+pub(in crate::app) use terminal::{TerminalLayout, TerminalPane, TerminalSplitDirection};
 pub(in crate::app) mod theme_settings;
 
 pub(crate) use surfaces::{CycleWorkspaceBackward, CycleWorkspaceForward};

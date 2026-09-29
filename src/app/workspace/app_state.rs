@@ -1,5 +1,7 @@
 use crate::app::*;
 
+use super::TerminalLayout;
+
 pub(in crate::app) struct WorkspaceState {
     pub(in crate::app) editor: EditorState,
     pub(in crate::app) terminal: TerminalState,
@@ -34,6 +36,8 @@ pub(in crate::app) struct TerminalState {
     pub(in crate::app) view: Option<Entity<Terminal>>,
     pub(in crate::app) terminals: HashMap<String, Entity<Terminal>>,
     pub(in crate::app) active_target: Option<String>,
+    pub(in crate::app) layouts: HashMap<String, TerminalLayout>,
+    pub(in crate::app) closing: Vec<Entity<Terminal>>,
 }
 
 pub(in crate::app) struct SettingsState {
