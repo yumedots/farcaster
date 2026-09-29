@@ -67,14 +67,6 @@ pub(super) fn repository_header(
     let syncing = app.project.repository.sync.action;
     let pending = app.project.repository.edits.pending.is_some();
     let commit_like_vscode = app.settings.stage_changes_like_vscode;
-    let count = snapshot.map_or(0, |snapshot| {
-        snapshot
-            .changes
-            .iter()
-            .map(|change| &change.relative_path)
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-    });
     let staged = snapshot.map_or_else(std::collections::BTreeSet::new, |snapshot| {
         snapshot
             .changes
@@ -107,12 +99,8 @@ pub(super) fn repository_header(
                         .text_ellipsis()
                         .text_size(theme().type_scale.caption)
                         .text_color(theme().colors.muted)
-                        .when(snapshot.is_some(), |label| {
-                            label.child(if selected_count > 0 {
-                                format!("· {selected_count} selected")
-                            } else {
-                                format!("· {count}")
-                            })
+                        .when(snapshot.is_some() && selected_count > 0, |label| {
+                            label.child(format!("· {selected_count} selected"))
                         }),
                 )
                 .when(
