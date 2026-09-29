@@ -6,9 +6,10 @@ use crate::app::{
     AbortRun, AddProject, CloseCurrent, ComposerCompletionNext, ComposerCompletionPrevious,
     ComposerEscape, ComposerHistoryNext, ComposerHistoryPrevious, DismissSurface, FocusComposer,
     NewSession, NextSession, OVERLAY_KEY_CONTEXT, PICKER_KEY_CONTEXT, PickerBack, PreviousSession,
-    QuitApplication, ShowActionPicker, ShowEditor, ShowKeybindings, ShowTerminal, SubmitFollowUp,
-    SwitchSession0, SwitchSession1, SwitchSession2, SwitchSession3, SwitchSession4, SwitchSession5,
-    SwitchSession6, SwitchSession7, SwitchSession8, SwitchSession9,
+    QuitApplication, ShowActionPicker, ShowEditor, ShowKeybindings, ShowTerminal,
+    SplitTerminalDown, SplitTerminalRight, SubmitFollowUp, SwitchSession0, SwitchSession1,
+    SwitchSession2, SwitchSession3, SwitchSession4, SwitchSession5, SwitchSession6, SwitchSession7,
+    SwitchSession8, SwitchSession9, TerminalFocusNext, TerminalFocusPrevious,
 };
 use gpui::{Action as _, KeyBinding, Unbind};
 use gpui_base::actions::{SelectDown, SelectUp};
@@ -184,6 +185,48 @@ fn registry_for_platform(prefix: &str) -> Vec<Shortcut> {
         ),
         application_shortcut!("Sessions", "Previous session", "[", PreviousSession),
         application_shortcut!("Sessions", "Next session", "]", NextSession),
+        shortcut!(
+            "Terminal",
+            "Split terminal right",
+            format!("{session_prefix}-d"),
+            SplitTerminalRight,
+            Some("FarcasterApp")
+        ),
+        shortcut!(
+            "Terminal",
+            "Split terminal down",
+            format!("{session_prefix}-shift-d"),
+            SplitTerminalDown,
+            Some("FarcasterApp")
+        ),
+        shortcut!(
+            "Terminal",
+            "Focus next terminal split",
+            format!("{prefix}-right"),
+            TerminalFocusNext,
+            Some("Terminal")
+        ),
+        shortcut!(
+            "Terminal",
+            "Focus next terminal split",
+            format!("{prefix}-down"),
+            TerminalFocusNext,
+            Some("Terminal")
+        ),
+        shortcut!(
+            "Terminal",
+            "Focus previous terminal split",
+            format!("{prefix}-left"),
+            TerminalFocusPrevious,
+            Some("Terminal")
+        ),
+        shortcut!(
+            "Terminal",
+            "Focus previous terminal split",
+            format!("{prefix}-up"),
+            TerminalFocusPrevious,
+            Some("Terminal")
+        ),
         application_shortcut!(
             "Sessions",
             "Restore session",

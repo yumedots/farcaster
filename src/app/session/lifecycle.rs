@@ -30,7 +30,7 @@ impl FarcasterApp {
             return;
         }
         if self.workspace.surface == AppSurface::Terminal {
-            self.close_terminal(window, cx);
+            self.close_terminal_or_split(window, cx);
             return;
         }
         match current_close_target(

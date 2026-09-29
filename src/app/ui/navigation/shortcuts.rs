@@ -68,7 +68,7 @@ const COMMANDS: &[(&str, &str, Command)] = &[
     ("h", "Set harness", Command::Harness),
     ("m", "Set provider/model/effort", Command::Runtime),
     ("a", "Restore session", Command::RestoreSession),
-    ("w", "Close surface or session", Command::Close),
+    ("w", "Close split, surface or session", Command::Close),
     ("q", "Quit", Command::Quit),
     ("j", "Next session", Command::RelativeSession(1)),
     ("k", "Previous session", Command::RelativeSession(-1)),

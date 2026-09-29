@@ -2,14 +2,17 @@ use gpui::{Context, InteractiveElement as _};
 
 use super::super::{FarcasterApp, session_rail::RailPanel};
 use crate::app::ui::keyboard::{ClipboardCopyAlias, ClipboardPasteAlias, CopySelection};
-use crate::app::workspace::{CycleWorkspaceBackward, CycleWorkspaceForward};
+use crate::app::workspace::{
+    CycleWorkspaceBackward, CycleWorkspaceForward, TerminalSplitDirection,
+};
 use crate::app::{
     AbortRun, AddProject, CloseCurrent, ComposerEscape, DismissSurface, FocusComposer,
     FocusSessionSearch, NewSession, NextSession, PickerBack, PickerScope, PreviousSession,
     ProjectPickerIntent, RemoveProject, ShowActionPicker, ShowEditor, ShowKeybindings,
-    ShowTerminal, SubmitFollowUp, SubmitPrompt, SwitchSession0, SwitchSession1, SwitchSession2,
-    SwitchSession3, SwitchSession4, SwitchSession5, SwitchSession6, SwitchSession7, SwitchSession8,
-    SwitchSession9, ToggleArchivedSessions,
+    ShowTerminal, SplitTerminalDown, SplitTerminalRight, SubmitFollowUp, SubmitPrompt,
+    SwitchSession0, SwitchSession1, SwitchSession2, SwitchSession3, SwitchSession4, SwitchSession5,
+    SwitchSession6, SwitchSession7, SwitchSession8, SwitchSession9, TerminalFocusNext,
+    TerminalFocusPrevious, ToggleArchivedSessions,
 };
 
 pub(super) fn bind(root: gpui::Div, cx: &mut Context<FarcasterApp>) -> gpui::Div {
@@ -175,6 +178,18 @@ fn bind_actions(root: gpui::Div, cx: &mut Context<FarcasterApp>) -> gpui::Div {
     }))
     .on_action(cx.listener(|this, _: &SwitchSession9, window, cx| {
         this.switch_to_session_number(9, window, cx);
+    }))
+    .on_action(cx.listener(|this, _: &SplitTerminalRight, window, cx| {
+        this.split_terminal(TerminalSplitDirection::Right, window, cx);
+    }))
+    .on_action(cx.listener(|this, _: &SplitTerminalDown, window, cx| {
+        this.split_terminal(TerminalSplitDirection::Down, window, cx);
+    }))
+    .on_action(cx.listener(|this, _: &TerminalFocusNext, window, cx| {
+        this.cycle_terminal_focus(true, window, cx);
+    }))
+    .on_action(cx.listener(|this, _: &TerminalFocusPrevious, window, cx| {
+        this.cycle_terminal_focus(false, window, cx);
     }))
 }
 
