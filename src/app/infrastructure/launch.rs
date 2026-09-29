@@ -178,6 +178,7 @@ pub(crate) fn run(project: PathBuf) -> Result<(), LaunchError> {
                     traffic_light_position: cfg!(target_os = "macos")
                         .then(|| point(px(12.0), px(12.0))),
                 }),
+                app_owns_titlebar_drag: true,
                 app_id: Some("io.github.behzade.farcaster".into()),
                 ..WindowOptions::default()
             };

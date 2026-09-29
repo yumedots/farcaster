@@ -1,7 +1,7 @@
 use crate::{
     app::ui::assets::AppIcon,
     app::ui::file_icons::file_icon,
-    app::ui::layout::{TRAFFIC_LIGHT_INSET, shows_left_inline},
+    app::ui::layout::TRAFFIC_LIGHT_INSET,
     app::ui::primitives::{
         AppIconSize, AppTooltip as _, IndicatorEdge, app_icon, icon_control, line_indicator,
     },
@@ -85,84 +85,106 @@ impl FarcasterApp {
             .bg(theme().colors.canvas)
             .border_b(theme().border)
             .border_color(theme().colors.border)
-            .when(
-                cfg!(target_os = "macos")
-                    && (!shows_left_inline(mode) || self.workspace.session_rail_hidden),
-                |row| row.pl(theme().size(TRAFFIC_LIGHT_INSET)),
-            )
-            .on_hover(move |hovered, _, cx| {
-                let _ = hover.update(cx, |app, cx| {
-                    app.set_workspace_bar_hovered(*hovered, cx);
-                });
+            .when(cfg!(target_os = "macos"), |row| {
+                row.child(
+                    div()
+                        .w(theme().size(TRAFFIC_LIGHT_INSET))
+                        .h_full()
+                        .on_mouse_down(MouseButton::Left, |_, window, _| {
+                            window.start_window_move();
+                        }),
+                )
             })
             .child(
                 div()
-                    .id("workspace-tab-strip")
+                    .id("workspace-bar-controls")
                     .flex_1()
                     .min_w_0()
                     .h_full()
                     .flex()
                     .items_center()
-                    .overflow_x_scroll()
-                    .child(workspace_tab(
-                        "workspace-tab-chat",
-                        self.workspace_title(),
-                        app_icon(self.workspace_harness_icon(), AppIconSize::Inline)
-                            .into_any_element(),
-                        chat_hint.into(),
-                        surface == AppSurface::Chat,
-                        entity.clone(),
-                        |app, window, cx| app.show_chat_surface(window, cx),
-                        None,
-                    ))
-                    .child(workspace_tab(
-                        "workspace-tab-editor",
-                        self.text_editor_name().into(),
-                        app_icon(self.text_editor_icon(), AppIconSize::Inline).into_any_element(),
-                        format!(
-                            "{} ({modifier}+E in app views; {} anywhere)",
-                            self.text_editor_name(),
-                            crate::app::ui::navigation::command_key(
-                                crate::app::ui::navigation::Command::Editor
-                            )
-                        )
-                        .into(),
-                        surface == AppSurface::Editor,
-                        entity.clone(),
-                        |app, window, cx| app.show_editor_surface(window, cx),
-                        None,
-                    ))
-                    .child(workspace_tab(
-                        "workspace-tab-terminal",
-                        "Terminal".into(),
-                        app_icon(AppIcon::Ghostty, AppIconSize::Inline).into_any_element(),
-                        format!(
-                            "Terminal ({modifier}+T in app views; {} anywhere)",
-                            crate::app::ui::navigation::command_key(
-                                crate::app::ui::navigation::Command::Terminal
-                            )
-                        )
-                        .into(),
-                        surface == AppSurface::Terminal,
-                        entity.clone(),
-                        |app, window, cx| app.show_terminal_surface(window, cx),
-                        None,
-                    ))
-                    .children(self.open_diffs().iter().enumerate().map(|(index, diff)| {
-                        let active = surface == AppSurface::Diff && active_diff == Some(&diff.key);
-                        diff_tab(index, diff, active, entity.clone())
-                    })),
+                    .on_hover(move |hovered, _, cx| {
+                        let _ = hover.update(cx, |app, cx| {
+                            app.set_workspace_bar_hovered(*hovered, cx);
+                        });
+                    })
+                    .child(
+                        div()
+                            .id("workspace-tab-strip")
+                            .flex_1()
+                            .min_w_0()
+                            .h_full()
+                            .flex()
+                            .items_center()
+                            .overflow_x_scroll()
+                            .child(workspace_tab(
+                                "workspace-tab-chat",
+                                self.workspace_title(),
+                                app_icon(self.workspace_harness_icon(), AppIconSize::Inline)
+                                    .into_any_element(),
+                                chat_hint.into(),
+                                surface == AppSurface::Chat,
+                                entity.clone(),
+                                |app, window, cx| app.show_chat_surface(window, cx),
+                                None,
+                            ))
+                            .child(workspace_tab(
+                                "workspace-tab-editor",
+                                self.text_editor_name().into(),
+                                app_icon(self.text_editor_icon(), AppIconSize::Inline)
+                                    .into_any_element(),
+                                format!(
+                                    "{} ({modifier}+E in app views; {} anywhere)",
+                                    self.text_editor_name(),
+                                    crate::app::ui::navigation::command_key(
+                                        crate::app::ui::navigation::Command::Editor
+                                    )
+                                )
+                                .into(),
+                                surface == AppSurface::Editor,
+                                entity.clone(),
+                                |app, window, cx| app.show_editor_surface(window, cx),
+                                None,
+                            ))
+                            .child(workspace_tab(
+                                "workspace-tab-terminal",
+                                "Terminal".into(),
+                                app_icon(AppIcon::Ghostty, AppIconSize::Inline).into_any_element(),
+                                format!(
+                                    "Terminal ({modifier}+T in app views; {} anywhere)",
+                                    crate::app::ui::navigation::command_key(
+                                        crate::app::ui::navigation::Command::Terminal
+                                    )
+                                )
+                                .into(),
+                                surface == AppSurface::Terminal,
+                                entity.clone(),
+                                |app, window, cx| app.show_terminal_surface(window, cx),
+                                None,
+                            ))
+                            .children(self.open_diffs().iter().enumerate().map(|(index, diff)| {
+                                let active =
+                                    surface == AppSurface::Diff && active_diff == Some(&diff.key);
+                                diff_tab(index, diff, active, entity.clone())
+                            }))
+                            .child(div().flex_1().h_full().on_mouse_down(
+                                MouseButton::Left,
+                                |_, window, _| {
+                                    window.start_window_move();
+                                },
+                            )),
+                    )
+                    .child(
+                        div()
+                            .flex_none()
+                            .w(theme().size(24.0))
+                            .h_full()
+                            .on_mouse_down(MouseButton::Left, |_, window, _| {
+                                window.start_window_move();
+                            }),
+                    )
+                    .child(self.render_workspace_panels(mode, entity.clone())),
             )
-            .child(
-                div()
-                    .flex_none()
-                    .w(theme().size(24.0))
-                    .h_full()
-                    .on_mouse_down(MouseButton::Left, |_, window, _| {
-                        window.start_window_move();
-                    }),
-            )
-            .child(self.render_workspace_panels(mode, entity.clone()))
     }
 }
 

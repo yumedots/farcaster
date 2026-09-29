@@ -7,7 +7,10 @@ use super::{super::FarcasterApp, draft};
 use crate::app::{
     AppSurface,
     ui::{
-        layout::{LayoutMode, composer_bottom_clearance, shows_left_inline, shows_right_inline},
+        layout::{
+            LayoutMode, composer_bottom_clearance, layout_mode, shows_left_inline,
+            shows_right_inline,
+        },
         theme::theme,
     },
 };
@@ -65,7 +68,6 @@ impl FarcasterApp {
     pub(super) fn render_workspace_main(
         &self,
         entity: WeakEntity<Self>,
-        mode: LayoutMode,
         viewport_height: gpui::Pixels,
         request_focused: bool,
         obscured: bool,
@@ -109,7 +111,6 @@ impl FarcasterApp {
             .h_full()
             .flex()
             .flex_col()
-            .child(self.render_workspace_tabs(entity.clone(), mode))
             .child(div().relative().flex_1().min_h_0().child(main).when(
                 native_surface && self.extensions.active.dialog.is_some(),
                 |center| {
@@ -136,6 +137,34 @@ impl FarcasterApp {
         self.workspace.run_panel_hidden = !self.workspace.run_panel_hidden;
         self.save_panel_layout();
         cx.notify();
+    }
+
+    pub(in crate::app) fn toggle_sessions_from_top_bar(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if shows_left_inline(layout_mode(window.viewport_size().width)) {
+            self.toggle_session_rail(cx);
+        } else if self.overlays.view.sessions {
+            self.close_sheet(window, cx);
+        } else {
+            self.open_sessions_sheet(window, cx);
+        }
+    }
+
+    pub(in crate::app) fn toggle_source_control_from_top_bar(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if shows_right_inline(layout_mode(window.viewport_size().width)) {
+            self.toggle_run_panel(cx);
+        } else if self.overlays.view.run {
+            self.close_sheet(window, cx);
+        } else {
+            self.open_run_sheet(window, cx);
+        }
     }
 
     pub(in crate::app) fn finish_resizes(&mut self, cx: &mut gpui::Context<Self>) {
@@ -171,60 +200,77 @@ impl FarcasterApp {
         div()
             .size_full()
             .flex()
-            .when(
-                shows_left_inline(mode) && !self.workspace.session_rail_hidden,
-                |shell| {
-                    let resize = entity.clone();
-                    shell.child(
-                        div()
-                            .relative()
-                            .w(session_rail_width)
-                            .min_w(theme().layout.session_rail_min)
-                            .max_w(theme().layout.session_rail_max)
-                            .flex_none()
-                            .border_r(theme().border)
-                            .border_color(theme().colors.border)
-                            .child(
-                                self.views
-                                    .session_rail
-                                    .clone()
-                                    .cached(gpui::StyleRefinement::default().size_full()),
+            .flex_col()
+            .child(self.render_workspace_tabs(entity.clone(), mode))
+            .child(
+                div()
+                    .w_full()
+                    .flex_1()
+                    .min_h_0()
+                    .flex()
+                    .when(
+                        shows_left_inline(mode) && !self.workspace.session_rail_hidden,
+                        |shell| {
+                            let resize = entity.clone();
+                            shell.child(
+                                div()
+                                    .relative()
+                                    .w(session_rail_width)
+                                    .min_w(theme().layout.session_rail_min)
+                                    .max_w(theme().layout.session_rail_max)
+                                    .flex_none()
+                                    .border_r(theme().border)
+                                    .border_color(theme().colors.border)
+                                    .child(
+                                        self.views
+                                            .session_rail
+                                            .clone()
+                                            .cached(gpui::StyleRefinement::default().size_full()),
+                                    )
+                                    .child(resize_handle(
+                                        "session-rail-resize",
+                                        true,
+                                        move |x, cx| {
+                                            let _ = resize.update(cx, |this, cx| {
+                                                this.begin_session_rail_resize(x, cx);
+                                            });
+                                        },
+                                    )),
                             )
-                            .child(resize_handle("session-rail-resize", true, move |x, cx| {
-                                let _ = resize.update(cx, |this, cx| {
-                                    this.begin_session_rail_resize(x, cx);
-                                });
-                            })),
+                        },
                     )
-                },
-            )
-            .child(main)
-            .when(
-                shows_right_inline(mode) && !self.workspace.run_panel_hidden,
-                |shell| {
-                    let resize = entity;
-                    shell.child(
-                        div()
-                            .relative()
-                            .w(run_panel_width)
-                            .min_w(theme().layout.run_panel_min)
-                            .max_w(theme().layout.run_panel_max)
-                            .flex_none()
-                            .border_l(theme().border)
-                            .border_color(theme().colors.border)
-                            .child(
-                                self.views
-                                    .run_panel
-                                    .clone()
-                                    .cached(gpui::StyleRefinement::default().size_full()),
+                    .child(main)
+                    .when(
+                        shows_right_inline(mode) && !self.workspace.run_panel_hidden,
+                        |shell| {
+                            let resize = entity;
+                            shell.child(
+                                div()
+                                    .relative()
+                                    .w(run_panel_width)
+                                    .min_w(theme().layout.run_panel_min)
+                                    .max_w(theme().layout.run_panel_max)
+                                    .flex_none()
+                                    .border_l(theme().border)
+                                    .border_color(theme().colors.border)
+                                    .child(
+                                        self.views
+                                            .run_panel
+                                            .clone()
+                                            .cached(gpui::StyleRefinement::default().size_full()),
+                                    )
+                                    .child(resize_handle(
+                                        "run-panel-resize",
+                                        false,
+                                        move |x, cx| {
+                                            let _ = resize.update(cx, |this, cx| {
+                                                this.begin_run_panel_resize(x, cx);
+                                            });
+                                        },
+                                    )),
                             )
-                            .child(resize_handle("run-panel-resize", false, move |x, cx| {
-                                let _ = resize.update(cx, |this, cx| {
-                                    this.begin_run_panel_resize(x, cx);
-                                });
-                            })),
-                    )
-                },
+                        },
+                    ),
             )
             .into_any_element()
     }

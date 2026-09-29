@@ -22,7 +22,6 @@ use crate::{
     app::ProjectPickerIntent,
     app::session::status::{resolved_session_status, roots_waiting_for_active_descendants},
     app::ui::assets::AppIcon,
-    app::ui::layout::TRAFFIC_LIGHT_INSET,
     app::ui::primitives::{
         AppIconSize, ButtonTone, ContextMenuTrigger, FeedbackTone, Panel, SearchField, app_icon,
         feedback, icon_button, panel_space,
@@ -308,9 +307,6 @@ impl FarcasterApp {
                             .flex()
                             .items_center()
                             .justify_end()
-                            .when(cfg!(target_os = "macos"), |row| {
-                                row.pl(theme().size(TRAFFIC_LIGHT_INSET))
-                            })
                             .child(
                                 div()
                                     .flex_1()

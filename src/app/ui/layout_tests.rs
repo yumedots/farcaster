@@ -21,15 +21,10 @@ fn exact_layout_boundaries_are_stable() {
 fn compact_moves_only_the_right_panel_and_narrow_moves_both() {
     assert!(shows_left_inline(LayoutMode::Wide));
     assert!(shows_right_inline(LayoutMode::Wide));
-    assert!(!shows_run_sheet_button(LayoutMode::Wide));
 
     assert!(shows_left_inline(LayoutMode::Compact));
     assert!(!shows_right_inline(LayoutMode::Compact));
-    assert!(!shows_session_sheet_button(LayoutMode::Compact));
-    assert!(shows_run_sheet_button(LayoutMode::Compact));
 
     assert!(!shows_left_inline(LayoutMode::Narrow));
     assert!(!shows_right_inline(LayoutMode::Narrow));
-    assert!(shows_session_sheet_button(LayoutMode::Narrow));
-    assert!(shows_run_sheet_button(LayoutMode::Narrow));
 }

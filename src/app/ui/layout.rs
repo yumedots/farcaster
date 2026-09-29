@@ -46,14 +46,6 @@ pub(crate) const fn shows_right_inline(mode: LayoutMode) -> bool {
     matches!(mode, LayoutMode::Wide)
 }
 
-pub(crate) const fn shows_session_sheet_button(mode: LayoutMode) -> bool {
-    matches!(mode, LayoutMode::Narrow)
-}
-
-pub(crate) const fn shows_run_sheet_button(mode: LayoutMode) -> bool {
-    !matches!(mode, LayoutMode::Wide)
-}
-
 #[cfg(test)]
 #[path = "layout_tests.rs"]
 mod tests;

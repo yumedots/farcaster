@@ -41,7 +41,6 @@ impl Render for FarcasterApp {
         let obscured = self.native_surface_obscured(window, cx);
         let main = self.render_workspace_main(
             entity.clone(),
-            mode,
             window.viewport_size().height,
             self.composer_region_focused(window, cx),
             obscured,
