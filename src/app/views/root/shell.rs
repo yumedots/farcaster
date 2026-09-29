@@ -95,7 +95,7 @@ impl FarcasterApp {
                     self.render_editor_surface()
                 }
                 AppSurface::Terminal if self.workspace.terminal.view.is_some() => {
-                    self.render_terminal_workspace()
+                    self.render_terminal_workspace(entity.clone())
                 }
                 AppSurface::Diff => {
                     crate::app::views::workspace::repository_diff::render(self, entity.clone())
