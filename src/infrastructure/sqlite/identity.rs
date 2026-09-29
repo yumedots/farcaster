@@ -117,10 +117,6 @@ pub(super) fn merge_session(tx: &Transaction<'_>, keep: i64, other: i64) -> Resu
         "INSERT INTO session_models SELECT ?1, provider, model, effort, service_tier
            FROM session_models WHERE session_id=?2
          ON CONFLICT(session_id) DO NOTHING",
-        "INSERT INTO worker_families(child_id, execution_json, routing_json)
-         SELECT ?1, execution_json, routing_json FROM worker_families WHERE child_id=?2
-         ON CONFLICT(child_id) DO UPDATE SET
-           routing_json=COALESCE(worker_families.routing_json, excluded.routing_json)",
         "UPDATE session_ops SET session_id=?1 WHERE session_id=?2",
         "UPDATE session_turns SET session_id=?1 WHERE session_id=?2",
         "UPDATE session_reviews SET session_id=?1 WHERE session_id=?2",
@@ -150,85 +146,6 @@ pub(super) fn merge_session(tx: &Transaction<'_>, keep: i64, other: i64) -> Resu
     tx.execute("DELETE FROM sessions WHERE id=?1", [other])
         .map_err(|error| error.to_string())?;
     Ok(())
-}
-
-#[cfg(test)]
-pub(super) fn family_locator_root(locator_root: &Path, project: &Path) -> PathBuf {
-    use sha2::{Digest as _, Sha256};
-
-    let project = crate::sessions::normalize_session_path(project);
-    let digest = Sha256::digest(project.to_string_lossy().as_bytes());
-    locator_root.join(format!("{digest:x}"))
-}
-#[cfg(test)]
-pub(super) fn ensure_locator_session(
-    transaction: &Transaction<'_>,
-    harness: Backend,
-    identity: &str,
-    project_id: i64,
-    locator_root: &Path,
-) -> Result<i64, String> {
-    let supplied_path = Path::new(identity);
-    let native_id = (!supplied_path.is_absolute()).then_some(identity);
-    let locator = if supplied_path.is_absolute() {
-        crate::sessions::normalize_session_path(supplied_path)
-    } else {
-        let encoded = url::form_urlencoded::byte_serialize(identity.as_bytes()).collect::<String>();
-        locator_root.join(harness.as_str()).join(encoded)
-    };
-    let locator = crate::sessions::normalize_session_path(&locator);
-    let locator_text = locator.to_string_lossy();
-    let mut statement = transaction
-        .prepare(
-            "SELECT id, locator FROM sessions WHERE harness=?1 AND project_id=?2
-               AND (locator=?3 OR (?4 IS NOT NULL AND backend_id=?4))
-             ORDER BY backend_id=?4 DESC, locator=?3 DESC, id",
-        )
-        .map_err(|error| format!("prepare family session lookup: {error}"))?;
-    let ids = statement
-        .query_map(
-            params![harness, project_id, locator_text.as_ref(), native_id],
-            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?)),
-        )
-        .map_err(|error| format!("find family session: {error}"))?
-        .collect::<rusqlite::Result<Vec<_>>>()
-        .map_err(|error| format!("decode family session: {error}"))?;
-    drop(statement);
-    if let Some(((keep, keep_locator), others)) = ids.split_first() {
-        for &(other, _) in others {
-            merge_session(transaction, *keep, other)?;
-        }
-        let retained_locator = keep_locator.as_deref().filter(|current| {
-            native_id.is_some_and(|native_id| {
-                crate::agents::external_session_identity(Path::new(current)).is_some_and(
-                    |(stored_harness, stored_id)| {
-                        stored_harness == harness && stored_id == native_id
-                    },
-                )
-            })
-        });
-        transaction
-            .execute(
-                "UPDATE sessions SET locator=?2, backend_id=COALESCE(?3,backend_id) WHERE id=?1",
-                params![
-                    *keep,
-                    retained_locator.unwrap_or(locator_text.as_ref()),
-                    native_id
-                ],
-            )
-            .map_err(|error| format!("canonicalize family session: {error}"))?;
-        return Ok(*keep);
-    }
-    let now = u64_to_i64(now_ms());
-    transaction
-        .execute(
-            "INSERT INTO sessions(
-               project_id, harness, locator, backend_id, modified_ms, created_ms
-             ) VALUES(?1, ?2, ?3, ?4, ?5, ?5)",
-            params![project_id, harness, locator_text.as_ref(), native_id, now],
-        )
-        .map_err(|error| format!("insert locator session: {error}"))?;
-    Ok(transaction.last_insert_rowid())
 }
 
 pub(super) fn ensure_project(

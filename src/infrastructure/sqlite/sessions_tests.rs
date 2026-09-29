@@ -131,29 +131,6 @@ fn imported_orphan_child_is_exposed_as_a_root() -> Result<(), String> {
             .id,
         "child"
     );
-    store.save_worker_family(&crate::agents::WorkerFamilyLink {
-        project: temp.path().to_path_buf(),
-        parent_backend: Backend::Codex,
-        parent_session: "not-imported-parent".into(),
-        child_backend: Backend::OpenCode,
-        child_session: "cross-backend-child".into(),
-        execution: None,
-        routing: None,
-    })?;
-    let cached = store.cached_sessions("")?;
-    let cross_backend_child = cached
-        .iter()
-        .find(|session| session.id == "cross-backend-child")
-        .ok_or("missing explicit cross-backend child")?;
-    assert_eq!(
-        cross_backend_child.parent_harness.map(Backend::as_str),
-        Some("codex-cli")
-    );
-    assert!(
-        !crate::sessions::root_sessions(&cached)
-            .iter()
-            .any(|session| session.id == "cross-backend-child")
-    );
     Ok(())
 }
 
@@ -599,319 +576,6 @@ fn unavailable_project_round_trip_preserves_draft_composer_and_outbox() -> Resul
 }
 
 #[test]
-fn worker_family_native_ids_get_loadable_unique_locators() -> Result<(), String> {
-    let temp = tempfile::tempdir().map_err(|error| error.to_string())?;
-    let database = temp.path().join("state.sqlite3");
-    let mut store = StateStore::open_at(&database)?;
-    let mut parent = metadata("parent");
-    parent.project = temp.path().to_path_buf();
-    parent.path = temp.path().join("session-locators/codex-cli/parent");
-    store.update_session_metadata(&parent)?;
-    store.save_worker_family(&crate::agents::WorkerFamilyLink {
-        project: temp.path().to_path_buf(),
-        parent_backend: Backend::Codex,
-        parent_session: "parent".into(),
-        child_backend: Backend::Codex,
-        child_session: "new-child-id".into(),
-        execution: None,
-        routing: None,
-    })?;
-
-    let rows = store.cached_sessions("")?;
-    let child = rows
-        .iter()
-        .find(|session| session.id == "new-child-id")
-        .ok_or("missing child")?;
-    assert_eq!(
-        crate::agents::external_session_identity(&child.path),
-        Some((Backend::Codex, "new-child-id".into()))
-    );
-    crate::agents::validate_session_move(std::slice::from_ref(child))?;
-    let other_project = temp.path().join("other-project");
-    store.save_worker_family(&crate::agents::WorkerFamilyLink {
-        project: other_project.clone(),
-        parent_backend: Backend::Codex,
-        parent_session: "parent".into(),
-        child_backend: Backend::Codex,
-        child_session: "new-child-id".into(),
-        execution: None,
-        routing: None,
-    })?;
-    store.save_worker_family(&crate::agents::WorkerFamilyLink {
-        project: temp.path().to_path_buf(),
-        parent_backend: Backend::Codex,
-        parent_session: "parent".into(),
-        child_backend: Backend::OpenCode,
-        child_session: "new-child-id".into(),
-        execution: None,
-        routing: None,
-    })?;
-    let identities: i64 = store
-        .connection
-        .query_row(
-            "SELECT COUNT(*) FROM sessions WHERE harness='codex-cli' AND project_id=(SELECT id FROM projects WHERE path=?1) AND backend_id='parent'",
-            [crate::sessions::normalize_session_path(temp.path()).to_string_lossy()],
-            |row| row.get(0),
-        )
-        .map_err(|error| error.to_string())?;
-    assert_eq!(identities, 1);
-    let scoped: Vec<(String, String)> = {
-        let mut statement = store
-            .connection
-            .prepare(
-                "SELECT p.path,s.locator FROM sessions s JOIN projects p ON p.id=s.project_id
-                  WHERE s.harness='codex-cli' AND s.backend_id='new-child-id' ORDER BY p.path",
-            )
-            .map_err(|error| error.to_string())?;
-        statement
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
-            .map_err(|error| error.to_string())?
-            .collect::<rusqlite::Result<Vec<_>>>()
-            .map_err(|error| error.to_string())?
-    };
-    assert_eq!(scoped.len(), 2);
-    assert_ne!(scoped[0].1, scoped[1].1);
-    let families = store.load_worker_families()?;
-    assert_eq!(families.len(), 3);
-    assert!(
-        families
-            .iter()
-            .any(|family| family.project == crate::sessions::normalize_session_path(&other_project))
-    );
-    assert!(families.iter().any(|family| {
-        family.project == crate::sessions::normalize_session_path(temp.path())
-            && family.parent_backend == Backend::Codex
-            && family.child_backend == Backend::OpenCode
-            && family.child_session == "new-child-id"
-    }));
-    let backend_isolation: i64 = store
-        .connection
-        .query_row(
-            "SELECT COUNT(*) FROM sessions s JOIN projects p ON p.id=s.project_id
-              WHERE p.path=?1 AND s.backend_id='new-child-id'",
-            [crate::sessions::normalize_session_path(temp.path()).to_string_lossy()],
-            |row| row.get(0),
-        )
-        .map_err(|error| error.to_string())?;
-    assert_eq!(backend_isolation, 2);
-    Ok(())
-}
-
-#[test]
-fn live_metadata_merges_family_placeholder_without_losing_related_state() -> Result<(), String> {
-    let temp = tempfile::tempdir().map_err(|error| error.to_string())?;
-    let mut store = StateStore::open_at(&temp.path().join("state.sqlite3"))?;
-    let project = temp.path().to_path_buf();
-    store.save_worker_family(&crate::agents::WorkerFamilyLink {
-        project: project.clone(),
-        parent_backend: Backend::Codex,
-        parent_session: "parent".into(),
-        child_backend: Backend::Codex,
-        child_session: "child".into(),
-        execution: None,
-        routing: Some(crate::agents::WorkerRouting {
-            name: "research".into(),
-            assignment: crate::agents::WorkerAssignment {
-                profile: "fast".into(),
-                execution: crate::agents::WorkerExecution {
-                    harness: Backend::Codex,
-                    provider: "openai".into(),
-                    model: "saved-model".into(),
-                    effort: None,
-                },
-            },
-            access_mode: crate::agents::HarnessAccessMode::Auto,
-        }),
-    })?;
-    store
-        .connection
-        .execute(
-            "UPDATE sessions SET locator='parent',client_key='legacy-draft',
-                    submitted=1,rail_order=42,created_ms=1
-              WHERE harness='codex-cli' AND backend_id='parent'",
-            [],
-        )
-        .map_err(|error| error.to_string())?;
-    let placeholder_id: i64 = store
-        .connection
-        .query_row(
-            "SELECT id FROM sessions WHERE harness='codex-cli' AND backend_id='parent'",
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|error| error.to_string())?;
-    store
-        .connection
-        .execute(
-            "INSERT INTO session_events(session_id,seq,t,schema_version,body)
-             VALUES(?1,1,11,1,'{\"type\":\"legacy_event\",\"value\":\"kept\"}')",
-            [placeholder_id],
-        )
-        .map_err(|error| error.to_string())?;
-    store
-        .connection
-        .execute(
-            "INSERT INTO session_models(session_id,provider,model,effort,service_tier)
-             VALUES(?1,'legacy-provider','legacy-model','high','priority')",
-            [placeholder_id],
-        )
-        .map_err(|error| error.to_string())?;
-    let placeholders = store.cached_sessions("")?;
-    let placeholder_parent = placeholders
-        .iter()
-        .find(|session| session.id == "parent")
-        .ok_or("missing parent placeholder")?;
-    store.save_composer_session(&ComposerRecord {
-        target: format!("session:{}", placeholder_parent.path.display()),
-        text: "kept draft".into(),
-        ..Default::default()
-    })?;
-    store.enqueue_prompt(
-        &format!("session:{}", placeholder_parent.path.display()),
-        Backend::Codex,
-        &project,
-        Some(&placeholder_parent.path),
-        crate::protocol::PromptMode::Normal,
-        "kept prompt",
-        &[],
-    )?;
-    let parent_path = temp.path().join("session-locators/codex-cli/parent");
-    let child_path = temp.path().join("session-locators/codex-cli/child");
-    let project_id: i64 = store
-        .connection
-        .query_row(
-            "SELECT id FROM projects WHERE path=?1",
-            [crate::sessions::normalize_session_path(&project).to_string_lossy()],
-            |row| row.get(0),
-        )
-        .map_err(|error| error.to_string())?;
-    store
-        .connection
-        .execute(
-            "INSERT INTO sessions(
-               project_id,harness,locator,backend_id,title,modified_ms,archived_at,created_ms
-             ) VALUES(?1,'codex-cli',?2,'parent','discovered title',2,5,2)",
-            params![
-                project_id,
-                crate::sessions::normalize_session_path(&parent_path).to_string_lossy()
-            ],
-        )
-        .map_err(|error| error.to_string())?;
-    let mut parent = metadata("parent");
-    parent.project = project.clone();
-    parent.path = parent_path.clone();
-    let merged_parent = store.update_session_metadata(&parent)?;
-    assert!(merged_parent.archived);
-    let mut child = metadata("child");
-    child.project = project.clone();
-    child.path = child_path.clone();
-    child.parent_session = Some("parent".into());
-    store.update_session_metadata(&child)?;
-
-    let parents: i64 = store
-        .connection
-        .query_row(
-            "SELECT COUNT(*) FROM sessions WHERE harness='codex-cli' AND backend_id='parent'",
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|error| error.to_string())?;
-    assert_eq!(parents, 1);
-    let composer = store.load_composer_sessions()?;
-    assert_eq!(composer.len(), 1);
-    assert_eq!(composer[0].text, "kept draft");
-    assert_eq!(
-        composer[0].target,
-        format!("session:{}", merged_parent.path.display())
-    );
-    let queued = store.queued_prompts()?;
-    assert_eq!(queued.len(), 1);
-    assert_eq!(queued[0].message, "kept prompt");
-    assert_eq!(
-        queued[0].session.as_deref(),
-        Some(merged_parent.path.as_path())
-    );
-    let cached = store.cached_sessions("")?;
-    let saved_child = cached
-        .iter()
-        .find(|session| session.id == "child")
-        .ok_or("missing child")?;
-    assert_eq!(saved_child.parent_session.as_deref(), Some("parent"));
-    assert_eq!(
-        cached
-            .iter()
-            .find(|session| session.id == "parent")
-            .ok_or("missing canonical parent")?
-            .path,
-        crate::sessions::normalize_session_path(&parent_path)
-    );
-    let family = store.load_worker_families()?;
-    assert_eq!(family.len(), 1);
-    assert_eq!(family[0].parent_session, "parent");
-    assert_eq!(family[0].child_session, "child");
-    assert_eq!(
-        family[0]
-            .routing
-            .as_ref()
-            .map(|routing| routing.name.as_str()),
-        Some("research")
-    );
-    let draft = store
-        .load_registry()?
-        .drafts
-        .into_iter()
-        .find(|draft| draft.id == "legacy-draft")
-        .ok_or("merged draft identity was lost")?;
-    assert_eq!(draft.app_session_id, merged_parent.app_session_id);
-    let draft_state: (bool, i64, i64) = store
-        .connection
-        .query_row(
-            "SELECT submitted,rail_order,created_ms FROM sessions WHERE id=?1",
-            [merged_parent.app_session_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )
-        .map_err(|error| error.to_string())?;
-    assert_eq!(draft_state, (true, 42, 1));
-    let event_body: String = store
-        .connection
-        .query_row(
-            "SELECT body FROM session_events WHERE session_id=?1 AND json_extract(body,'$.type')='legacy_event'",
-            [merged_parent.app_session_id],
-            |row| row.get(0),
-        )
-        .map_err(|error| error.to_string())?;
-    assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&event_body).map_err(|error| error.to_string())?,
-        serde_json::json!({"type":"legacy_event","value":"kept"})
-    );
-    let model: (String, String, Option<String>, Option<String>) = store
-        .connection
-        .query_row(
-            "SELECT provider,model,effort,service_tier FROM session_models WHERE session_id=?1",
-            [merged_parent.app_session_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-        )
-        .map_err(|error| error.to_string())?;
-    assert_eq!(
-        model,
-        (
-            "legacy-provider".into(),
-            "legacy-model".into(),
-            Some("high".into()),
-            Some("priority".into()),
-        )
-    );
-    let foreign_key_errors: i64 = store
-        .connection
-        .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
-            row.get(0)
-        })
-        .map_err(|error| error.to_string())?;
-    assert_eq!(foreign_key_errors, 0);
-    Ok(())
-}
-
-#[test]
 fn interrupted_prompts_require_explicit_safe_disposition() -> Result<(), String> {
     let temp = tempfile::tempdir().map_err(|error| error.to_string())?;
     let database = temp.path().join("state.sqlite3");
@@ -1107,27 +771,32 @@ fn v12_migration_preserves_native_id_worker_family_links() -> Result<(), String>
         )
         .map_err(|error| error.to_string())?;
     }
-    let link = crate::agents::WorkerFamilyLink {
-        project: "/project".into(),
-        parent_backend: Backend::Pi,
-        parent_session: "/sessions/parent.jsonl".into(),
-        child_backend: Backend::Codex,
-        child_session: "native-child".into(),
-        execution: None,
-        routing: None,
-    };
+    let link = serde_json::json!({
+        "project": "/project",
+        "child_backend": "codex-cli",
+        "child_session": "native-child",
+        "parent_backend": "pi",
+        "parent_session": "/sessions/parent.jsonl",
+        "execution": null,
+        "routing": null,
+    });
     tx.execute(
         "INSERT INTO meta(key,value) VALUES('worker_family:child',?1)",
-        [serde_json::to_string(&link).map_err(|error| error.to_string())?],
+        [link.to_string()],
     )
     .map_err(|error| error.to_string())?;
-    let unresolved = crate::agents::WorkerFamilyLink {
-        child_session: "missing-child".into(),
-        ..link.clone()
-    };
+    let unresolved = serde_json::json!({
+        "project": "/project",
+        "child_backend": "codex-cli",
+        "child_session": "missing-child",
+        "parent_backend": "pi",
+        "parent_session": "/sessions/parent.jsonl",
+        "execution": null,
+        "routing": null,
+    });
     tx.execute(
         "INSERT INTO meta(key,value) VALUES('worker_family:missing',?1)",
-        [serde_json::to_string(&unresolved).map_err(|error| error.to_string())?],
+        [unresolved.to_string()],
     )
     .map_err(|error| error.to_string())?;
 
@@ -1178,7 +847,7 @@ fn v12_migration_preserves_native_id_worker_family_links() -> Result<(), String>
         )
         .map_err(|error| error.to_string())?;
     assert_eq!(
-        serde_json::from_str::<crate::agents::WorkerFamilyLink>(&unresolved_json)
+        serde_json::from_str::<serde_json::Value>(&unresolved_json)
             .map_err(|error| error.to_string())?,
         unresolved
     );

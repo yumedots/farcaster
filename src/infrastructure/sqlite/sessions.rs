@@ -275,8 +275,7 @@ impl StateStore {
                         AND NOT EXISTS(SELECT 1 FROM outbox WHERE session_id=s.id)
                         AND NOT EXISTS(SELECT 1 FROM session_events WHERE session_id=s.id)
                         AND NOT EXISTS(SELECT 1 FROM session_ops WHERE session_id=s.id)
-                        AND NOT EXISTS(SELECT 1 FROM sessions child WHERE child.parent_id=s.id)
-                        AND NOT EXISTS(SELECT 1 FROM worker_families WHERE child_id=s.id)",
+                        AND NOT EXISTS(SELECT 1 FROM sessions child WHERE child.parent_id=s.id)",
                 )
                 .map_err(|error| format!("read indexed locators: {error}"))?
                 .query_map([], |row| {

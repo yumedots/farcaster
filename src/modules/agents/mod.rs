@@ -31,8 +31,6 @@ pub(crate) use core::{
     begin_prompt, complete_prompt_with_receipt, enqueue_prompt_with_presentation, fail_prompt,
     has_queued_prompts_for, mark_prompt_delivery_unknown, queued_prompts,
 };
-#[cfg(test)]
-pub(crate) use core::{WorkerAssignment, WorkerExecution, WorkerFamilyLink, WorkerRouting};
 
 #[cfg(test)]
 pub(crate) use adapter::live_tests::support as live_e2e_support;

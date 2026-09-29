@@ -38,8 +38,6 @@ mod settings;
 mod traits;
 mod transcript;
 
-#[cfg(test)]
-use identity::ensure_locator_session;
 use identity::{bind_locator, ensure_project, target_for_session};
 
 const SCHEMA_VERSION: i64 = 19;

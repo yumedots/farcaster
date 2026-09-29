@@ -1789,43 +1789,6 @@ fn accepted_pathless_draft_retains_presentation_and_outbox_ids_do_not_repeat()
     Ok(())
 }
 
-#[test]
-fn worker_identity_binds_a_discovered_locator_without_creating_a_second_session()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempdir()?;
-    let database = temp.path().join("gui.sqlite3");
-    let mut store = StateStore::open_at(&database)?;
-    store.save_worker_family(&crate::agents::WorkerFamilyLink {
-        project: temp.path().to_path_buf(),
-        parent_backend: Backend::Pi,
-        parent_session: "parent".into(),
-        child_backend: Backend::Codex,
-        child_session: "child".into(),
-        execution: None,
-        routing: None,
-    })?;
-    let mut child = persistence_summary(temp.path(), "child");
-    child.harness = Backend::Codex;
-    store.index_sessions(
-        &[persistence_summary(temp.path(), "parent"), child.clone()],
-        false,
-    )?;
-    assert_eq!(store.cached_sessions("")?.len(), 2);
-    let links = store.load_worker_families()?;
-    assert_eq!(
-        links[0].child_session,
-        crate::sessions::normalize_session_path(&child.path).to_string_lossy()
-    );
-    let connection = Connection::open(&database)?;
-    assert_eq!(
-        connection.query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
-            row.get::<_, i64>(0)
-        })?,
-        0
-    );
-    Ok(())
-}
-
 fn persistence_summary(project: &std::path::Path, id: &str) -> SessionSummary {
     SessionSummary::from_cached(
         id.into(),

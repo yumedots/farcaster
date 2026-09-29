@@ -1,13 +1,7 @@
 mod prompt_store;
 mod tool;
 mod worker;
-#[cfg(test)]
-mod worker_family;
 pub(crate) use tool::{ToolCategory, ToolMetadata};
-#[cfg(test)]
-pub(crate) use worker_family::{
-    WorkerAssignment, WorkerExecution, WorkerFamilyLink, WorkerRouting,
-};
 
 pub(crate) use prompt_store::{
     PromptStore, begin as begin_prompt, complete_with_receipt as complete_prompt_with_receipt,
