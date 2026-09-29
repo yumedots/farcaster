@@ -2,7 +2,6 @@ use super::*;
 
 pub(super) struct BootstrapTasks {
     pub(super) runtime_events: Task<()>,
-    pub(super) worker_updates: Task<()>,
 }
 
 pub(super) struct PerformanceState {
@@ -10,11 +9,7 @@ pub(super) struct PerformanceState {
     pub(super) task: Option<Task<()>>,
 }
 
-pub(super) fn spawn(
-    runtime: &RuntimeHandle,
-    worker_updates: async_channel::Receiver<()>,
-    cx: &mut Context<FarcasterApp>,
-) -> BootstrapTasks {
+pub(super) fn spawn(runtime: &RuntimeHandle, cx: &mut Context<FarcasterApp>) -> BootstrapTasks {
     let runtime_wake = runtime.wake_receiver();
     let runtime_events = cx.spawn(async move |weak, cx| {
         while runtime_wake.recv().await.is_ok() {
@@ -23,22 +18,7 @@ pub(super) fn spawn(
             }
         }
     });
-    let worker_updates = cx.spawn(async move |weak, cx| {
-        while worker_updates.recv().await.is_ok() {
-            if weak
-                .update(cx, |this, cx| {
-                    this.send(RuntimeCommand::RefreshSessions, cx);
-                })
-                .is_err()
-            {
-                break;
-            }
-        }
-    });
-    BootstrapTasks {
-        runtime_events,
-        worker_updates,
-    }
+    BootstrapTasks { runtime_events }
 }
 
 pub(super) fn start_performance_monitor(

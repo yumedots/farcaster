@@ -23,20 +23,6 @@ impl Supervisor {
                     });
                     return true;
                 }
-                let project = family[0].project.clone();
-                let worker_paths = family
-                    .iter()
-                    .map(|session| (session.harness, session.path.clone()))
-                    .collect::<Vec<_>>();
-                if let Err(message) =
-                    crate::app::worker_pool::stop_session_family_workers(&project, &worker_paths)
-                {
-                    let _ = self.event_tx.send(RuntimeEvent::SessionsFailed {
-                        generation: self.catalog_generation,
-                        message: format!("Could not stop the whole session family: {message}"),
-                    });
-                    return true;
-                }
                 let family_actor_keys = self
                     .actor_paths
                     .iter()
@@ -84,10 +70,6 @@ impl Supervisor {
                     self.selected = self.catalog_key.clone();
                 }
                 if !actor_stop_failures.is_empty() {
-                    let _ = crate::app::worker_pool::finish_session_family_worker_stop(
-                        &project,
-                        &worker_paths,
-                    );
                     let _ = self.event_tx.send(RuntimeEvent::SessionsFailed {
                         generation: self.catalog_generation,
                         message: format!(
@@ -113,18 +95,6 @@ impl Supervisor {
                             status: "Stopped".into(),
                         });
                     }
-                }
-                if let Err(message) = crate::app::worker_pool::finish_session_family_worker_stop(
-                    &project,
-                    &worker_paths,
-                ) {
-                    let _ = self.event_tx.send(RuntimeEvent::SessionsFailed {
-                        generation: self.catalog_generation,
-                        message: format!(
-                            "Session family stopped, but its worker stop fence failed: {message}"
-                        ),
-                    });
-                    return true;
                 }
                 let archive_result = self
                     .catalog_state

@@ -1,6 +1,7 @@
 use super::*;
 use crate::agents::Backend;
 
+#[cfg(test)]
 fn stored_family_identity(
     locator_root: &Path,
     project: &Path,
@@ -294,12 +295,7 @@ impl StateStore {
         self.load_worker_families_filtered(false)
     }
 
-    pub(crate) fn load_worker_routes(
-        &self,
-    ) -> Result<Vec<crate::agents::WorkerFamilyLink>, String> {
-        self.load_worker_families_filtered(true)
-    }
-
+    #[cfg(test)]
     fn load_worker_families_filtered(
         &self,
         active_only: bool,

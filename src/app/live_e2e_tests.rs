@@ -782,23 +782,18 @@ fn with_live_app(
         cx.bind_keys(super::ui::keybindings::bindings());
     });
     phase("gpui-initialized");
-    let (worker_updates, worker_rx) = async_channel::unbounded();
     phase("window-creating");
     // `add_window_view` unconditionally runs GPUI's scheduler to quiescence.
     // Bootstrap owns permanent runtime/update receiver tasks, so use the same
     // real window/app construction without that unbounded test-only drain.
-    let window = cx.add_window(|window, cx| {
-        FarcasterApp::new(project_path.clone(), true, worker_rx, window, cx)
-    });
+    let window =
+        cx.add_window(|window, cx| FarcasterApp::new(project_path.clone(), true, window, cx));
     let app = window
         .root(cx)
         .map_err(|error| format!("read FarcasterApp window root: {error}"))?;
     let window: AnyWindowHandle = window.into();
     let cx = VisualTestContext::from_window(window, cx).into_mut();
     phase("window-created");
-    // Keep actual subscription senders alive for the full app test. They are
-    // deliberately empty; the runtime/session supplies every observed event.
-    let _updates = worker_updates;
     focus_composer(cx, &app);
     phase("composer-focused");
     // `NewSession` stages a disconnected draft; the first real composer

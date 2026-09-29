@@ -244,14 +244,6 @@ impl Supervisor {
                     );
                 }
                 if let RuntimeCommand::SetAppProxy(proxy) = &command {
-                    if let Err(error) = crate::app::worker_pool::set_worker_app_proxy(proxy.clone())
-                    {
-                        let _ = self.event_tx.send(RuntimeEvent::SystemNotification {
-                            title: "Farcaster: Worker proxy update failed".into(),
-                            body: error,
-                            target: None,
-                        });
-                    }
                     self.process_command.app_proxy = proxy.clone();
                     for actor in self.actors.values() {
                         actor.send(command.clone());

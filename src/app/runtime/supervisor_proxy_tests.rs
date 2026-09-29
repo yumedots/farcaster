@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn supervisor_proxy_changes_reach_the_worker_pool() -> Result<(), String> {
+fn supervisor_proxy_changes_reach_the_process_command() -> Result<(), String> {
     let project = tempfile::tempdir().map_err(|error| error.to_string())?;
     let database = project.path().join("state.sqlite3");
     let script = project.path().join("fake-pi.sh");
@@ -11,32 +11,25 @@ fn supervisor_proxy_changes_reach_the_worker_pool() -> Result<(), String> {
     let mut worker_command =
         AgentLaunchConfig::test_script(&script, vec!["worker-launch-config".into()]);
     worker_command.app_proxy = Some("http://stale-proxy.example:8000".into());
-    let (factories, backend) = crate::agents::worker_factories(worker_command);
-    let _ = backend;
-    let pool = crate::agents::WorkerPool::new(factories)?;
     let (mut supervisor, commands) = test_supervisor(
         project.path().to_owned(),
         StateStore::open_at(&database)?,
         AgentLaunchConfig::test_script(&script, vec!["normal".into()]),
     );
 
-    crate::app::worker_pool::with_test_worker_pool(pool.clone(), || -> Result<(), String> {
-        let proxy = "http://127.0.0.1:8118";
-        commands
-            .send(RuntimeCommand::SetAppProxy(Some(proxy.into())))
-            .map_err(|error| error.to_string())?;
-        assert!(supervisor.process_next_command());
-        assert_eq!(supervisor.process_command.app_proxy.as_deref(), Some(proxy));
-        assert_eq!(pool.app_proxy()?.as_deref(), Some(proxy));
+    let proxy = "http://127.0.0.1:8118";
+    commands
+        .send(RuntimeCommand::SetAppProxy(Some(proxy.into())))
+        .map_err(|error| error.to_string())?;
+    assert!(supervisor.process_next_command());
+    assert_eq!(supervisor.process_command.app_proxy.as_deref(), Some(proxy));
 
-        commands
-            .send(RuntimeCommand::SetAppProxy(None))
-            .map_err(|error| error.to_string())?;
-        assert!(supervisor.process_next_command());
-        assert_eq!(supervisor.process_command.app_proxy, None);
-        assert_eq!(pool.app_proxy()?, None);
-        Ok(())
-    })
+    commands
+        .send(RuntimeCommand::SetAppProxy(None))
+        .map_err(|error| error.to_string())?;
+    assert!(supervisor.process_next_command());
+    assert_eq!(supervisor.process_command.app_proxy, None);
+    Ok(())
 }
 
 fn test_supervisor(

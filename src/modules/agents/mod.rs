@@ -12,7 +12,7 @@ pub(crate) use adapter::{
     saved_project_trust, spawn_session, supports_auto_title_generation, supports_reasoning_effort,
     supports_reasoning_reset, supports_sandbox_discovery, supports_session_fork,
     supports_session_move, supports_startup_command, supports_steering, validate_launch,
-    validate_session_move, worker_factories,
+    validate_session_move,
 };
 pub(crate) use contract::extensions;
 pub(crate) use contract::{
@@ -22,21 +22,18 @@ pub(crate) use contract::{
     SessionEvent, SessionHistory, SessionLaunch, SessionMetadata, SessionOperation,
     SessionResponse, SessionResponseErrorKind, SessionResponsePayload, SessionStart,
     SessionTransport, SessionUsage, SessionUsageTokens, WorkerContext, WorkerInput,
-    WorkerInputResponse, WorkerSnapshot, effort_rank, model_efforts, valid_worker_name,
+    WorkerInputResponse, effort_rank, model_efforts, valid_worker_name,
 };
-
-#[cfg(test)]
-pub(crate) use contract::WorkerStatus;
 pub(crate) use core::{
     CallerProfile, CallerRegistry, ChildSessionOutcome, CommonTool, PromptStore, TokenUsage,
     ToolCategory, ToolMetadata, ToolReviewState, WorkerActivity, WorkerActivityState, WorkerEvent,
-    WorkerFamilyLink, WorkerLaunch, WorkerModelSelection, WorkerPool, WorkerRouting,
-    WorkerSendMode, WorkerSession, WorkerSessionFactory, WorkerUsage, begin_prompt,
-    complete_prompt_with_receipt, enqueue_prompt_with_presentation, fail_prompt,
-    has_queued_prompts_for, is_child_input_id, mark_prompt_delivery_unknown, queued_prompts,
+    WorkerLaunch, WorkerModelSelection, WorkerSendMode, WorkerSession, WorkerSessionFactory,
+    WorkerUsage, begin_prompt, complete_prompt_with_receipt, enqueue_prompt_with_presentation,
+    fail_prompt, has_queued_prompts_for, is_child_input_id, mark_prompt_delivery_unknown,
+    queued_prompts,
 };
 #[cfg(test)]
-pub(crate) use core::{WorkerAssignment, WorkerExecution};
+pub(crate) use core::{WorkerAssignment, WorkerExecution, WorkerFamilyLink, WorkerRouting};
 
 #[cfg(test)]
 pub(crate) use adapter::live_tests::support as live_e2e_support;

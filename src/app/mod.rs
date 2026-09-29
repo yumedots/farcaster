@@ -18,7 +18,6 @@ mod session;
 mod session_folders;
 pub(crate) mod ui;
 pub(crate) mod views;
-pub(crate) mod worker_pool;
 mod workspace;
 use change_detection::*;
 pub(crate) use composer::ComposerImage;

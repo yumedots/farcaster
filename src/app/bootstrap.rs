@@ -39,7 +39,6 @@ impl FarcasterApp {
     pub(crate) fn new(
         project: PathBuf,
         repository_execution_allowed: bool,
-        worker_updates: async_channel::Receiver<()>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -66,7 +65,6 @@ impl FarcasterApp {
         let mut app = Self::from_bootstrap_state(
             project,
             repository_execution_allowed,
-            worker_updates,
             persisted,
             runtime,
             window,
@@ -80,7 +78,6 @@ impl FarcasterApp {
     pub(crate) fn new_offline_for_test(
         project: PathBuf,
         runtime: RuntimeHandle,
-        worker_updates: async_channel::Receiver<()>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -115,22 +112,13 @@ impl FarcasterApp {
             active_theme: None,
             panel_layout: Default::default(),
         };
-        Self::from_bootstrap_state(
-            project,
-            false,
-            worker_updates,
-            persisted,
-            runtime,
-            window,
-            cx,
-        )
+        Self::from_bootstrap_state(project, false, persisted, runtime, window, cx)
     }
 
     #[allow(clippy::too_many_arguments)]
     fn from_bootstrap_state(
         project: PathBuf,
         repository_execution_allowed: bool,
-        worker_updates: async_channel::Receiver<()>,
         persisted: persisted::PersistedState,
         runtime: RuntimeHandle,
         window: &mut Window,
@@ -144,7 +132,7 @@ impl FarcasterApp {
             cx,
         );
         let subscriptions = subscriptions::create(&inputs, window, cx);
-        let tasks = tasks::spawn(&runtime, worker_updates, cx);
+        let tasks = tasks::spawn(&runtime, cx);
         let performance = tasks::start_performance_monitor(window, cx);
         let regions = regions::create(cx);
 
@@ -353,7 +341,6 @@ impl FarcasterApp {
                 _performance_task: performance.task,
                 _window_placement_subscription: subscriptions.window_placement,
                 _event_task: tasks.runtime_events,
-                _worker_update_task: tasks.worker_updates,
             },
         };
         this.activate_theme(cx);

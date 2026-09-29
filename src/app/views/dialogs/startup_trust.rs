@@ -25,7 +25,6 @@ pub(crate) struct ProjectTrustView {
     project: PathBuf,
     app: Option<Entity<FarcasterApp>>,
     notification_app: Rc<RefCell<Option<WeakEntity<FarcasterApp>>>>,
-    worker_updates: async_channel::Receiver<()>,
     focus: FocusHandle,
     error: Option<String>,
 }
@@ -36,7 +35,6 @@ impl ProjectTrustView {
         project: PathBuf,
         startup_trust: StartupTrust,
         notification_app: Rc<RefCell<Option<WeakEntity<FarcasterApp>>>>,
-        worker_updates: async_channel::Receiver<()>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -45,7 +43,6 @@ impl ProjectTrustView {
             project,
             app: None,
             notification_app,
-            worker_updates,
             focus,
             error: None,
         };
@@ -78,16 +75,7 @@ impl ProjectTrustView {
         let repository_execution_allowed = repository_execution_allowed.unwrap_or_else(|| {
             crate::app::project::trust::repository_execution_allowed(&project).unwrap_or(false)
         });
-        let worker_updates = self.worker_updates.clone();
-        let app = cx.new(|cx| {
-            FarcasterApp::new(
-                project,
-                repository_execution_allowed,
-                worker_updates,
-                window,
-                cx,
-            )
-        });
+        let app = cx.new(|cx| FarcasterApp::new(project, repository_execution_allowed, window, cx));
         let focus = app.read(cx).composer.focus.clone();
         *self.notification_app.borrow_mut() = Some(app.downgrade());
         self.app = Some(app);

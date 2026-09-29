@@ -152,6 +152,7 @@ pub(super) fn merge_session(tx: &Transaction<'_>, keep: i64, other: i64) -> Resu
     Ok(())
 }
 
+#[cfg(test)]
 pub(super) fn family_locator_root(locator_root: &Path, project: &Path) -> PathBuf {
     use sha2::{Digest as _, Sha256};
 

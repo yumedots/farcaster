@@ -67,10 +67,7 @@ fn update_app(
     }
 }
 
-pub(crate) fn run(
-    project: PathBuf,
-    worker_updates: async_channel::Receiver<()>,
-) -> Result<(), LaunchError> {
+pub(crate) fn run(project: PathBuf) -> Result<(), LaunchError> {
     let launch_timing = StartupTiming::always("launch.until_window_open");
     #[cfg(target_os = "linux")]
     install_linux_icon();
@@ -204,7 +201,6 @@ pub(crate) fn run(
                         project.clone(),
                         startup_trust,
                         notification_app.clone(),
-                        worker_updates.clone(),
                         window,
                         cx,
                     )

@@ -1,6 +1,4 @@
-use crate::agents::Backend;
 use std::{
-    collections::BTreeMap,
     path::Path,
     sync::{Arc, mpsc},
     thread,
@@ -8,7 +6,6 @@ use std::{
 };
 
 use super::*;
-use crate::agents::{WorkerLaunch, WorkerPool, WorkerSession, WorkerSessionFactory};
 use crate::sessions::UsageSummary;
 use serde_json::json;
 
@@ -28,19 +25,6 @@ fn summary(project: &Path, id: &str, parent: Option<&str>) -> SessionSummary {
         true,
         String::new(),
     )
-}
-
-struct UnusedFactory;
-
-impl WorkerSessionFactory for UnusedFactory {
-    fn create(&self, _launch: WorkerLaunch) -> Result<Box<dyn WorkerSession>, String> {
-        Err("no worker can be started".into())
-    }
-}
-
-fn empty_pool() -> Result<WorkerPool, String> {
-    let factory: Arc<dyn WorkerSessionFactory> = Arc::new(UnusedFactory);
-    WorkerPool::new(BTreeMap::from([(Backend::Pi, factory)]))
 }
 
 fn supervisor_for_family(
@@ -125,7 +109,6 @@ fn supervisor_does_not_archive_or_report_stopped_when_actor_close_fails() -> Res
     let root = summary(temp.path(), "root", None);
     let mut state = StateStore::open_at(&database)?;
     state.replace_sessions(std::slice::from_ref(&root))?;
-    let pool = empty_pool()?;
     let (mut supervisor, events) = supervisor_for_family(state, vec![root.clone()]);
     let key = format!("session:{}", root.path.display());
     let (commands, _command_rx) = mpsc::channel();
@@ -144,39 +127,37 @@ fn supervisor_does_not_archive_or_report_stopped_when_actor_close_fails() -> Res
         },
     );
 
-    crate::app::worker_pool::with_test_worker_pool(pool, || {
-        assert!(
-            supervisor.handle_session_family_command(&RuntimeCommand::StopSessionFamily {
-                path: root.path.clone(),
-            })
-        );
-        assert!(!archived(&database, &root.path)?);
-        let first_events = events.try_iter().collect::<Vec<_>>();
-        assert!(first_events.iter().any(|event| matches!(
-            event,
-            RuntimeEvent::SessionsFailed { message, .. }
-                if message.contains("actor transport close failed")
-        )));
-        assert!(first_events.iter().all(|event| !matches!(
-            event,
-            RuntimeEvent::SessionStatus { status, .. } if status == "Stopped"
-        )));
-        assert!(
-            supervisor.handle_session_family_command(&RuntimeCommand::StopSessionFamily {
-                path: root.path.clone(),
-            })
-        );
-        assert!(!archived(&database, &root.path)?);
-        let retry_events = events.try_iter().collect::<Vec<_>>();
-        assert!(retry_events.iter().any(|event| matches!(
-            event,
-            RuntimeEvent::SessionsFailed { message, .. }
-                if message.contains("actor transport close failed")
-        )));
-        assert!(retry_events.iter().all(|event| !matches!(
-            event,
-            RuntimeEvent::SessionStatus { status, .. } if status == "Stopped"
-        )));
-        Ok(())
-    })
+    assert!(
+        supervisor.handle_session_family_command(&RuntimeCommand::StopSessionFamily {
+            path: root.path.clone(),
+        })
+    );
+    assert!(!archived(&database, &root.path)?);
+    let first_events = events.try_iter().collect::<Vec<_>>();
+    assert!(first_events.iter().any(|event| matches!(
+        event,
+        RuntimeEvent::SessionsFailed { message, .. }
+            if message.contains("actor transport close failed")
+    )));
+    assert!(first_events.iter().all(|event| !matches!(
+        event,
+        RuntimeEvent::SessionStatus { status, .. } if status == "Stopped"
+    )));
+    assert!(
+        supervisor.handle_session_family_command(&RuntimeCommand::StopSessionFamily {
+            path: root.path.clone(),
+        })
+    );
+    assert!(!archived(&database, &root.path)?);
+    let retry_events = events.try_iter().collect::<Vec<_>>();
+    assert!(retry_events.iter().any(|event| matches!(
+        event,
+        RuntimeEvent::SessionsFailed { message, .. }
+            if message.contains("actor transport close failed")
+    )));
+    assert!(retry_events.iter().all(|event| !matches!(
+        event,
+        RuntimeEvent::SessionStatus { status, .. } if status == "Stopped"
+    )));
+    Ok(())
 }

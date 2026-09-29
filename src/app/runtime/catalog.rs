@@ -215,10 +215,6 @@ impl RuntimeOwner {
     }
 
     fn catalog_event(&self, all_sessions: Vec<SessionSummary>) -> RuntimeEvent {
-        let worker_activities = worker_activities(
-            &all_sessions,
-            crate::app::worker_pool::worker_snapshots().unwrap_or_default(),
-        );
         RuntimeEvent::Sessions {
             generation: self.session_generation,
             sessions: crate::sessions::filter_session_tree(
@@ -226,27 +222,9 @@ impl RuntimeOwner {
                 &self.session_query,
             ),
             all_sessions,
-            // Pool snapshots are current lifecycle data. The projection merges
-            // them without clearing richer history-backed activities.
-            activities: (!worker_activities.is_empty()).then_some((worker_activities, false)),
+            activities: None,
         }
     }
-}
-
-fn worker_activities(
-    sessions: &[SessionSummary],
-    snapshots: Vec<agents::WorkerSnapshot>,
-) -> HashMap<String, AgentActivity> {
-    snapshots
-        .into_iter()
-        .filter_map(|snapshot| {
-            let session = session_for_worker_snapshot(sessions, &snapshot)?;
-            Some((
-                crate::agent_activity::agent_activity_key(&session.path),
-                AgentActivity::from_worker_snapshot(session, snapshot.lifecycle()),
-            ))
-        })
-        .collect()
 }
 
 pub(in crate::app) fn native_child_activity(
@@ -260,19 +238,6 @@ pub(in crate::app) fn native_child_activity(
         metadata.is_running,
         child.get("outcome").and_then(Value::as_str),
     )
-}
-
-fn session_for_worker_snapshot<'a>(
-    sessions: &'a [SessionSummary],
-    snapshot: &agents::WorkerSnapshot,
-) -> Option<&'a SessionSummary> {
-    let locator = snapshot.session_locator.as_deref()?;
-    sessions.iter().find(|session| {
-        session.parent_session.is_some()
-            && session.harness == snapshot.backend
-            && session.project == snapshot.project
-            && (session.id == locator || session.path == std::path::Path::new(locator))
-    })
 }
 
 fn unknown_import_candidates(

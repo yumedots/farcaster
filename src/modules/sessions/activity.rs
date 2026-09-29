@@ -7,7 +7,9 @@ use std::{
 use serde_json::Value;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
-use crate::sessions::{SessionSummary, UsageSummary};
+#[cfg(test)]
+use crate::sessions::SessionSummary;
+use crate::sessions::UsageSummary;
 
 const MAX_ACTIVITY_CHARS: usize = 160;
 const MAX_TOOL_TARGET_CHARS: usize = 120;
@@ -60,6 +62,7 @@ pub(crate) struct AgentActivity {
 }
 
 impl AgentActivity {
+    #[cfg(test)]
     pub(crate) fn limited_fallback(session: &SessionSummary) -> Self {
         Self {
             session_id: session.id.clone(),
@@ -81,19 +84,6 @@ impl AgentActivity {
             ended: (!session.is_running).then_some(session.modified),
             elapsed: None,
         }
-    }
-
-    pub(crate) fn from_worker_snapshot(
-        session: &SessionSummary,
-        lifecycle: AgentLifecycle,
-    ) -> Self {
-        let mut activity = Self::limited_fallback(session);
-        activity.lifecycle = lifecycle;
-        activity.explicit_outcome = matches!(activity.lifecycle, AgentLifecycle::Completed(_));
-        if matches!(activity.lifecycle, AgentLifecycle::Completed(_)) {
-            activity.ended = Some(session.modified);
-        }
-        activity
     }
 
     pub(crate) fn from_native_child(

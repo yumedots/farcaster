@@ -1,11 +1,3 @@
-use crate::agents::Backend;
-use crate::modules::sessions::activity::{AgentLifecycle, AgentOutcome};
-use std::path::PathBuf;
-
-use serde::Serialize;
-
-use super::WorkerInput;
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PeerMessage {
     pub(crate) from: String,
@@ -37,38 +29,6 @@ pub(crate) fn valid_worker_name(name: &str) -> bool {
         && name.bytes().enumerate().all(|(index, byte)| {
             byte.is_ascii_alphanumeric() || (index > 0 && matches!(byte, b'-' | b'_'))
         })
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum WorkerStatus {
-    Idle,
-    Stopped,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct WorkerSnapshot {
-    pub(crate) id: String,
-    pub(crate) backend: Backend,
-    pub(crate) project: PathBuf,
-    pub(crate) session_locator: Option<String>,
-    pub(crate) status: WorkerStatus,
-    pub(crate) output: Option<String>,
-    pub(crate) error: Option<String>,
-    pub(crate) pending_input: Option<WorkerInput>,
-}
-
-impl WorkerSnapshot {
-    pub(crate) fn lifecycle(&self) -> AgentLifecycle {
-        match self.status {
-            WorkerStatus::Idle if self.output.is_some() => {
-                AgentLifecycle::Completed(AgentOutcome::Complete)
-            }
-            WorkerStatus::Idle => AgentLifecycle::Unknown,
-            WorkerStatus::Stopped => AgentLifecycle::Completed(AgentOutcome::Incomplete),
-        }
-    }
 }
 
 #[cfg(test)]

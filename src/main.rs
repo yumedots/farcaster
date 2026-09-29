@@ -58,53 +58,11 @@ fn main() -> std::process::ExitCode {
         Ok(project) => project,
         Err(error) => return fail(error),
     };
-    let data_root = match app::paths::data_dir() {
-        Ok(path) => path,
-        Err(error) => return fail(error),
-    };
-    let state_store = app::persistence::StateStore::open().ok();
-    let worker_command = startup_worker_command(&data_root, state_store.as_ref());
-    let worker_proxy = worker_command.app_proxy.clone();
-    let (factories, _) = agents::worker_factories(worker_command);
-    let worker_pool = match agents::WorkerPool::new(factories) {
-        Ok(pool) => {
-            if let Err(error) = pool.set_app_proxy(worker_proxy) {
-                return fail(format!("initialize worker proxy: {error}"));
-            }
-            if let Some(store) = state_store.as_ref() {
-                let families = match store.load_worker_routes() {
-                    Ok(families) => families,
-                    Err(error) => return fail(format!("load saved worker routes: {error}")),
-                };
-                if let Err(error) = pool.restore_families(families) {
-                    return fail(format!("restore saved worker routes: {error}"));
-                }
-            }
-            pool
-        }
-        Err(error) => return fail(format!("initialize worker pool: {error}")),
-    };
-    let worker_updates = worker_pool.updates();
-    if let Err(error) = app::worker_pool::install(worker_pool) {
-        return fail(format!("install worker pool: {error}"));
-    }
 
     drop(prepare_timing);
-    match app::launch::run(project, worker_updates) {
+    match app::launch::run(project) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => fail(error),
-    }
-}
-
-fn startup_worker_command(
-    data_root: &std::path::Path,
-    state_store: Option<&app::persistence::StateStore>,
-) -> agents::AgentLaunchConfig {
-    let app_proxy = state_store.and_then(|store| crate::access::load_proxy(store).unwrap_or(None));
-    agents::AgentLaunchConfig {
-        app_proxy,
-        session_locator_root: Some(data_root.join("session-locators")),
-        ..agents::AgentLaunchConfig::default()
     }
 }
 
