@@ -17,7 +17,7 @@ FREE_MODEL = FARCASTER_OPENCODE_MODEL="$(MODEL)"
 PERF_TRACE ?= 1
 TRACE_ENV = DEBUG=true FARCASTER_PERF_TRACE="$(PERF_TRACE)"
 PRUNE = status=$$?; size=$$(du -sm "$(INCREMENTAL_DIR)" 2>/dev/null | cut -f1); if [ "$${size:-0}" -gt "$(INCREMENTAL_BUDGET)" ]; then echo "pruning the local incremental cache: $${size}MB of $(INCREMENTAL_BUDGET)MB"; cargo clean -p farcaster; fi; exit $$status
-CARGO_TARGETS := build run test e2e measure debug isolated release release-debug release-preview release-publish bundle bundle-relaunch package clippy check
+CARGO_TARGETS := build run test e2e measure debug isolated release release-debug release-preview release-publish bundle bundle-relaunch package app dmg clippy check
 
 .SILENT:
 .PHONY: $(CARGO_TARGETS) logs fmt clean prune-incremental libcxx
@@ -52,6 +52,10 @@ bundle bundle-relaunch:
 package:
 	test -n "$(FORMAT)" || (echo "usage: make package FORMAT=app|dmg|deb|pacman" >&2; exit 1)
 	BUNDLE_FORMATS="$(FORMAT)" ./scripts/bundle.sh
+app:
+	BUNDLE_FORMATS="app" ./scripts/bundle.sh && ./scripts/install-app.sh
+dmg:
+	BUNDLE_FORMATS="dmg" ./scripts/bundle.sh
 logs:
 	tail $(TAIL_ARGS) "$(LOG_FILE)"
 fmt:
