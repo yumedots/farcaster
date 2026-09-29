@@ -16,24 +16,8 @@ use gpui::{
 
 impl FarcasterApp {
     fn workspace_harness_icon(&self) -> AppIcon {
-        self.snapshot
-            .selected_session
-            .as_deref()
-            .and_then(|path| {
-                self.sessions
-                    .all
-                    .iter()
-                    .find(|session| session.path == path)
-            })
-            .map(|session| AppIcon::for_harness(session.harness))
-            .or_else(|| {
-                let selected = self.sessions.selected_draft.as_deref()?;
-                self.sessions
-                    .drafts
-                    .iter()
-                    .find(|draft| draft.id == selected)
-                    .map(|draft| AppIcon::for_harness(draft.harness))
-            })
+        self.active_harness()
+            .map(AppIcon::for_harness)
             .unwrap_or(AppIcon::Pi)
     }
 
@@ -211,6 +195,9 @@ fn workspace_tab(
         )
         .children(trailing)
         .on_click(move |_, window, cx| {
+            if active {
+                return;
+            }
             let _ = entity.update(cx, |app, cx| action(app, window, cx));
         })
         .into_any_element()
