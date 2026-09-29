@@ -391,6 +391,12 @@ impl FarcasterApp {
                 self.workspace.terminal.active_target = Some(to.to_owned());
             }
         }
+        if let Some(layout) = self.workspace.terminal.layouts.remove(from) {
+            self.workspace
+                .terminal
+                .layouts
+                .insert(to.to_owned(), layout);
+        }
     }
 
     pub(in crate::app) fn activate_chat_center(&mut self, cx: &mut Context<Self>) {
@@ -466,7 +472,7 @@ impl FarcasterApp {
                         }
                     }
                     AppSurface::Terminal => {
-                        if let Some(terminal) = self.workspace.terminal.view.as_ref() {
+                        if let Some(terminal) = self.active_terminal() {
                             terminal.update(cx, |terminal, cx| terminal.focus(window, cx));
                         }
                     }
