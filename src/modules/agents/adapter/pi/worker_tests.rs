@@ -18,7 +18,6 @@ fn queue_worker(
         vec![case_name.into()],
     ));
     Ok(factory.create(WorkerLaunch {
-        slot: None,
         worker_id: "pi-child".into(),
         worker_name: "Pi-child".into(),
         project: project.to_path_buf(),
@@ -298,7 +297,6 @@ fn worker_factory_applies_launch_proxy_and_access_mode() -> Result<(), Box<dyn s
     let factory = PiWorkerFactory::new(command);
     let proxy = "http://127.0.0.1:8118";
     let mut worker = factory.create(WorkerLaunch {
-        slot: None,
         worker_id: "launch-config-worker".into(),
         worker_name: "launch-config".into(),
         project: temp.path().to_path_buf(),
@@ -324,7 +322,6 @@ fn worker_factory_applies_launch_proxy_and_access_mode() -> Result<(), Box<dyn s
     );
 
     let mut worker = factory.create(WorkerLaunch {
-        slot: None,
         worker_id: "launch-config-cleared-worker".into(),
         worker_name: "launch-config-cleared".into(),
         project: temp.path().to_path_buf(),
@@ -366,7 +363,6 @@ fn cancelled_fork_cannot_create_a_worker_on_the_parent_session()
     ));
     let locator = parent.to_string_lossy().into_owned();
     let result = factory.create(WorkerLaunch {
-        slot: None,
         worker_id: "cancelled-fork-worker".into(),
         worker_name: "child".into(),
         project: temp.path().to_path_buf(),
@@ -413,7 +409,6 @@ fn worker_resume_reopens_its_saved_session_without_forking()
     let factory = PiWorkerFactory::new(AgentLaunchConfig::test_script(&script, Vec::new()));
     let saved_locator = saved.to_string_lossy().into_owned();
     let mut worker = factory.create(WorkerLaunch {
-        slot: None,
         worker_id: "resumed-worker".into(),
         worker_name: "resumed".into(),
         project: temp.path().to_path_buf(),

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
-use super::{WorkerContext, WorkerInput};
+use super::WorkerInput;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PeerMessage {
@@ -15,10 +15,6 @@ pub(crate) struct PeerMessage {
 impl PeerMessage {
     const PROMPT_PREFIX: &'static str = "Message from Farcaster worker ";
     const LEGACY_PROMPT_PREFIX: &'static str = "Message from Farcaster peer ";
-
-    pub(crate) fn prompt(&self) -> String {
-        format!("{}{}:\n\n{}", Self::PROMPT_PREFIX, self.from, self.message)
-    }
 
     pub(crate) fn from_prompt(prompt: &str) -> Option<Self> {
         let (heading, message) = prompt.split_once("\n\n")?;
@@ -43,46 +39,11 @@ pub(crate) fn valid_worker_name(name: &str) -> bool {
         })
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct StartWorker {
-    pub(crate) project: PathBuf,
-    pub(crate) name: String,
-    pub(crate) prompt: String,
-    pub(crate) backend: Backend,
-    pub(crate) parent_session: String,
-    pub(crate) parent_worker_id: Option<String>,
-    pub(crate) context: WorkerContext,
-    pub(crate) provider: Option<String>,
-    pub(crate) model: Option<String>,
-    pub(crate) effort: Option<String>,
-    pub(crate) access_mode: super::HarnessAccessMode,
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum WorkerStatus {
-    Pending,
-    Running,
     Idle,
-    NeedsInput,
-    Failed,
     Stopped,
-}
-
-pub(crate) fn validate_child_access(
-    parent: super::HarnessAccessMode,
-    child: super::HarnessAccessMode,
-) -> Result<(), String> {
-    if parent != super::HarnessAccessMode::Full && child == super::HarnessAccessMode::Full {
-        return Err("restricted parent cannot reuse an unrestricted child".into());
-    }
-    Ok(())
-}
-
-impl WorkerStatus {
-    pub(crate) const fn terminal(self) -> bool {
-        matches!(self, Self::Failed | Self::Stopped)
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -101,13 +62,10 @@ pub(crate) struct WorkerSnapshot {
 impl WorkerSnapshot {
     pub(crate) fn lifecycle(&self) -> AgentLifecycle {
         match self.status {
-            WorkerStatus::Pending | WorkerStatus::Running => AgentLifecycle::Working,
-            WorkerStatus::NeedsInput => AgentLifecycle::NeedsInput,
             WorkerStatus::Idle if self.output.is_some() => {
                 AgentLifecycle::Completed(AgentOutcome::Complete)
             }
             WorkerStatus::Idle => AgentLifecycle::Unknown,
-            WorkerStatus::Failed => AgentLifecycle::Completed(AgentOutcome::Failed),
             WorkerStatus::Stopped => AgentLifecycle::Completed(AgentOutcome::Incomplete),
         }
     }

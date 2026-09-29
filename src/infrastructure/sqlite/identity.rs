@@ -159,6 +159,7 @@ pub(super) fn family_locator_root(locator_root: &Path, project: &Path) -> PathBu
     let digest = Sha256::digest(project.to_string_lossy().as_bytes());
     locator_root.join(format!("{digest:x}"))
 }
+#[cfg(test)]
 pub(super) fn ensure_locator_session(
     transaction: &Transaction<'_>,
     harness: Backend,

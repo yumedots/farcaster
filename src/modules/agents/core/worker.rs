@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use serde::Serialize;
 use serde_json::Value;
 
-use super::super::{PeerMessage, WorkerContext, WorkerInput, WorkerInputResponse};
+use super::super::{WorkerContext, WorkerInput, WorkerInputResponse};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -18,16 +18,6 @@ pub(crate) enum WorkerSendMode {
     Prompt,
     Queue,
     Steer,
-}
-
-impl WorkerSendMode {
-    pub(crate) const fn for_peer(activity: WorkerActivityState) -> Option<Self> {
-        match activity {
-            WorkerActivityState::Starting => None,
-            WorkerActivityState::Working => Some(Self::Steer),
-            WorkerActivityState::Idle => Some(Self::Prompt),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -58,7 +48,6 @@ impl CommonTool {
 
 #[derive(Clone, Debug)]
 pub(crate) struct WorkerLaunch {
-    pub(crate) slot: Option<super::WorkerSlot>,
     pub(crate) worker_id: String,
     pub(crate) worker_name: String,
     pub(crate) project: PathBuf,
@@ -152,9 +141,6 @@ pub(crate) enum WorkerActivity {
         mode: WorkerSendMode,
         message: String,
         images: Vec<crate::protocol::PromptImage>,
-    },
-    PeerInputDelivered {
-        message: PeerMessage,
     },
     TurnStarted,
     TextDelta {
@@ -271,13 +257,6 @@ pub(crate) trait WorkerSession: Send {
         false
     }
     fn send(&mut self, message: String, mode: WorkerSendMode) -> Result<(), String>;
-    fn send_peer_message(
-        &mut self,
-        message: &PeerMessage,
-        mode: WorkerSendMode,
-    ) -> Result<(), String> {
-        self.send(message.prompt(), mode)
-    }
     fn send_with_images(
         &mut self,
         message: String,

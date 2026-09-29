@@ -26,7 +26,7 @@ use super::{
 };
 use crate::{
     agents::{
-        AgentLaunchConfig, CommonTool, PeerMessage, TokenUsage, ToolReviewState, WorkerActivity,
+        AgentLaunchConfig, CommonTool, TokenUsage, ToolReviewState, WorkerActivity,
         WorkerActivityState, WorkerContext, WorkerEvent, WorkerInput, WorkerInputResponse,
         WorkerLaunch, WorkerSendMode, WorkerSession, WorkerSessionFactory, WorkerUsage,
     },
@@ -62,7 +62,6 @@ impl WorkerSessionFactory for CodexWorkerFactory {
                     model: launch.model.clone(),
                     effort: launch.effort.clone(),
                 },
-                None,
                 launch.worker_id.clone(),
                 launch.worker_name.clone(),
                 launch.parent_worker_id.clone(),
@@ -72,8 +71,7 @@ impl WorkerSessionFactory for CodexWorkerFactory {
             caller_identity.without_session_persistence()
         } else {
             caller_identity
-        }
-        .with_slot(launch.slot.clone());
+        };
         configure_codex_app_server(&mut prepared, launch.access_mode);
         let mut child = prepared
             .stdin(Stdio::piped())
@@ -155,7 +153,6 @@ impl WorkerSessionFactory for CodexWorkerFactory {
             prompt_acks: VecDeque::new(),
             acknowledged_prompts: HashSet::new(),
             queued_inbound: VecDeque::new(),
-            peer_messages: VecDeque::new(),
             events: VecDeque::from([WorkerEvent::SessionChanged { locator: thread_id }]),
             turn_error: None,
         }))
@@ -217,7 +214,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
             model: None,
             effort: None,
         },
-        launch.wake.clone(),
         command.access_mode,
     );
     configure_codex_app_server(&mut prepared, command.access_mode);
@@ -309,7 +305,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
         prompt_acks: VecDeque::new(),
         acknowledged_prompts: HashSet::new(),
         queued_inbound: VecDeque::new(),
-        peer_messages: VecDeque::new(),
         events: VecDeque::new(),
         turn_error: None,
     };
@@ -737,7 +732,6 @@ struct CodexWorkerSession {
     prompt_acks: VecDeque<(String, Result<(), String>)>,
     acknowledged_prompts: HashSet<String>,
     queued_inbound: VecDeque<Result<CodexInbound, String>>,
-    peer_messages: VecDeque<PeerMessage>,
     events: VecDeque<WorkerEvent>,
     turn_error: Option<String>,
 }
@@ -928,21 +922,6 @@ impl WorkerSession for CodexWorkerSession {
         }
         if let Some(event) = self.release_abort_cleanup_if_ready() {
             return Some(event);
-        }
-        if let Some(message) = self.caller_identity.try_recv() {
-            self.peer_messages.push_back(message);
-        }
-        if self.abort_cleanup.is_none()
-            && !self.abort_starting_turn
-            && let Some(mode) = WorkerSendMode::for_peer(self.activity())
-            && !self.peer_messages.is_empty()
-            && self.caller_identity.try_activate()
-            && let Some(message) = self.peer_messages.pop_front()
-        {
-            return Some(match self.send_peer_message(&message, mode) {
-                Ok(()) => WorkerEvent::Activity(WorkerActivity::PeerInputDelivered { message }),
-                Err(error) => WorkerEvent::Failed(error),
-            });
         }
         loop {
             let inbound = self

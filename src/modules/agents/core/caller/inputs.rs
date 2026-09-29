@@ -1,6 +1,7 @@
 use super::*;
 use crate::agents::Backend;
 use crate::agents::{WorkerInput, WorkerInputResponse};
+use std::sync::mpsc;
 
 const INPUT_PREFIX: &str = "farcaster-worker-input-";
 
@@ -14,49 +15,11 @@ pub(super) struct PendingInput {
     original_id: String,
     delivered: bool,
     responses: mpsc::Sender<WorkerInputResponse>,
-    parent_session: CallerSession,
 }
 
 pub(super) struct ExpiredInput {
     parent: CallerSession,
     id: String,
-}
-
-pub(in crate::modules::agents::core) struct InputLease {
-    registry: CallerRegistry,
-    id: String,
-}
-
-impl Drop for InputLease {
-    fn drop(&mut self) {
-        if let Ok(mut inputs) = self.registry.inputs.lock() {
-            let Some(index) = inputs
-                .iter()
-                .position(|pending| pending.input.id == self.id)
-            else {
-                return;
-            };
-            let pending = inputs.remove(index);
-            drop(inputs);
-            if !pending.delivered {
-                return;
-            }
-            if let Ok(mut expired) = self.registry.expired_inputs.lock() {
-                expired.push(ExpiredInput {
-                    parent: pending.parent_session.clone(),
-                    id: pending.input.id,
-                });
-            }
-            if let Ok(callers) = self.registry.callers.lock()
-                && let Some(parent) = callers
-                    .values()
-                    .find(|caller| caller.session_key().as_ref() == Some(&pending.parent_session))
-                && let Some(wake) = &parent.wake
-            {
-                wake.unpark();
-            }
-        }
-    }
 }
 
 impl CallerRegistry {
@@ -138,63 +101,4 @@ impl CallerRegistry {
         }
         ids
     }
-
-    pub(in crate::modules::agents::core) fn request_child_input(
-        &self,
-        child: &WorkerParent,
-        mut input: WorkerInput,
-        responses: mpsc::Sender<WorkerInputResponse>,
-    ) -> Result<InputLease, String> {
-        let callers = self
-            .callers
-            .lock()
-            .map_err(|_| "worker caller registry is unavailable")?;
-        let mut parent_id = &child.id;
-        let mut direct = true;
-        let parent = loop {
-            let parent = callers
-                .values()
-                .find(|caller| caller.worker_id == *parent_id && caller.project == child.project)
-                .or_else(|| {
-                    direct
-                        .then(|| callers.values().find(|caller| child.matches(caller)))
-                        .flatten()
-                })
-                .ok_or("parent worker is unavailable")?;
-            direct = false;
-            match &parent.parent_worker_id {
-                Some(id) => parent_id = id,
-                None => break parent,
-            }
-        };
-        let parent_session = parent
-            .session_key()
-            .ok_or("parent worker has no persistent session")?;
-        let original_id = input.id;
-        input.id = new_identity("farcaster-worker-input");
-        input.prompt = format!("Child {}\n\n{}", child.child_name, input.prompt);
-        let id = input.id.clone();
-        self.inputs
-            .lock()
-            .map_err(|_| "worker input registry is unavailable")?
-            .push(PendingInput {
-                parent_id: parent.worker_id.clone(),
-                input,
-                original_id,
-                delivered: false,
-                responses,
-                parent_session,
-            });
-        if let Some(wake) = &parent.wake {
-            wake.unpark();
-        }
-        Ok(InputLease {
-            registry: self.clone(),
-            id,
-        })
-    }
 }
-
-#[cfg(test)]
-#[path = "inputs_tests.rs"]
-mod tests;

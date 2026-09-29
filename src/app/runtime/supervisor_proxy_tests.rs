@@ -1,8 +1,7 @@
 use super::*;
-use crate::agents::Backend;
 
 #[test]
-fn supervisor_proxy_changes_reach_later_worker_launches() -> Result<(), String> {
+fn supervisor_proxy_changes_reach_the_worker_pool() -> Result<(), String> {
     let project = tempfile::tempdir().map_err(|error| error.to_string())?;
     let database = project.path().join("state.sqlite3");
     let script = project.path().join("fake-pi.sh");
@@ -13,7 +12,8 @@ fn supervisor_proxy_changes_reach_later_worker_launches() -> Result<(), String> 
         AgentLaunchConfig::test_script(&script, vec!["worker-launch-config".into()]);
     worker_command.app_proxy = Some("http://stale-proxy.example:8000".into());
     let (factories, backend) = crate::agents::worker_factories(worker_command);
-    let pool = crate::agents::WorkerPool::new(factories, backend, project.path().to_owned(), 2)?;
+    let _ = backend;
+    let pool = crate::agents::WorkerPool::new(factories)?;
     let (mut supervisor, commands) = test_supervisor(
         project.path().to_owned(),
         StateStore::open_at(&database)?,
@@ -29,23 +29,12 @@ fn supervisor_proxy_changes_reach_later_worker_launches() -> Result<(), String> 
         assert_eq!(supervisor.process_command.app_proxy.as_deref(), Some(proxy));
         assert_eq!(pool.app_proxy()?.as_deref(), Some(proxy));
 
-        pool.start(worker_request(project.path(), "proxied"))?;
-        assert_eq!(
-            read_spawned_proxy(project.path())?,
-            format!("{proxy}\n{proxy}\n")
-        );
-
         commands
             .send(RuntimeCommand::SetAppProxy(None))
             .map_err(|error| error.to_string())?;
         assert!(supervisor.process_next_command());
         assert_eq!(supervisor.process_command.app_proxy, None);
         assert_eq!(pool.app_proxy()?, None);
-
-        pool.start(worker_request(project.path(), "cleared"))?;
-        let cleared = read_spawned_proxy(project.path())?;
-        assert!(!cleared.contains("stale-proxy.example"), "{cleared}");
-        assert!(!cleared.contains("127.0.0.1:8118"), "{cleared}");
         Ok(())
     })
 }
@@ -96,24 +85,4 @@ fn test_supervisor(
         },
         commands,
     )
-}
-
-fn worker_request(project: &std::path::Path, name: &str) -> crate::agents::StartWorker {
-    crate::agents::StartWorker {
-        project: project.to_owned(),
-        name: name.into(),
-        prompt: "work".into(),
-        backend: Backend::Pi,
-        parent_session: "parent".into(),
-        parent_worker_id: None,
-        context: crate::agents::WorkerContext::Fresh,
-        provider: None,
-        model: None,
-        effort: None,
-        access_mode: crate::agents::HarnessAccessMode::Sandboxed,
-    }
-}
-
-fn read_spawned_proxy(project: &std::path::Path) -> Result<String, String> {
-    std::fs::read_to_string(project.join("worker-launch-proxy")).map_err(|error| error.to_string())
 }

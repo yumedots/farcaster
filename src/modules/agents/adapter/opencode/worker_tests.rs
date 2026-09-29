@@ -143,7 +143,6 @@ fn worker_factory_resumes_the_saved_session_and_accepts_a_new_prompt() -> Result
     .map_err(|error| error.to_string())?;
     let factory = OpenCodeWorkerFactory::new(AgentLaunchConfig::test_script(&script, Vec::new()));
     let mut worker = factory.create(WorkerLaunch {
-        slot: None,
         worker_id: "resumed-worker".into(),
         worker_name: "resumed".into(),
         project: project.path().to_owned(),
@@ -789,7 +788,6 @@ fn steering_interruption_preserves_delivery_and_later_abort_settles() -> Result<
             model: None,
             effort: None,
         },
-        None,
     );
     let mut worker = OpenCodeWorkerSession {
         catalog_directory: None,
@@ -974,7 +972,6 @@ fn cancelled_steering_is_requeued_instead_of_lost() -> Result<(), String> {
             model: None,
             effort: None,
         },
-        None,
     );
     let mut worker = OpenCodeWorkerSession {
         catalog_directory: None,
@@ -1127,7 +1124,6 @@ fn abort_reinterrupts_a_delivery_that_wins_the_cancel_race() -> Result<(), Strin
             model: None,
             effort: None,
         },
-        None,
     );
     let mut worker = OpenCodeWorkerSession {
         catalog_directory: None,
@@ -1277,7 +1273,6 @@ fn queued_prompt_during_stream_does_not_restart_visible_assistant_text() -> Resu
             model: None,
             effort: None,
         },
-        None,
     );
     let mut worker = OpenCodeWorkerSession {
         catalog_directory: None,
@@ -1581,7 +1576,6 @@ fn http_sse_prompt_and_escape_flow_preserves_exact_delivery_and_liveness() -> Re
             model: None,
             effort: None,
         },
-        None,
     );
     let worker = OpenCodeWorkerSession {
         catalog_directory: None,

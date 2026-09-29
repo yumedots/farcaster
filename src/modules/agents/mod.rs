@@ -23,24 +23,20 @@ pub(crate) use contract::{
     SessionResponse, SessionResponseErrorKind, SessionResponsePayload, SessionStart,
     SessionTransport, SessionUsage, SessionUsageTokens, WorkerContext, WorkerInput,
     WorkerInputResponse, WorkerSnapshot, effort_rank, model_efforts, valid_worker_name,
-    validate_child_access,
 };
 
 #[cfg(test)]
-pub(crate) use contract::{StartWorker, WorkerStatus};
+pub(crate) use contract::WorkerStatus;
 pub(crate) use core::{
-    CallerContext, CallerProfile, CallerRegistry, ChildSessionOutcome, CommonTool,
-    ExecutionBinding, PromptStore, TokenUsage, ToolCategory, ToolMetadata, ToolReviewState,
-    WorkerActivity, WorkerActivityState, WorkerEvent, WorkerFamilyLink, WorkerLaunch,
-    WorkerModelSelection, WorkerPool, WorkerRouting, WorkerSendMode, WorkerSession,
-    WorkerSessionFactory, WorkerUsage, begin_prompt, complete_prompt_with_receipt,
-    enqueue_prompt_with_presentation, fail_prompt, has_queued_prompts_for, is_child_input_id,
-    mark_prompt_delivery_unknown, queued_prompts,
+    CallerProfile, CallerRegistry, ChildSessionOutcome, CommonTool, PromptStore, TokenUsage,
+    ToolCategory, ToolMetadata, ToolReviewState, WorkerActivity, WorkerActivityState, WorkerEvent,
+    WorkerFamilyLink, WorkerLaunch, WorkerModelSelection, WorkerPool, WorkerRouting,
+    WorkerSendMode, WorkerSession, WorkerSessionFactory, WorkerUsage, begin_prompt,
+    complete_prompt_with_receipt, enqueue_prompt_with_presentation, fail_prompt,
+    has_queued_prompts_for, is_child_input_id, mark_prompt_delivery_unknown, queued_prompts,
 };
 #[cfg(test)]
 pub(crate) use core::{WorkerAssignment, WorkerExecution};
 
 #[cfg(test)]
 pub(crate) use adapter::live_tests::support as live_e2e_support;
-#[cfg(test)]
-pub(crate) use core::CallerIdentity;

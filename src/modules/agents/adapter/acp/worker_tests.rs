@@ -158,7 +158,6 @@ done
     };
     let factory = AcpWorkerFactory::new(command, super::super::super::antigravity::PROFILE.clone());
     let mut worker = factory.create(WorkerLaunch {
-        slot: None,
         worker_id: "resumed-worker".into(),
         worker_name: "resumed".into(),
         project: project.path().to_owned(),
@@ -859,7 +858,6 @@ fn inert_session() -> AcpWorkerSession {
         thought_started: false,
         pending_inputs: HashMap::new(),
         tool_states: HashMap::new(),
-        peer_messages: VecDeque::new(),
         events: VecDeque::new(),
         config_ids: ConfigIds::default(),
         features: AcpFeatures { close: false },
@@ -894,7 +892,6 @@ fn queued_acp_admission_does_not_replace_the_executing_review_turn() {
             model: None,
             effort: None,
         },
-        None,
     );
     identity.bind("one");
     identity.begin_execution(Some("running"));

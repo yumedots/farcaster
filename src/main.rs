@@ -65,9 +65,8 @@ fn main() -> std::process::ExitCode {
     let state_store = app::persistence::StateStore::open().ok();
     let worker_command = startup_worker_command(&data_root, state_store.as_ref());
     let worker_proxy = worker_command.app_proxy.clone();
-    let (factories, default_backend) = agents::worker_factories(worker_command);
-    let worker_pool = match agents::WorkerPool::new(factories, default_backend, project.clone(), 8)
-    {
+    let (factories, _) = agents::worker_factories(worker_command);
+    let worker_pool = match agents::WorkerPool::new(factories) {
         Ok(pool) => {
             if let Err(error) = pool.set_app_proxy(worker_proxy) {
                 return fail(format!("initialize worker proxy: {error}"));

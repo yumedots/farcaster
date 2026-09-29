@@ -23,7 +23,6 @@ done
     std::fs::write(&script, SCRIPT).map_err(|error| error.to_string())?;
     let factory = CodexWorkerFactory::new(AgentLaunchConfig::test_script(&script, Vec::new()));
     let mut worker = factory.create(WorkerLaunch {
-        slot: None,
         worker_id: "resumed-worker".into(),
         worker_name: "resumed".into(),
         project: project.path().to_owned(),
@@ -370,7 +369,6 @@ fn test_session() -> CodexWorkerSession {
             model: None,
             effort: None,
         },
-        None,
     );
     let (_sender, incoming) = mpsc::channel();
     CodexWorkerSession {
@@ -413,7 +411,6 @@ fn test_session() -> CodexWorkerSession {
         prompt_acks: VecDeque::new(),
         acknowledged_prompts: HashSet::new(),
         queued_inbound: VecDeque::new(),
-        peer_messages: VecDeque::new(),
         events: VecDeque::new(),
         turn_error: None,
     }
@@ -2759,7 +2756,7 @@ fn committed_original_steer_before_rpc_reply_is_never_replayed() {
 }
 
 #[test]
-fn peer_steer_during_codex_stream_does_not_split_visible_assistant_text() {
+fn streamed_codex_deltas_merge_into_one_assistant_item() {
     use crate::agents::{SessionEvent, SessionTransport, WorkerActivityState};
     use crate::conversation::{ConversationState, TranscriptKind};
     use crate::modules::agents::adapter::main_session::{
@@ -2781,10 +2778,6 @@ fn peer_steer_during_codex_stream_does_not_split_visible_assistant_text() {
             delta: "hello ".into(),
         }),
     ]);
-    session.peer_messages.push_back(crate::agents::PeerMessage {
-        from: "reviewer".into(),
-        message: "keep going".into(),
-    });
     let mut transport = WorkerSessionTransport::new(
         std::path::Path::new("/locators"),
         Backend::Codex,

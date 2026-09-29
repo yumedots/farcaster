@@ -32,14 +32,15 @@ mod migrate_v18;
 mod migrate_v19;
 mod projects;
 mod prompts;
-mod reviews;
 mod schema;
 mod sessions;
 mod settings;
 mod traits;
 mod transcript;
 
-use identity::{bind_locator, ensure_locator_session, ensure_project, target_for_session};
+#[cfg(test)]
+use identity::ensure_locator_session;
+use identity::{bind_locator, ensure_project, target_for_session};
 
 const SCHEMA_VERSION: i64 = 19;
 const DATABASE_BUSY_TIMEOUT: Duration = Duration::from_secs(10);

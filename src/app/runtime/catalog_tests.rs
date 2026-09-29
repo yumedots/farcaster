@@ -1,10 +1,5 @@
 use crate::agents::Backend;
 use std::path::Path;
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex, mpsc},
-    time::{Duration, Instant},
-};
 
 use super::*;
 
@@ -48,37 +43,6 @@ fn import_preview_skips_nested_child_workers() {
     let candidates = unknown_import_candidates(vec![parent.clone(), child], &HashSet::new());
 
     assert_eq!(candidates, vec![parent]);
-}
-
-#[test]
-fn pool_snapshot_maps_to_persisted_child_and_projects_needs_input() {
-    let mut parent = summary(Path::new("/sessions/parent.jsonl"));
-    parent.id = "parent".into();
-    let mut child = summary(Path::new("/sessions/child.jsonl"));
-    child.id = "child".into();
-    child.parent_session = Some(parent.id.clone());
-    let snapshot = agents::WorkerSnapshot {
-        id: "worker-1".into(),
-        backend: child.harness,
-        project: child.project.clone(),
-        session_locator: Some(child.path.to_string_lossy().into_owned()),
-        status: agents::WorkerStatus::NeedsInput,
-        output: None,
-        error: None,
-        pending_input: None,
-    };
-
-    let sessions = [parent, child.clone()];
-    let matched = session_for_worker_snapshot(&sessions, &snapshot)
-        .expect("pool child should match its catalog row");
-    let activity = AgentActivity::from_worker_snapshot(matched, snapshot.lifecycle());
-
-    assert_eq!(matched.id, child.id);
-    assert_eq!(
-        activity.lifecycle,
-        crate::agent_activity::AgentLifecycle::NeedsInput
-    );
-    assert!(activity.limited);
 }
 
 #[test]
@@ -128,7 +92,7 @@ fn pool_snapshot_native_id_is_scoped_by_backend_and_project() {
         backend: Backend::Codex,
         project: expected.project.clone(),
         session_locator: Some("shared-child".into()),
-        status: agents::WorkerStatus::Running,
+        status: agents::WorkerStatus::Idle,
         output: None,
         error: None,
         pending_input: None,
@@ -196,144 +160,4 @@ fn normalized_native_failure_becomes_a_terminal_child_activity() {
         )
     );
     assert!(activity.limited);
-}
-
-#[derive(Default)]
-struct CatalogWorkerFactory {
-    events: Mutex<Option<mpsc::Sender<agents::WorkerEvent>>>,
-}
-
-struct CatalogWorkerSession {
-    events: mpsc::Receiver<agents::WorkerEvent>,
-}
-
-impl agents::WorkerSessionFactory for CatalogWorkerFactory {
-    fn create(&self, _: agents::WorkerLaunch) -> Result<Box<dyn agents::WorkerSession>, String> {
-        let (sender, events) = mpsc::channel();
-        *self.events.lock().map_err(|_| "events unavailable")? = Some(sender);
-        Ok(Box::new(CatalogWorkerSession { events }))
-    }
-}
-
-impl agents::WorkerSession for CatalogWorkerSession {
-    fn send(&mut self, _: String, _: agents::WorkerSendMode) -> Result<(), String> {
-        Ok(())
-    }
-
-    fn respond(&mut self, _: agents::WorkerInputResponse) -> Result<(), String> {
-        Ok(())
-    }
-
-    fn abort(&mut self) -> Result<(), String> {
-        Ok(())
-    }
-
-    fn poll(&mut self) -> Option<agents::WorkerEvent> {
-        self.events.try_recv().ok()
-    }
-
-    fn close(&mut self) -> Result<(), String> {
-        Ok(())
-    }
-}
-
-fn wait_for_worker_status(
-    pool: &agents::WorkerPool,
-    status: agents::WorkerStatus,
-) -> agents::WorkerSnapshot {
-    let deadline = Instant::now() + Duration::from_secs(1);
-    loop {
-        if let Some(snapshot) = pool
-            .snapshots()
-            .expect("pool snapshots")
-            .into_iter()
-            .find(|snapshot| snapshot.status == status)
-        {
-            return snapshot;
-        }
-        assert!(Instant::now() < deadline, "worker never reached {status:?}");
-        std::thread::sleep(Duration::from_millis(5));
-    }
-}
-
-#[test]
-fn pool_run_status_projects_through_catalog_matching_into_child_activity() {
-    let project = tempfile::tempdir().expect("project");
-    let factory = Arc::new(CatalogWorkerFactory::default());
-    let pool = agents::WorkerPool::new(
-        BTreeMap::from([(
-            Backend::Pi,
-            factory.clone() as Arc<dyn agents::WorkerSessionFactory>,
-        )]),
-        Backend::Pi,
-        project.path().to_owned(),
-        1,
-    )
-    .expect("worker pool");
-    pool.start(agents::StartWorker {
-        project: project.path().to_owned(),
-        name: "child".into(),
-        prompt: "work".into(),
-        backend: Backend::Pi,
-        parent_session: "/sessions/parent.jsonl".into(),
-        parent_worker_id: None,
-        context: agents::WorkerContext::Fresh,
-        provider: None,
-        model: None,
-        effort: None,
-        access_mode: agents::HarnessAccessMode::Auto,
-    })
-    .expect("start worker");
-    let events = factory
-        .events
-        .lock()
-        .expect("events")
-        .clone()
-        .expect("worker event sender");
-    let locator = project.path().join("child.jsonl");
-    events
-        .send(agents::WorkerEvent::SessionChanged {
-            locator: locator.to_string_lossy().into_owned(),
-        })
-        .expect("session locator");
-    events
-        .send(agents::WorkerEvent::NeedsInput(agents::WorkerInput {
-            id: "approval".into(),
-            prompt: "Proceed?".into(),
-            options: vec!["Yes".into()],
-            secret: false,
-        }))
-        .expect("needs input");
-    let snapshot = wait_for_worker_status(&pool, agents::WorkerStatus::NeedsInput);
-    let mut child = summary(&locator);
-    child.project = project.path().canonicalize().expect("canonical project");
-    child.parent_session = Some("parent".into());
-    let sessions = [child];
-    let activities = worker_activities(&sessions, vec![snapshot.clone()]);
-    let matched = session_for_worker_snapshot(&sessions, &snapshot).expect("catalog child");
-    let activity = activities
-        .get(&crate::agent_activity::agent_activity_key(&matched.path))
-        .expect("production catalog activity");
-    assert_eq!(
-        activity.lifecycle,
-        crate::agent_activity::AgentLifecycle::NeedsInput
-    );
-
-    events
-        .send(agents::WorkerEvent::Settled {
-            output: "done".into(),
-        })
-        .expect("settled");
-    let snapshot = wait_for_worker_status(&pool, agents::WorkerStatus::Idle);
-    assert_eq!(snapshot.output.as_deref(), Some("done"));
-    let activities = worker_activities(&sessions, vec![snapshot.clone()]);
-    assert_eq!(
-        activities
-            .get(&crate::agent_activity::agent_activity_key(&matched.path))
-            .expect("settled catalog activity")
-            .lifecycle,
-        crate::agent_activity::AgentLifecycle::Completed(
-            crate::agent_activity::AgentOutcome::Complete
-        )
-    );
 }

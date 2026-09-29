@@ -1,11 +1,9 @@
 mod caller;
-mod concurrency;
 mod names;
 mod pool;
 #[cfg(test)]
 mod pool_tests;
 mod prompt_store;
-mod run;
 mod tool;
 mod worker;
 pub(crate) use tool::{ToolCategory, ToolMetadata};
@@ -13,12 +11,9 @@ mod worker_execution;
 pub(crate) use worker_execution::{WorkerAssignment, WorkerExecution};
 
 pub(crate) use caller::{
-    CallerContext, CallerIdentity, CallerProfile, CallerRegistry, ExecutionBinding,
-    WorkerFamilyLink, WorkerRouting, is_child_input_id,
+    CallerIdentity, CallerProfile, CallerRegistry, WorkerFamilyLink, WorkerRouting,
+    is_child_input_id,
 };
-#[cfg(test)]
-pub(crate) use concurrency::WorkerConcurrency;
-pub(crate) use concurrency::WorkerSlot;
 pub(crate) use pool::WorkerPool;
 pub(crate) use prompt_store::{
     PromptStore, begin as begin_prompt, complete_with_receipt as complete_prompt_with_receipt,

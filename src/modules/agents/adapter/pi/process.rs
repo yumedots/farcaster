@@ -24,8 +24,8 @@ use crate::modules::agents::adapter::process_command::resolve_agent_program;
 use crate::{
     agents::extensions::ExtensionUiResponse,
     agents::{
-        AgentLaunchConfig, HarnessAccessMode, PeerMessage, SessionActivityKind, SessionCommand,
-        SessionEvent, SessionResponse, WorkerActivityState, WorkerSendMode,
+        AgentLaunchConfig, HarnessAccessMode, SessionActivityKind, SessionCommand, SessionEvent,
+        SessionResponse, WorkerActivityState,
     },
     modules::agents::contract::SessionActivity,
 };
@@ -174,7 +174,6 @@ pub(crate) struct PiRpcProcess {
     queued: VecDeque<SessionEvent>,
     pending: HashMap<String, String>,
     pending_prompt_modes: HashMap<String, crate::protocol::PromptMode>,
-    peer_messages: VecDeque<PeerMessage>,
     next_id: u64,
     request_namespace: uuid::Uuid,
     activity: WorkerActivityState,
@@ -196,13 +195,6 @@ enum PendingQueueConfiguration {
 }
 
 impl PiRpcProcess {
-    pub(super) fn set_worker_slot(
-        &mut self,
-        slot: Option<crate::modules::agents::core::WorkerSlot>,
-    ) {
-        self.caller_identity.set_slot(slot);
-    }
-
     pub(in crate::modules::agents::adapter) fn spawn_catalog(
         command: &AgentLaunchConfig,
         project: &Path,
@@ -290,14 +282,13 @@ impl PiRpcProcess {
             registry.issue_as_with_access(
                 project,
                 profile,
-                wake.clone(),
                 worker_id,
                 worker_name,
                 parent_worker_id.clone(),
                 command.access_mode,
             )?
         } else {
-            registry.issue_with_access(project, profile, wake.clone(), command.access_mode)
+            registry.issue_with_access(project, profile, command.access_mode)
         };
         let mut steering_extension = tempfile::Builder::new()
             .prefix("farcaster-extension-")
@@ -374,7 +365,6 @@ impl PiRpcProcess {
             queued: VecDeque::new(),
             pending: HashMap::new(),
             pending_prompt_modes: HashMap::new(),
-            peer_messages: VecDeque::new(),
             next_id: 0,
             request_namespace: uuid::Uuid::new_v4(),
             activity: WorkerActivityState::Idle,
@@ -544,8 +534,6 @@ impl PiRpcProcess {
         let restore_steering = self.steering_configured;
         let restore_model = self.selected_model.clone();
         let restore_reasoning = self.selected_reasoning.clone();
-        self.peer_messages.clear();
-        self.caller_identity.discard_pending_messages();
         self.force_stop()?;
 
         let launch = session
@@ -796,27 +784,6 @@ impl PiRpcProcess {
     pub(crate) fn try_next(&mut self) -> Option<SessionEvent> {
         if let Some(item) = self.queued.pop_front() {
             return Some(item);
-        }
-        if let Some(message) = self.caller_identity.try_recv() {
-            self.peer_messages.push_back(message);
-        }
-        if let Some(mode) = WorkerSendMode::for_peer(self.activity)
-            && !self.peer_messages.is_empty()
-            && self.caller_identity.try_activate()
-            && let Some(message) = self.peer_messages.pop_front()
-        {
-            let mode = match mode {
-                WorkerSendMode::Prompt => crate::protocol::PromptMode::Normal,
-                WorkerSendMode::Steer => crate::protocol::PromptMode::Steer,
-                WorkerSendMode::Queue => unreachable!(),
-            };
-            if let Err(error) = self.send_request(SessionCommand::Prompt {
-                mode,
-                message: message.prompt(),
-                images: Vec::new(),
-            }) {
-                return Some(SessionEvent::Failure(error));
-            }
         }
         match self.incoming.try_recv() {
             Ok(ReaderItem::StderrEof) => None,

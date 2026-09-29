@@ -1,6 +1,7 @@
 use super::*;
 use crate::agents::Backend;
 use crate::agents::HarnessAccessMode;
+use crate::agents::WorkerSendMode;
 use std::{error::Error, fs};
 use tempfile::tempdir;
 
@@ -155,7 +156,6 @@ fn installed_pi_child_model_does_not_replace_the_users_selected_default() -> Tes
     let mut saved_locator = None;
     for index in 0..2 {
         let mut child = factory.create(WorkerLaunch {
-            slot: None,
             worker_id: format!("model-child-{index}"),
             worker_name: format!("model-child-{index}"),
             project: project.path().to_path_buf(),
@@ -860,64 +860,6 @@ fn abort_reports_second_launch_failure_after_confirming_the_old_exit() -> TestRe
 }
 
 #[test]
-fn abort_discards_old_peer_reports_but_accepts_new_ones() -> TestResult {
-    let project = tempdir()?;
-    let command = queue_rpc_fixture(project.path())?;
-    let registry = crate::modules::agents::core::CallerRegistry::shared();
-    let sender = registry.issue(
-        project.path(),
-        crate::modules::agents::core::CallerProfile {
-            backend: Backend::Pi,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-        None,
-    );
-    sender.bind("peer-sender-session");
-    let parent_id = registry.resolve(sender.token())?.worker_id;
-    let mut rpc = PiRpcProcess::spawn_worker(
-        &command,
-        project.path(),
-        SessionLaunch::New,
-        "abort-peer-recipient".into(),
-        "recipient".into(),
-        Some((parent_id, "peer-sender-session".into())),
-    )?;
-    let concurrency = crate::modules::agents::core::WorkerConcurrency::new(1);
-    let recipient_slot = concurrency.reserve()?;
-    rpc.set_worker_slot(Some(recipient_slot.clone()));
-    recipient_slot.release();
-    let occupying_slot = concurrency.reserve()?;
-    assert_eq!(
-        registry.send(sender.token(), "recipient", "discard old report".into())?,
-        Some("recipient".into())
-    );
-    rpc.send_request(SessionCommand::Abort)?;
-    wait_for_activity(&mut rpc, crate::agents::SessionActivityKind::AgentSettled)?;
-    drop(occupying_slot);
-    assert_eq!(
-        registry.send(sender.token(), "recipient", "deliver fresh report".into())?,
-        Some("recipient".into())
-    );
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
-    while std::time::Instant::now() < deadline {
-        let _ = rpc.try_next();
-        if fs::read_to_string(project.path().join("fixture-requests"))
-            .is_ok_and(|requests| requests.contains("deliver fresh report"))
-        {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
-    let requests = fs::read_to_string(project.path().join("fixture-requests"))?;
-    assert!(!requests.contains("discard old report"), "{requests}");
-    assert!(requests.contains("deliver fresh report"), "{requests}");
-    rpc.terminate()?;
-    Ok(())
-}
-
-#[test]
 #[ignore = "requires installed Pi; isolated local provider and tool, no network"]
 fn installed_pi_apply_steering_resumes_after_tool_and_stream_abort() -> TestResult {
     for initial in ["hold tool", "hold stream"] {
@@ -1532,72 +1474,6 @@ fn handshake_routes_async_event_and_correlates_unique_ids() -> TestResult {
 }
 
 #[test]
-fn peer_message_steers_a_busy_session_without_waiting_for_settlement() -> TestResult {
-    let (temp, command) = fake("peer-delivery")?;
-    let registry = crate::modules::agents::core::CallerRegistry::shared();
-    let sender = registry.issue(
-        temp.path(),
-        crate::modules::agents::core::CallerProfile {
-            backend: Backend::Pi,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-        None,
-    );
-    sender.bind("sender-session");
-    let parent_id = registry.resolve(sender.token())?.worker_id;
-    let mut rpc = PiRpcProcess::spawn_worker(
-        &command,
-        temp.path(),
-        SessionLaunch::New,
-        "recipient-worker".into(),
-        "recipient".into(),
-        Some((parent_id, "sender-session".into())),
-    )?;
-    rpc.send_request(SessionCommand::Prompt {
-        mode: crate::protocol::PromptMode::Normal,
-        message: "keep working".into(),
-        images: Vec::new(),
-    })?;
-    let deadline = Instant::now() + Duration::from_secs(2);
-    let mut started = false;
-    while Instant::now() < deadline {
-        if matches!(
-            rpc.try_next(),
-            Some(SessionEvent::Activity(activity))
-                if activity.kind() == &crate::agents::SessionActivityKind::AgentStarted
-        ) {
-            started = true;
-            break;
-        }
-        thread::sleep(Duration::from_millis(5));
-    }
-    assert!(started, "fake Pi did not start its turn");
-
-    assert_eq!(
-        registry.send(sender.token(), "recipient", "peer update".into())?,
-        Some("recipient".into())
-    );
-
-    let log_path = temp.path().join("peer-delivery.log");
-    let deadline = Instant::now() + Duration::from_secs(2);
-    let mut log = String::new();
-    while Instant::now() < deadline {
-        let _ = rpc.try_next();
-        log = fs::read_to_string(&log_path)?;
-        if log.contains("\"type\":\"steer\"") {
-            break;
-        }
-        thread::sleep(Duration::from_millis(5));
-    }
-    assert!(log.contains("\"type\":\"steer\""), "{log}");
-    assert!(log.contains("peer update"), "{log}");
-    rpc.terminate()?;
-    Ok(())
-}
-
-#[test]
 fn eof_with_pending_request_is_failure_and_stderr_is_visible() -> TestResult {
     let (temp, command) = fake("eof")?;
     let mut rpc = PiRpcProcess::spawn(&command, temp.path(), None)?;
@@ -1730,7 +1606,6 @@ fn inherited_child_does_not_stamp_the_parent_before_forking() -> TestResult {
             model: None,
             effort: None,
         },
-        None,
     );
     let locator = path.to_string_lossy().into_owned();
     parent.bind(locator.clone());
@@ -1763,7 +1638,6 @@ fn child_parent_stamp_retries_after_pi_reports_an_uncreated_session_file() -> Te
             model: None,
             effort: None,
         },
-        None,
     );
     parent.bind("/sessions/parent.jsonl");
     let parent_id = registry.resolve(parent.token())?.worker_id;

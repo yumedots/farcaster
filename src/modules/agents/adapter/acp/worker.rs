@@ -20,9 +20,9 @@ use super::{
 };
 use crate::{
     agents::{
-        AgentLaunchConfig, HarnessAccessMode, PeerMessage, ToolMetadata, WorkerActivity,
-        WorkerActivityState, WorkerEvent, WorkerInput, WorkerInputResponse, WorkerLaunch,
-        WorkerSendMode, WorkerSession, WorkerSessionFactory,
+        AgentLaunchConfig, HarnessAccessMode, ToolMetadata, WorkerActivity, WorkerActivityState,
+        WorkerEvent, WorkerInput, WorkerInputResponse, WorkerLaunch, WorkerSendMode, WorkerSession,
+        WorkerSessionFactory,
     },
     modules::agents::adapter::{child_stderr, main_session},
 };
@@ -78,13 +78,11 @@ impl WorkerSessionFactory for AcpWorkerFactory {
                     model: launch.model.clone(),
                     effort: launch.effort.clone(),
                 },
-                None,
                 launch.worker_id.clone(),
                 launch.worker_name.clone(),
                 launch.parent_worker_id.clone(),
                 launch.access_mode,
-            )?
-            .with_slot(launch.slot.clone());
+            )?;
         let resume = match &launch.context {
             crate::agents::WorkerContext::Fresh => None,
             crate::agents::WorkerContext::Session { .. } => {
@@ -134,7 +132,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
             model: None,
             effort: None,
         },
-        launch.wake.clone(),
         command.access_mode,
     );
     let resume = match &launch.start {
@@ -250,7 +247,6 @@ fn spawn_session(
             thought_started: false,
             pending_inputs: HashMap::new(),
             tool_states: HashMap::new(),
-            peer_messages: VecDeque::new(),
             events: VecDeque::new(),
             config_ids,
             features,
@@ -469,7 +465,6 @@ struct AcpWorkerSession {
     thought_started: bool,
     pending_inputs: HashMap<String, PendingInput>,
     tool_states: HashMap<String, ToolState>,
-    peer_messages: VecDeque<PeerMessage>,
     events: VecDeque<WorkerEvent>,
     config_ids: ConfigIds,
     features: AcpFeatures,
@@ -1390,25 +1385,6 @@ impl WorkerSession for AcpWorkerSession {
     fn poll(&mut self) -> Option<WorkerEvent> {
         if let Some(event) = self.events.pop_front() {
             return Some(event);
-        }
-        if let Some(identity) = &self.caller_identity
-            && let Some(message) = identity.try_recv()
-        {
-            self.peer_messages.push_back(message);
-        }
-        if self.current_prompt.is_none()
-            && !self.peer_messages.is_empty()
-            && self
-                .caller_identity
-                .as_ref()
-                .is_none_or(|identity| identity.try_activate())
-            && let Some(message) = self.peer_messages.pop_front()
-        {
-            let mode = WorkerSendMode::Prompt;
-            return Some(match self.send_peer_message(&message, mode) {
-                Ok(()) => WorkerEvent::Activity(WorkerActivity::PeerInputDelivered { message }),
-                Err(error) => WorkerEvent::Failed(error),
-            });
         }
         loop {
             let Some(incoming) = self.connection.poll() else {

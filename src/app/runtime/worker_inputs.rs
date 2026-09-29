@@ -83,7 +83,3 @@ fn child_interaction(input: agents::WorkerInput) -> ExtensionUiRequest {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "worker_inputs_tests.rs"]
-mod tests;

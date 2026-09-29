@@ -164,7 +164,6 @@ fn session(command: &AgentLaunchConfig, project: &Path) -> ClaudeSession {
             model: None,
             effort: None,
         },
-        None,
     );
     let id = TEST_SESSION_ID;
     let process = Process::spawn(command, project, id, false, None, true)
@@ -207,7 +206,6 @@ fn worker_factory_resumes_the_saved_session_and_accepts_a_new_prompt() {
     let factory = ClaudeWorkerFactory::new(command);
     let mut worker = factory
         .create(WorkerLaunch {
-            slot: None,
             worker_id: "resumed-worker".into(),
             worker_name: "resumed".into(),
             project: directory.path().to_owned(),

@@ -202,6 +202,7 @@ impl StateStore {
             .map_err(|error| format!("save preferred harness: {error}"))
     }
 
+    #[cfg(test)]
     pub(crate) fn save_worker_family(
         &self,
         link: &crate::agents::WorkerFamilyLink,

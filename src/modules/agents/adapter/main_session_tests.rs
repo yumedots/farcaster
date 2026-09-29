@@ -2025,34 +2025,6 @@ fn cancellation_after_delivery_unknown_does_not_emit_a_second_terminal_response(
 }
 
 #[test]
-fn peer_delivery_is_a_first_class_activity_instead_of_a_user_message() {
-    let mut transport = WorkerSessionTransport::new(
-        std::path::Path::new("/locators"),
-        Backend::Codex,
-        "thread-1".into(),
-        Box::new(IdleWorker),
-        MainSessionMetadata::default(),
-        None,
-    )
-    .expect("transport");
-
-    transport.enqueue_worker_event(WorkerEvent::Activity(WorkerActivity::PeerInputDelivered {
-        message: crate::agents::PeerMessage {
-            from: "worker-7".into(),
-            message: "review complete".into(),
-        },
-    }));
-
-    let event = transport.pending.pop_front().expect("peer event");
-    let SessionEvent::Activity(activity) = event else {
-        panic!("expected activity");
-    };
-    assert_eq!(activity.value()["type"], "peer_message");
-    assert_eq!(activity.value()["from"], "worker-7");
-    assert_eq!(activity.value()["message"], "review complete");
-}
-
-#[test]
 fn worker_session_state_retains_titles_and_counts_new_messages() {
     let mut transport = WorkerSessionTransport::new(
         std::path::Path::new("/locators"),

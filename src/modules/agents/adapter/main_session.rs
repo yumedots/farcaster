@@ -540,11 +540,6 @@ impl WorkerSessionTransport {
                 self.input_delivered(Some(&submission_id), mode, &message, json!(content));
                 return;
             }
-            WorkerActivity::PeerInputDelivered { message } => json!({
-                "type": "peer_message",
-                "from": message.from,
-                "message": message.message,
-            }),
             WorkerActivity::TurnStarted => json!({"type": "turn_start"}),
             WorkerActivity::TextDelta {
                 content_index,

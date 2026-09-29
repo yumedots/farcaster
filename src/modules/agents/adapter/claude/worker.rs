@@ -10,10 +10,9 @@ use super::{
     process::{Process, decode, permission_mode},
 };
 use crate::agents::{
-    AgentLaunchConfig, CallerProfile, CallerRegistry, HarnessAccessMode, PeerMessage,
-    SessionLaunch, SessionStart, WorkerActivity, WorkerActivityState, WorkerContext, WorkerEvent,
-    WorkerInput, WorkerInputResponse, WorkerLaunch, WorkerSendMode, WorkerSession,
-    WorkerSessionFactory,
+    AgentLaunchConfig, CallerProfile, CallerRegistry, HarnessAccessMode, SessionLaunch,
+    SessionStart, WorkerActivity, WorkerActivityState, WorkerContext, WorkerEvent, WorkerInput,
+    WorkerInputResponse, WorkerLaunch, WorkerSendMode, WorkerSession, WorkerSessionFactory,
 };
 use crate::modules::agents::core::CallerIdentity;
 use claude_sdk_types::{
@@ -45,22 +44,19 @@ impl WorkerSessionFactory for ClaudeWorkerFactory {
         let mut command = self.command.clone();
         command.access_mode = launch.access_mode;
         command.app_proxy = launch.app_proxy.clone();
-        let caller = CallerRegistry::shared()
-            .issue_as_with_access(
-                &launch.project,
-                CallerProfile {
-                    backend: BACKEND,
-                    provider: launch.provider.clone(),
-                    model: launch.model.clone(),
-                    effort: launch.effort.clone(),
-                },
-                None,
-                launch.worker_id,
-                launch.worker_name,
-                launch.parent_worker_id,
-                launch.access_mode,
-            )?
-            .with_slot(launch.slot);
+        let caller = CallerRegistry::shared().issue_as_with_access(
+            &launch.project,
+            CallerProfile {
+                backend: BACKEND,
+                provider: launch.provider.clone(),
+                model: launch.model.clone(),
+                effort: launch.effort.clone(),
+            },
+            launch.worker_id,
+            launch.worker_name,
+            launch.parent_worker_id,
+            launch.access_mode,
+        )?;
         let process = Process::spawn(
             &command,
             &launch.project,
@@ -124,7 +120,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
             model: None,
             effort: None,
         },
-        launch.wake.clone(),
         command.access_mode,
     );
     let process = Process::spawn(
@@ -781,24 +776,6 @@ impl WorkerSession for ClaudeSession {
         self.prompt_acks.pop_front()
     }
 
-    fn send_peer_message(
-        &mut self,
-        message: &PeerMessage,
-        mode: WorkerSendMode,
-    ) -> Result<(), String> {
-        self.admit(
-            Prompt {
-                message: prompt(&self.id, &message.prompt(), Vec::new())?,
-                deliveries: vec![PromptDelivery {
-                    submission_id: None,
-                    activity: WorkerActivity::PeerInputDelivered {
-                        message: message.clone(),
-                    },
-                }],
-            },
-            mode,
-        )
-    }
     fn respond(&mut self, response: WorkerInputResponse) -> Result<(), String> {
         let request = self
             .permissions
@@ -865,10 +842,6 @@ impl WorkerSession for ClaudeSession {
                 self.dispatch_handoff();
             } else if !self.queued.is_empty() {
                 self.dispatch_queued();
-            } else if let Some(message) = self.caller.try_recv()
-                && let Err(error) = self.send_peer_message(&message, WorkerSendMode::Prompt)
-            {
-                return Some(self.fail(error));
             }
         }
         self.events.pending.pop_front()

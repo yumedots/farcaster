@@ -59,13 +59,11 @@ impl WorkerSessionFactory for OpenCodeWorkerFactory {
                     model: launch.model.clone(),
                     effort: launch.effort.clone(),
                 },
-                None,
                 launch.worker_id.clone(),
                 launch.worker_name.clone(),
                 launch.parent_worker_id.clone(),
                 launch.access_mode,
-            )?
-            .with_slot(launch.slot.clone());
+            )?;
         let password = worker_password()?;
         configure_opencode_server(&mut prepared, launch.access_mode)?;
         let mut child = prepared
@@ -197,7 +195,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
             model: None,
             effort: None,
         },
-        launch.wake.clone(),
         command.access_mode,
     );
     let password = worker_password()?;
@@ -1677,21 +1674,6 @@ impl WorkerSession for OpenCodeWorkerSession {
     fn poll(&mut self) -> Option<WorkerEvent> {
         if let Some(event) = self.pending.pop_front() {
             return Some(event);
-        }
-        if let Some(message) = self.caller_identity.try_recv() {
-            let activity = if self.turn_active {
-                WorkerActivityState::Working
-            } else {
-                WorkerActivityState::Idle
-            };
-            let mode = WorkerSendMode::for_peer(activity).expect("OpenCode is ready for delivery");
-            return Some(match self.send_peer_message(&message, mode) {
-                Ok(()) => {
-                    self.pending.push_back(WorkerEvent::Started);
-                    WorkerEvent::Activity(WorkerActivity::PeerInputDelivered { message })
-                }
-                Err(error) => WorkerEvent::Failed(error),
-            });
         }
         if let Some(event) = self.poll_native_event() {
             return Some(event);
