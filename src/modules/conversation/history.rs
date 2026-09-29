@@ -106,25 +106,6 @@ impl ConversationState {
     }
 }
 
-pub(super) fn peer_transcript_item(peer: PeerMessage) -> TranscriptItem {
-    TranscriptItem {
-        kind: TranscriptKind::PeerMessage,
-        label: format!("Worker · {}", peer.from),
-        text: peer.message,
-        images: Arc::default(),
-        files: Arc::default(),
-        stream_chunks: Arc::default(),
-        streaming: false,
-        is_error: false,
-        tool_call_id: None,
-        tool_output: String::new(),
-        tool_presentation: None,
-        tool_details: None,
-        tool_review: None,
-        invocation: None,
-    }
-}
-
 pub(super) fn project_message_items(message: &Value) -> Vec<TranscriptItem> {
     let Some(role) = message.get("role").and_then(Value::as_str) else {
         return Vec::new();
@@ -203,9 +184,6 @@ pub(super) fn project_message_items(message: &Value) -> Vec<TranscriptItem> {
         return items;
     }
     let projected_user = (role == "user").then(|| projected_user_message_text(message));
-    if let Some(peer) = projected_user.as_deref().and_then(PeerMessage::from_prompt) {
-        return vec![peer_transcript_item(peer)];
-    }
     let (kind, label, display) = match role {
         "user" => (TranscriptKind::User, String::new(), true),
         "toolResult" => (

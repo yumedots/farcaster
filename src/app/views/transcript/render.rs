@@ -605,10 +605,7 @@ fn render_row(
             render_tool(font_scale, key, &items[index], expanded, entity, cx)
         }
         TranscriptRow::Item { index, revision }
-            if matches!(
-                items[index].kind,
-                TranscriptKind::AgentResult | TranscriptKind::PeerMessage
-            ) =>
+            if matches!(items[index].kind, TranscriptKind::AgentResult) =>
         {
             let markdown_state = expanded.then(|| {
                 markdown_cache.state(
@@ -782,9 +779,7 @@ fn item_color(item: &TranscriptItem) -> gpui::Rgba {
         TranscriptKind::Notice | TranscriptKind::Custom | TranscriptKind::AgentResult => {
             theme().colors.muted
         }
-        TranscriptKind::User | TranscriptKind::Assistant | TranscriptKind::PeerMessage => {
-            theme().colors.text
-        }
+        TranscriptKind::User | TranscriptKind::Assistant => theme().colors.text,
         TranscriptKind::Thinking | TranscriptKind::Tool => theme().colors.subtle,
     }
 }

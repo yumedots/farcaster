@@ -6,7 +6,7 @@ use gpui_component::text::TextViewState;
 
 use crate::{
     app::{FarcasterApp, ui::theme::theme},
-    conversation::{TranscriptItem, TranscriptKind},
+    conversation::TranscriptItem,
 };
 
 use super::{
@@ -22,16 +22,12 @@ pub(super) fn render_agent_message(
     markdown_state: Option<Entity<TextViewState>>,
     entity: WeakEntity<FarcasterApp>,
 ) -> AnyElement {
-    let (details, fallback) = match item.kind {
-        TranscriptKind::PeerMessage => ("worker message", "Message received"),
-        _ => ("subagent result", "Subagent finished"),
-    };
     let summary = item
         .text
         .lines()
         .next()
         .filter(|line| !line.trim().is_empty())
-        .unwrap_or(fallback)
+        .unwrap_or("Subagent finished")
         .chars()
         .take(160)
         .collect::<String>();
@@ -47,7 +43,7 @@ pub(super) fn render_agent_message(
                 ("agent-result-title", key),
                 expanded,
                 true,
-                format!("{details} details for {}: {summary}", item.label),
+                format!("subagent result details for {}: {summary}", item.label),
                 key,
                 entity.clone(),
             )

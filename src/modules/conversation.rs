@@ -5,11 +5,7 @@ use std::{
 
 use serde_json::Value;
 
-use crate::{
-    agents::{CommonTool, PeerMessage},
-    protocol::PromptImage,
-    utility::persistent_vec::PersistentVec,
-};
+use crate::{agents::CommonTool, protocol::PromptImage, utility::persistent_vec::PersistentVec};
 
 #[cfg(test)]
 #[path = "conversation/notices_tests.rs"]
@@ -42,7 +38,7 @@ use attachments::{FileAttachment, split_pasted_files};
 pub(crate) use history::annotate_prompt_presentations;
 #[cfg(test)]
 use history::user_message_text;
-use history::{decode_prompt_images, message_text, peer_transcript_item, project_message_items};
+use history::{decode_prompt_images, message_text, project_message_items};
 use tools::{apply_tool_result, tool_arguments, tool_name, tool_presentation};
 pub(crate) use tools::{display_tool_name, split_command_block};
 
@@ -60,7 +56,6 @@ pub(crate) enum TranscriptKind {
     Notice,
     Custom,
     AgentResult,
-    PeerMessage,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

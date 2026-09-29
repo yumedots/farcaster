@@ -679,21 +679,6 @@ fn thinking_rows_have_details_only_when_body_exceeds_the_title() {
 }
 
 #[test]
-fn long_worker_messages_remain_one_compact_row() {
-    let items = vec![item(
-        TranscriptKind::PeerMessage,
-        "Worker · reviewer",
-        &"Detailed worker report.\n".repeat(2_000),
-    )];
-    let rows = project_rows(&items);
-
-    assert_eq!(rows.len(), 1);
-    assert!(matches!(rows[0], TranscriptRow::Item { index: 0, .. }));
-    assert!(!expanded_by_default(rows[0], &items));
-    assert_eq!(estimated_row_height(rows[0], &items), theme().size(24.0));
-}
-
-#[test]
 fn agent_results_are_collapsed_by_default() {
     let result = item(
         TranscriptKind::AgentResult,

@@ -73,21 +73,6 @@ fn restored_receipt_copy_does_not_claim_delivery() {
 }
 
 #[test]
-fn peer_messages_have_their_own_queue_group_and_preview() {
-    let peer = "Message from Farcaster peer worker-7:\n\nreview complete\nwith details".to_owned();
-    let queue = QueueState {
-        steering: vec![peer.clone(), "redirect now".into()],
-        follow_up: Vec::new(),
-    };
-
-    let groups = queued_message_groups(&queue);
-    assert_eq!(groups[0].0, QueuedMessageKind::Peer);
-    assert_eq!(groups[0].1, vec![&peer]);
-    assert_eq!(groups[1].0, QueuedMessageKind::Steer);
-    assert_eq!(queued_message_preview(&peer), "worker-7: review complete…");
-}
-
-#[test]
 fn dialog_copy_preserves_extension_owned_copy() {
     let (heading, prompt) = dialog_copy("File access request\nAllow bash to write to /work/file?");
     assert_eq!(heading.as_ref(), "File access request");

@@ -213,18 +213,6 @@ mod agents {
         }
     }
 
-    #[derive(Clone)]
-    pub(crate) struct PeerMessage {
-        pub(crate) from: String,
-        pub(crate) message: String,
-    }
-
-    impl PeerMessage {
-        pub(crate) fn from_prompt(_: &str) -> Option<Self> {
-            None
-        }
-    }
-
     pub(crate) struct PromptPresentation {
         pub(crate) resolved_message: String,
         pub(crate) display_message: String,

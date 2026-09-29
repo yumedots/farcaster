@@ -203,10 +203,9 @@ pub(super) fn render_message(
             row.mt(theme().space.md).pt(theme().space.sm)
         })
         .when_some(tooltip, |row, tooltip| row.app_tooltip(tooltip.clone()))
-        .when(
-            item.kind == TranscriptKind::PeerMessage || (user && !item.label.is_empty()),
-            |row| row.child(peer_label(font_scale, &item.label)),
-        )
+        .when(user && !item.label.is_empty(), |row| {
+            row.child(peer_label(font_scale, &item.label))
+        })
         .when(user && item.has_attachments(), |row| {
             row.child(render_attachments(key, item, entity.clone()))
         })
@@ -253,10 +252,9 @@ pub(super) fn render_message_chunk(
         })
         .when(!first, |row| row.pt(theme().space.xs))
         .when(last, |row| row.pb(theme().space.md))
-        .when(
-            first && (item.kind == TranscriptKind::PeerMessage || (user && !item.label.is_empty())),
-            |row| row.child(peer_label(font_scale, &item.label)),
-        )
+        .when(first && user && !item.label.is_empty(), |row| {
+            row.child(peer_label(font_scale, &item.label))
+        })
         .when(first && user && item.has_attachments(), |row| {
             row.child(render_attachments(key, item, entity.clone()))
         })

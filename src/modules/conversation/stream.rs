@@ -85,7 +85,6 @@ impl ConversationState {
                     self.update_message(event.get("assistantMessageEvent"), project_live);
             }
             "message_end" => self.end_message(event.get("message")),
-            "peer_message" => self.peer_message(event),
             "tool_execution_start" => self.start_tool(event),
             "tool_execution_update" => incremental_content_changed = self.update_tool(event),
             "tool_metadata_changed" => {
@@ -136,7 +135,6 @@ impl ConversationState {
             "message_end" => affected_tool.or_else(|| {
                 previous_live_start.map(|start| start.min(previous_len.saturating_sub(1)))
             }),
-            "peer_message" => Some(previous_len),
             "tool_execution_update" | "tool_metadata_changed" if !incremental_content_changed => {
                 None
             }
@@ -422,13 +420,6 @@ impl ConversationState {
         self.prompt_tokens = self.prompt_tokens.saturating_add(prompt_tokens);
         self.average_cache_hit_rate =
             Some(self.cache_read_tokens as f64 / self.prompt_tokens as f64 * 100.0);
-    }
-
-    fn peer_message(&mut self, event: &Value) {
-        self.items.push(Arc::new(peer_transcript_item(PeerMessage {
-            from: text_field(event, "from"),
-            message: text_field(event, "message"),
-        })));
     }
 
     fn notice(&mut self, text: String) {

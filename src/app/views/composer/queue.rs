@@ -4,7 +4,6 @@ use gpui::{
 };
 
 use crate::{
-    agents::PeerMessage,
     app::ui::theme::theme,
     conversation::{PendingReceipt, QueueState},
     protocol::PromptMode,
@@ -12,7 +11,6 @@ use crate::{
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum QueuedMessageKind {
-    Peer,
     Steer,
     FollowUp,
 }
@@ -20,7 +18,6 @@ pub(super) enum QueuedMessageKind {
 impl QueuedMessageKind {
     pub(super) fn label(self) -> &'static str {
         match self {
-            Self::Peer => "Worker messages",
             Self::Steer => "Steer next",
             Self::FollowUp => "Follow-ups",
         }
@@ -28,27 +25,15 @@ impl QueuedMessageKind {
 }
 
 pub(super) fn queued_message_groups(queue: &QueueState) -> Vec<(QueuedMessageKind, Vec<&String>)> {
-    let mut peers = Vec::new();
-    let mut steering = Vec::new();
-    let mut follow_up = Vec::new();
-    for message in &queue.steering {
-        if PeerMessage::from_prompt(message).is_some() {
-            peers.push(message);
-        } else {
-            steering.push(message);
-        }
-    }
-    for message in &queue.follow_up {
-        if PeerMessage::from_prompt(message).is_some() {
-            peers.push(message);
-        } else {
-            follow_up.push(message);
-        }
-    }
     [
-        (QueuedMessageKind::Peer, peers),
-        (QueuedMessageKind::Steer, steering),
-        (QueuedMessageKind::FollowUp, follow_up),
+        (
+            QueuedMessageKind::Steer,
+            queue.steering.iter().collect::<Vec<_>>(),
+        ),
+        (
+            QueuedMessageKind::FollowUp,
+            queue.follow_up.iter().collect::<Vec<_>>(),
+        ),
     ]
     .into_iter()
     .filter(|(_, messages)| !messages.is_empty())
@@ -56,10 +41,6 @@ pub(super) fn queued_message_groups(queue: &QueueState) -> Vec<(QueuedMessageKin
 }
 
 pub(super) fn queued_message_preview(message: &str) -> String {
-    let message = PeerMessage::from_prompt(message).map_or_else(
-        || message.to_owned(),
-        |peer| format!("{}: {}", peer.from, peer.message),
-    );
     let message = message.trim();
     if message.is_empty() {
         return "Queued message".to_owned();
@@ -86,13 +67,14 @@ fn queued_message_group(
                 .px(theme().space.sm)
                 .py(theme().space.xs)
                 .bg(match kind {
-                    QueuedMessageKind::Peer | QueuedMessageKind::Steer => theme().colors.highlight,
-                    QueuedMessageKind::FollowUp => theme().colors.highlight,
+                    QueuedMessageKind::Steer | QueuedMessageKind::FollowUp => {
+                        theme().colors.highlight
+                    }
                 })
                 .text_size(theme().type_scale.caption)
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(match kind {
-                    QueuedMessageKind::Peer | QueuedMessageKind::Steer => theme().colors.accent,
+                    QueuedMessageKind::Steer => theme().colors.accent,
                     QueuedMessageKind::FollowUp => theme().colors.subtle,
                 })
                 .child(kind.label()),
