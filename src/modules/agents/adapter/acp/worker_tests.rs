@@ -861,7 +861,6 @@ fn inert_session() -> AcpWorkerSession {
         events: VecDeque::new(),
         config_ids: ConfigIds::default(),
         features: AcpFeatures { close: false },
-        caller_identity: None,
         pending_prompt_result: None,
     }
 }
@@ -878,25 +877,8 @@ fn track_inert_submission(session: &mut AcpWorkerSession, id: &str) {
 
 #[cfg(unix)]
 #[test]
-fn queued_acp_admission_does_not_replace_the_executing_review_turn() {
-    let registry = crate::agents::CallerRegistry::default();
-    registry.set_execution_sinks(
-        Some(std::sync::Arc::new(|_| Ok(1))),
-        Some(std::sync::Arc::new(|_| Ok(()))),
-    );
-    let identity = registry.issue(
-        std::path::Path::new("/project"),
-        crate::agents::CallerProfile {
-            backend: crate::agents::Backend::Cursor,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-    );
-    identity.bind("one");
-    identity.begin_execution(Some("running"));
-    let token = identity.token().to_owned();
-    let mut session = inert_session().with_identity(identity);
+fn queued_acp_admission_keeps_the_next_prompt_behind_the_running_turn() {
+    let mut session = inert_session();
     session
         .submit_prompt(
             "queued".into(),
@@ -905,15 +887,6 @@ fn queued_acp_admission_does_not_replace_the_executing_review_turn() {
             Vec::new(),
         )
         .expect("admit queue");
-    assert_eq!(
-        registry
-            .resolve_execution(&token)
-            .expect("execution")
-            .1
-            .prompt_id
-            .as_deref(),
-        Some("running")
-    );
     assert_eq!(session.queued_prompts.len(), 1);
 }
 

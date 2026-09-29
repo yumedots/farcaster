@@ -285,10 +285,6 @@ impl CodexWorkerSession {
                 starts_turn,
             },
         );
-        if starts_turn {
-            self.caller_identity
-                .set_activity(WorkerActivityState::Starting);
-        }
         Ok(())
     }
 

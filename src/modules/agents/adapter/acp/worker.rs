@@ -20,8 +20,8 @@ use super::{
 };
 use crate::{
     agents::{
-        AgentLaunchConfig, HarnessAccessMode, ToolMetadata, WorkerActivity, WorkerActivityState,
-        WorkerEvent, WorkerInput, WorkerInputResponse, WorkerLaunch, WorkerSendMode, WorkerSession,
+        AgentLaunchConfig, HarnessAccessMode, ToolMetadata, WorkerActivity, WorkerEvent,
+        WorkerInput, WorkerInputResponse, WorkerLaunch, WorkerSendMode, WorkerSession,
         WorkerSessionFactory,
     },
     modules::agents::adapter::{child_stderr, main_session},
@@ -69,20 +69,6 @@ impl WorkerSessionFactory for AcpWorkerFactory {
         let mut command = self.command.clone();
         command.access_mode = launch.access_mode;
         command.app_proxy = launch.app_proxy.clone();
-        let caller_identity = crate::modules::agents::core::CallerRegistry::shared()
-            .issue_as_with_access(
-                &launch.project,
-                crate::modules::agents::core::CallerProfile {
-                    backend: self.profile.backend,
-                    provider: launch.provider.clone(),
-                    model: launch.model.clone(),
-                    effort: launch.effort.clone(),
-                },
-                launch.worker_id.clone(),
-                launch.worker_name.clone(),
-                launch.parent_worker_id.clone(),
-                launch.access_mode,
-            )?;
         let resume = match &launch.context {
             crate::agents::WorkerContext::Fresh => None,
             crate::agents::WorkerContext::Session { .. } => {
@@ -111,11 +97,10 @@ impl WorkerSessionFactory for AcpWorkerFactory {
         {
             session.select_effort(effort)?;
         }
-        caller_identity.bind(session.session_id.clone());
         session.events.push_back(WorkerEvent::SessionChanged {
             locator: session.session_id.clone(),
         });
-        Ok(Box::new(session.with_identity(caller_identity)))
+        Ok(Box::new(session))
     }
 }
 
@@ -124,16 +109,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
     profile: &AcpProfile,
     launch: &crate::agents::SessionLaunch,
 ) -> Result<super::MainSession, String> {
-    let caller_identity = crate::modules::agents::core::CallerRegistry::shared().issue_with_access(
-        &launch.project,
-        crate::modules::agents::core::CallerProfile {
-            backend: profile.backend,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-        command.access_mode,
-    );
     let resume = match &launch.start {
         crate::agents::SessionStart::New => None,
         crate::agents::SessionStart::Resume(_) => Some(
@@ -152,13 +127,7 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
         launch.wake.clone(),
     )?;
     let locator = session.session_id.clone();
-    caller_identity.bind(locator.clone());
-    Ok((
-        Box::new(session.with_identity(caller_identity)),
-        locator,
-        metadata,
-        history,
-    ))
+    Ok((Box::new(session), locator, metadata, history))
 }
 
 fn spawn_session(
@@ -250,7 +219,6 @@ fn spawn_session(
             events: VecDeque::new(),
             config_ids,
             features,
-            caller_identity: None,
             pending_prompt_result: None,
         },
         metadata,
@@ -468,16 +436,10 @@ struct AcpWorkerSession {
     events: VecDeque<WorkerEvent>,
     config_ids: ConfigIds,
     features: AcpFeatures,
-    caller_identity: Option<crate::modules::agents::core::CallerIdentity>,
     pending_prompt_result: Option<AcpRequestId>,
 }
 
 impl AcpWorkerSession {
-    fn with_identity(mut self, identity: crate::modules::agents::core::CallerIdentity) -> Self {
-        self.caller_identity = Some(identity);
-        self
-    }
-
     fn request(&mut self, method: &str, params: Value) -> Result<AcpRequestId, String> {
         self.connection.send_request(method, params)
     }
@@ -488,13 +450,6 @@ impl AcpWorkerSession {
         self.thought_started = false;
         self.tool_states.clear();
         self.pending_prompt_result = None;
-        if let Some(identity) = &self.caller_identity {
-            identity.begin_execution(
-                inputs
-                    .first()
-                    .and_then(|input| input.submission_id.as_deref()),
-            );
-        }
         let id = self.request(
             "session/prompt",
             json!({"sessionId": self.session_id, "prompt": prompt}),
@@ -502,9 +457,6 @@ impl AcpWorkerSession {
         self.current_prompt = Some(id);
         self.current_inputs = inputs;
         self.current_prompt_proven = false;
-        if let Some(identity) = &self.caller_identity {
-            identity.set_activity(WorkerActivityState::Working);
-        }
         Ok(())
     }
 
@@ -942,9 +894,6 @@ impl AcpWorkerSession {
 
     fn start_next_queued_prompt(&mut self) {
         if self.queued_prompts.is_empty() {
-            if let Some(identity) = &self.caller_identity {
-                identity.set_activity(WorkerActivityState::Idle);
-            }
             return;
         }
         let inputs = self.queued_prompts.drain(..).collect::<Vec<_>>();

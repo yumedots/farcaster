@@ -256,8 +256,7 @@ fn listed_session(
             .unwrap_or(UNIX_EPOCH);
     Some(DiscoveredSession {
         path: super::super::main_session::external_session_path(locator_root, PROFILE.backend, &id),
-        parent_session: crate::modules::agents::core::CallerRegistry::shared()
-            .session_parent(PROFILE.backend, &id),
+        parent_session: None,
         id,
         harness: PROFILE.backend,
         project,

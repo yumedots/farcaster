@@ -134,7 +134,6 @@ impl DirtyRegions {
             | RuntimeEvent::SessionsFailed { .. }
             | RuntimeEvent::ImportPreview { .. }
             | RuntimeEvent::ImportPreviewFailed { .. }
-            | RuntimeEvent::ExtensionUiDismissed { .. }
             | RuntimeEvent::ExtensionUi { .. } => {}
             RuntimeEvent::SessionMoved { .. } | RuntimeEvent::SessionDeleted { .. } => {
                 self.root = true;
@@ -783,21 +782,6 @@ impl FarcasterApp {
             } if generation == self.runtime_generation => {
                 self.project_extension_ui(generation, request, dirty, cx);
             }
-            RuntimeEvent::ExtensionUiDismissed { generation, id } => {
-                if project_dialog_dismissal(
-                    generation,
-                    self.runtime_generation,
-                    &id,
-                    &mut self.extensions.active,
-                    self.extensions.parked.as_mut(),
-                    &mut self.extensions.restored_dialog_id,
-                    &mut self.extensions.dismissed_restored_dialog_id,
-                    &mut self.extensions.pending_dialog_setup,
-                ) {
-                    dirty.root = true;
-                    dirty.composer = true;
-                }
-            }
             RuntimeEvent::SystemNotification {
                 title,
                 body,
@@ -917,42 +901,6 @@ fn restore_extension_after_history(
         visible.take_dialogs_matching(crate::app::runtime::recovery::is_recovery_dialog);
     restore_extension_surface(visible, parked);
     visible.prepend_dialogs(recovery_dialogs);
-}
-
-#[allow(clippy::too_many_arguments)]
-fn project_dialog_dismissal(
-    generation: u64,
-    runtime_generation: u64,
-    id: &str,
-    extension: &mut crate::app::extensions::ExtensionUiState,
-    parked_extension: Option<&mut crate::app::extensions::ExtensionUiState>,
-    restored_dialog_id: &mut Option<String>,
-    dismissed_restored_dialog_id: &mut Option<String>,
-    pending_dialog_setup: &mut bool,
-) -> bool {
-    if generation != runtime_generation {
-        return false;
-    }
-    let recovery = crate::app::runtime::recovery::is_recovery_dialog_id(id);
-    if !recovery && let Some(parked) = parked_extension {
-        parked.dismiss_dialog(id);
-        return false;
-    }
-    match extension.dismiss_dialog(id) {
-        crate::app::extensions::DialogDismissal::ActiveWithNext
-        | crate::app::extensions::DialogDismissal::ActiveFinal => {
-            // Root lifecycle owns the Window needed to focus the next dialog or restore focus
-            // after the final one disappears.
-            *pending_dialog_setup = true;
-            if restored_dialog_id.as_deref() == Some(id) {
-                *restored_dialog_id = None;
-                *dismissed_restored_dialog_id = Some(id.to_owned());
-            }
-            true
-        }
-        crate::app::extensions::DialogDismissal::NotFound
-        | crate::app::extensions::DialogDismissal::Queued => false,
-    }
 }
 
 pub(in crate::app) fn record_pending_prompt_result_for_submission(

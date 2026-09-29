@@ -73,10 +73,6 @@ impl CodexWorkerSession {
     pub(super) fn observe_command_settings(&mut self, settings: &Value) {
         if let Some(model) = settings["model"].as_str() {
             self.model = Some(model.to_owned());
-            self.caller_identity.select_model(
-                settings["modelProvider"].as_str().unwrap_or("openai"),
-                model,
-            );
         }
         if let Some(effort) = settings.get("effort") {
             self.effort = effort.as_str().map(str::to_owned);
@@ -141,8 +137,6 @@ impl CodexWorkerSession {
                 if let Some(submission) = submission {
                     self.prompt_requests.insert(id, submission);
                 }
-                self.caller_identity
-                    .set_activity(WorkerActivityState::Starting);
             }
             "model" => {
                 if args.len() > 2 {
@@ -198,8 +192,6 @@ impl CodexWorkerSession {
         let id = self.request(method, params)?;
         self.pending
             .insert(id, PendingRequest::Command(Request { submission, step }));
-        self.caller_identity
-            .set_activity(WorkerActivityState::Starting);
         Ok(())
     }
 
@@ -213,7 +205,6 @@ impl CodexWorkerSession {
             self.prompt_acks
                 .push_back((id, outcome.as_ref().map(|_| ()).map_err(Clone::clone)));
         }
-        self.caller_identity.set_activity(WorkerActivityState::Idle);
         match outcome {
             Ok(Some(output)) => {
                 self.events.push_back(WorkerEvent::Settled { output });
@@ -364,9 +355,6 @@ impl CodexWorkerSession {
                 let id = model["id"].as_str().ok_or("Codex model has no id")?;
                 self.select_model(model["provider"].as_str().unwrap_or("openai"), id)?;
                 self.effort = effort;
-                if let Some(effort) = self.effort.clone() {
-                    self.caller_identity.select_effort(&effort);
-                }
                 // A collaboration preset must not override the explicit model choice.
                 if let Some(mode) = self.collaboration_mode.as_mut() {
                     mode["settings"]["model"] = json!(id);

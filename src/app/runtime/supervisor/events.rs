@@ -142,17 +142,8 @@ impl Supervisor {
                     persist_configurations(self.catalog_state.as_ref(), &self.configurations);
                 }
                 if snapshot.conversation.settled {
-                    if let Some(dialogs) = self.active_dialogs.get_mut(&key) {
-                        dialogs.retain(|request| {
-                            request.dialog_id().is_some_and(agents::is_child_input_id)
-                        });
-                        if dialogs.is_empty() {
-                            self.active_dialogs.remove(&key);
-                            self.needs_input.remove(&key);
-                        }
-                    } else {
-                        self.needs_input.remove(&key);
-                    }
+                    self.active_dialogs.remove(&key);
+                    self.needs_input.remove(&key);
                 }
                 let recovery_target = self
                     .recovery_target_for_snapshot(&key, &snapshot)
@@ -187,37 +178,6 @@ impl Supervisor {
                         snapshot,
                     });
                     self.publish_selected_recovery_dialogs();
-                }
-            }
-            RuntimeEvent::ExtensionUiDismissed { id, .. } => {
-                if let Some(dialogs) = self.active_dialogs.get_mut(&key) {
-                    dialogs.retain(|request| request.dialog_id() != Some(id.as_str()));
-                    if dialogs.is_empty() {
-                        self.active_dialogs.remove(&key);
-                        self.needs_input.remove(&key);
-                    }
-                }
-                if let Some(snapshot) = self.latest.get(&key) {
-                    let recovery_target = self
-                        .recovery_target_for_snapshot(&key, snapshot)
-                        .map(str::to_owned);
-                    let status = self.status_with_recovery(&key, snapshot);
-                    publish_session_status_if_changed(
-                        &self.event_tx,
-                        &mut self.published_statuses,
-                        recovery_target.as_deref().unwrap_or(&key),
-                        snapshot
-                            .live_session
-                            .clone()
-                            .or_else(|| snapshot.selected_session.clone()),
-                        status,
-                    );
-                }
-                if key == self.selected {
-                    let _ = self.event_tx.send(RuntimeEvent::ExtensionUiDismissed {
-                        generation: self.generation,
-                        id,
-                    });
                 }
             }
             RuntimeEvent::ExtensionUi {

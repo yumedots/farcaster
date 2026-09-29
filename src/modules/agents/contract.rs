@@ -7,7 +7,7 @@ pub(crate) mod extensions;
 pub(crate) use effort::{effort_rank, model_efforts};
 mod workers;
 
-pub(crate) use workers::{PeerMessage, valid_worker_name};
+pub(crate) use workers::PeerMessage;
 
 use extensions::{ExtensionUiRequest, ExtensionUiResponse, PromptImage, PromptMode};
 

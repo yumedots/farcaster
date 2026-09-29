@@ -355,12 +355,7 @@ fn summary(
     let timestamp = string(thread, &["createdAt", "created_at"])
         .unwrap_or_default()
         .to_owned();
-    let parent_session = string(thread, &["parentThreadId", "parent_thread_id"])
-        .map(str::to_owned)
-        .or_else(|| {
-            crate::modules::agents::core::CallerRegistry::shared()
-                .session_parent(Backend::Codex, id)
-        });
+    let parent_session = string(thread, &["parentThreadId", "parent_thread_id"]).map(str::to_owned);
     let is_running = super::subagents::is_running(id).unwrap_or_else(|| {
         status(thread).is_some_and(|status| {
             matches!(status, "active" | "running" | "inProgress" | "in_progress")

@@ -1,11 +1,9 @@
-use crate::agents::Backend;
 #[path = "process_metadata.rs"]
 mod metadata;
 
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    fs::OpenOptions,
-    io::{Read as _, Seek as _, SeekFrom, Write as _},
+    io::Write as _,
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
     sync::{Arc, Mutex, mpsc},
@@ -133,7 +131,6 @@ fn prepare_rpc(
     is_worker: bool,
     identity: Option<&(String, String)>,
     parent_worker: Option<&str>,
-    parent_session: Option<&str>,
 ) -> Result<std::process::Command, String> {
     let mut prepared = rpc_command(command, project, launch)?;
     prepared.arg("--extension").arg(extension);
@@ -144,7 +141,6 @@ fn prepare_rpc(
         is_worker,
         identity,
         parent_worker,
-        parent_session,
     );
     Ok(prepared)
 }
@@ -153,13 +149,12 @@ pub(crate) struct PiRpcProcess {
     commands: Vec<super::wire::PiCommand>,
     sandbox_adapter: Option<&'static dyn super::sandbox::PiSandboxAdapter>,
     sandbox_mode: Option<HarnessAccessMode>,
-    caller_identity: crate::modules::agents::core::CallerIdentity,
     steering_extension: tempfile::NamedTempFile,
     launch_command: AgentLaunchConfig,
     project: PathBuf,
     is_worker: bool,
+    worker_identity: Option<(String, String)>,
     parent_worker_id: Option<String>,
-    native_parent_session: Option<String>,
     wake: Option<thread::Thread>,
     steering_configured: bool,
     selected_model: Option<(String, String)>,
@@ -178,8 +173,6 @@ pub(crate) struct PiRpcProcess {
     request_namespace: uuid::Uuid,
     activity: WorkerActivityState,
     stderr: String,
-    parent_session: Option<String>,
-    pending_parent_stamp: Option<PathBuf>,
     expected_resume: Option<PathBuf>,
     session_locator: Option<PathBuf>,
 }
@@ -266,30 +259,8 @@ impl PiRpcProcess {
         if super::trust::startup_trust(project)? == crate::projects::StartupTrust::Prompt {
             return Err("Pi project trust needs a decision before starting this session".into());
         }
-        let registry = crate::modules::agents::core::CallerRegistry::shared();
-        let profile = crate::modules::agents::core::CallerProfile {
-            backend: Backend::Pi,
-            provider: None,
-            model: None,
-            effort: None,
-        };
         let is_worker = worker.is_some();
         let parent_worker_id = parent.as_ref().map(|(id, _)| id.clone());
-        let parent_session = parent
-            .as_ref()
-            .and_then(|(id, _)| registry.native_parent_session(id, Backend::Pi));
-        let caller_identity = if let Some((worker_id, worker_name)) = worker {
-            registry.issue_as_with_access(
-                project,
-                profile,
-                worker_id,
-                worker_name,
-                parent_worker_id.clone(),
-                command.access_mode,
-            )?
-        } else {
-            registry.issue_with_access(project, profile, command.access_mode)
-        };
         let mut steering_extension = tempfile::Builder::new()
             .prefix("farcaster-extension-")
             .suffix(".mjs")
@@ -304,9 +275,8 @@ impl PiRpcProcess {
             launch,
             steering_extension.path(),
             is_worker,
-            caller_identity.worker_identity().as_ref(),
+            worker.as_ref(),
             parent.as_ref().map(|(id, _)| id.as_str()),
-            parent_session.as_deref(),
         )?;
         let mut child = prepared
             .stdin(Stdio::piped())
@@ -344,13 +314,12 @@ impl PiRpcProcess {
             commands: Vec::new(),
             sandbox_adapter: None,
             sandbox_mode: None,
-            caller_identity,
             steering_extension,
             launch_command: command.clone(),
             project: project.to_path_buf(),
             is_worker,
+            worker_identity: worker.clone(),
             parent_worker_id,
-            native_parent_session: parent_session.clone(),
             wake,
             steering_configured: false,
             selected_model: None,
@@ -369,8 +338,6 @@ impl PiRpcProcess {
             request_namespace: uuid::Uuid::new_v4(),
             activity: WorkerActivityState::Idle,
             stderr: String::new(),
-            parent_session,
-            pending_parent_stamp: None,
             expected_resume: match launch {
                 SessionLaunch::Resume(path) => Some(crate::sessions::normalize_session_path(path)),
                 _ => None,
@@ -387,25 +354,19 @@ impl PiRpcProcess {
         self.sandbox_mode = None;
         self.request_and_wait(SessionCommand::ListCommands)?;
         let commands = std::mem::take(&mut self.commands);
-        let effective_mode = if let Some((adapter, control)) = super::sandbox::discover(&commands)?
-        {
+        if let Some((adapter, control)) = super::sandbox::discover(&commands)? {
             self.sandbox_adapter = Some(adapter);
             let mode = adapter.launch_mode(requested)?;
             adapter.confirm(self, control, mode)?;
             self.sandbox_mode = Some(mode);
-            mode
         } else if requested == HarnessAccessMode::Sandboxed {
             return Err("Pi cannot confirm the requested access mode: no supported sandbox control was detected".into());
-        } else {
-            HarnessAccessMode::Full
-        };
-        self.caller_identity.set_access_mode(effective_mode);
+        }
         Ok(())
     }
 
     fn set_activity(&mut self, activity: WorkerActivityState) {
         self.activity = activity;
-        self.caller_identity.set_activity(activity);
     }
 
     pub(crate) fn send_request(&mut self, mut request: SessionCommand) -> Result<String, String> {
@@ -510,9 +471,6 @@ impl PiRpcProcess {
             .to_owned();
         let id = self.next_request_id();
         object.insert("id".into(), Value::String(id.clone()));
-        if command_type == "prompt" {
-            self.caller_identity.begin_execution(Some(&id));
-        }
         let encoded = encode_json_line(&command)
             .map_err(|error| format!("encode {command_type}: {error}"))?;
         self.pending.insert(id.clone(), command_type);
@@ -553,9 +511,8 @@ impl PiRpcProcess {
             launch,
             self.steering_extension.path(),
             self.is_worker,
-            self.caller_identity.worker_identity().as_ref(),
+            self.worker_identity.as_ref(),
             self.parent_worker_id.as_deref(),
-            self.native_parent_session.as_deref(),
         )
         .map_err(|error| restart_error(session.as_deref(), error))?;
         let mut child = prepared
@@ -963,7 +920,6 @@ impl PiRpcProcess {
     }
 
     fn route(&mut self, item: ReaderItem) -> SessionEvent {
-        self.retry_parent_stamp();
         match item {
             ReaderItem::Wire(wire) => match *wire {
                 Ok(PiWireMessage::Response {
@@ -1008,11 +964,9 @@ impl PiRpcProcess {
                     {
                         match configuration {
                             PendingConfiguration::Model { provider, model_id } => {
-                                self.caller_identity.select_model(&provider, &model_id);
                                 self.selected_model = Some((provider, model_id));
                             }
                             PendingConfiguration::Reasoning(level) => {
-                                self.caller_identity.select_effort(&level);
                                 self.selected_reasoning = Some(level);
                             }
                         }
@@ -1054,15 +1008,11 @@ impl PiRpcProcess {
                     if let Ok(crate::agents::SessionResponsePayload::LoadState(state)) =
                         &response.result
                     {
-                        self.selected_model = state.model.as_ref().map(|model| {
-                            self.caller_identity
-                                .select_model(&model.provider, &model.id);
-                            (model.provider.clone(), model.id.clone())
-                        });
+                        self.selected_model = state
+                            .model
+                            .as_ref()
+                            .map(|model| (model.provider.clone(), model.id.clone()));
                         self.selected_reasoning = state.thinking_level.clone();
-                        if let Some(level) = &self.selected_reasoning {
-                            self.caller_identity.select_effort(level);
-                        }
                         let session = state.session_file.as_deref();
                         self.session_locator = session.map(PathBuf::from);
                         if let Some(expected) = self.expected_resume.take() {
@@ -1074,16 +1024,6 @@ impl PiRpcProcess {
                                     "Pi did not resume the requested session: {}",
                                     expected.display()
                                 ));
-                            }
-                        }
-                        if let Some(session) = session
-                        // An inherited worker resumes the parent before forking it.
-                        && self.parent_session.as_deref() != Some(session)
-                        {
-                            self.caller_identity.bind(session);
-                            if self.parent_session.is_some() {
-                                self.pending_parent_stamp = Some(PathBuf::from(session));
-                                self.retry_parent_stamp();
                             }
                         }
                     }
@@ -1110,7 +1050,6 @@ impl PiRpcProcess {
                     let activity: SessionActivity = event.into();
                     match activity.kind() {
                         SessionActivityKind::AgentStarted => {
-                            self.caller_identity.ensure_execution();
                             self.apply_steering_settled = false;
                             self.set_activity(WorkerActivityState::Working);
                         }
@@ -1179,19 +1118,6 @@ impl PiRpcProcess {
                     crate::agents::SessionResponsePayload::ConfigureSteering,
                 ))
             }
-        }
-    }
-
-    fn retry_parent_stamp(&mut self) {
-        let (Some(path), Some(parent)) = (
-            self.pending_parent_stamp.as_deref(),
-            self.parent_session.as_deref(),
-        ) else {
-            return;
-        };
-        if stamp_parent_session(path, parent).is_ok() {
-            self.pending_parent_stamp = None;
-            self.parent_session = None;
         }
     }
 
@@ -1332,39 +1258,6 @@ fn spawn_stderr_reader(mut stderr: impl std::io::Read + Send + 'static, sender: 
             let _ = sender.send(ReaderItem::StderrEof);
         })
         .ok();
-}
-
-fn stamp_parent_session(path: &Path, parent: &str) -> Result<(), String> {
-    let mut file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(path)
-        .map_err(|error| format!("open Pi child session {}: {error}", path.display()))?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)
-        .map_err(|error| format!("read Pi child session {}: {error}", path.display()))?;
-    let (header_line, rest) = contents.split_once('\n').unwrap_or((contents.as_str(), ""));
-    let mut header: Value = serde_json::from_str(header_line)
-        .map_err(|error| format!("decode Pi child session header: {error}"))?;
-    let object = header
-        .as_object_mut()
-        .filter(|header| header.get("type").and_then(Value::as_str) == Some("session"))
-        .ok_or_else(|| format!("invalid Pi child session header: {}", path.display()))?;
-    if object.get("parentSession").and_then(Value::as_str) == Some(parent) {
-        return Ok(());
-    }
-    object.insert("parentSession".into(), Value::String(parent.to_owned()));
-    let mut encoded = serde_json::to_string(&header)
-        .map_err(|error| format!("encode Pi child session header: {error}"))?;
-    encoded.push('\n');
-    encoded.push_str(rest);
-    file.seek(SeekFrom::Start(0))
-        .map_err(|error| format!("seek Pi child session: {error}"))?;
-    file.write_all(encoded.as_bytes())
-        .map_err(|error| format!("write Pi child session: {error}"))?;
-    file.set_len(encoded.len() as u64)
-        .map_err(|error| format!("truncate Pi child session: {error}"))?;
-    Ok(())
 }
 
 #[cfg(test)]

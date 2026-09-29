@@ -25,7 +25,6 @@ fn worker_metadata_preserves_labels_without_changing_arguments() {
         true,
         Some(&identity),
         Some("parent-7"),
-        Some("native-parent"),
     );
     let env = environment(&command);
     assert_eq!(env["FARCASTER_PROCESS_ROLE"], Some("worker"));
@@ -61,7 +60,6 @@ fn launch_modes_clear_stale_parent_and_session_metadata() {
             Path::new("/project"),
             &launch,
             false,
-            None,
             None,
             None,
         );

@@ -22,15 +22,14 @@ pub(crate) use contract::{
     SessionEvent, SessionHistory, SessionLaunch, SessionMetadata, SessionOperation,
     SessionResponse, SessionResponseErrorKind, SessionResponsePayload, SessionStart,
     SessionTransport, SessionUsage, SessionUsageTokens, WorkerContext, WorkerInput,
-    WorkerInputResponse, effort_rank, model_efforts, valid_worker_name,
+    WorkerInputResponse, effort_rank, model_efforts,
 };
 pub(crate) use core::{
-    CallerProfile, CallerRegistry, ChildSessionOutcome, CommonTool, PromptStore, TokenUsage,
-    ToolCategory, ToolMetadata, ToolReviewState, WorkerActivity, WorkerActivityState, WorkerEvent,
-    WorkerLaunch, WorkerModelSelection, WorkerSendMode, WorkerSession, WorkerSessionFactory,
-    WorkerUsage, begin_prompt, complete_prompt_with_receipt, enqueue_prompt_with_presentation,
-    fail_prompt, has_queued_prompts_for, is_child_input_id, mark_prompt_delivery_unknown,
-    queued_prompts,
+    ChildSessionOutcome, CommonTool, PromptStore, TokenUsage, ToolCategory, ToolMetadata,
+    ToolReviewState, WorkerActivity, WorkerActivityState, WorkerEvent, WorkerLaunch,
+    WorkerModelSelection, WorkerSendMode, WorkerSession, WorkerSessionFactory, WorkerUsage,
+    begin_prompt, complete_prompt_with_receipt, enqueue_prompt_with_presentation, fail_prompt,
+    has_queued_prompts_for, mark_prompt_delivery_unknown, queued_prompts,
 };
 #[cfg(test)]
 pub(crate) use core::{WorkerAssignment, WorkerExecution, WorkerFamilyLink, WorkerRouting};

@@ -10,11 +10,10 @@ use super::{
     process::{Process, decode, permission_mode},
 };
 use crate::agents::{
-    AgentLaunchConfig, CallerProfile, CallerRegistry, HarnessAccessMode, SessionLaunch,
-    SessionStart, WorkerActivity, WorkerActivityState, WorkerContext, WorkerEvent, WorkerInput,
-    WorkerInputResponse, WorkerLaunch, WorkerSendMode, WorkerSession, WorkerSessionFactory,
+    AgentLaunchConfig, HarnessAccessMode, SessionLaunch, SessionStart, WorkerActivity,
+    WorkerContext, WorkerEvent, WorkerInput, WorkerInputResponse, WorkerLaunch, WorkerSendMode,
+    WorkerSession, WorkerSessionFactory,
 };
-use crate::modules::agents::core::CallerIdentity;
 use claude_sdk_types::{
     PermissionResult, Presence, SDKControlInitializeResponse, SDKControlInterruptResponse,
     SDKUserMessage, StdoutMessage,
@@ -44,19 +43,6 @@ impl WorkerSessionFactory for ClaudeWorkerFactory {
         let mut command = self.command.clone();
         command.access_mode = launch.access_mode;
         command.app_proxy = launch.app_proxy.clone();
-        let caller = CallerRegistry::shared().issue_as_with_access(
-            &launch.project,
-            CallerProfile {
-                backend: BACKEND,
-                provider: launch.provider.clone(),
-                model: launch.model.clone(),
-                effort: launch.effort.clone(),
-            },
-            launch.worker_id,
-            launch.worker_name,
-            launch.parent_worker_id,
-            launch.access_mode,
-        )?;
         let process = Process::spawn(
             &command,
             &launch.project,
@@ -65,7 +51,7 @@ impl WorkerSessionFactory for ClaudeWorkerFactory {
             None,
             !launch.ephemeral,
         )?;
-        let (mut worker, _) = attach(process, caller, &id, launch.access_mode)?;
+        let (mut worker, _) = attach(process, &id, launch.access_mode)?;
         if let Some(model) = launch.model {
             worker.select_model(
                 launch.provider.as_deref().unwrap_or(BACKEND.as_str()),
@@ -112,16 +98,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
         SessionStart::Fork(_) => return Err("Claude session fork is not supported".into()),
     };
     uuid::Uuid::parse_str(&id).map_err(|_| "Claude requires a UUID session id")?;
-    let caller = CallerRegistry::shared().issue_with_access(
-        &launch.project,
-        CallerProfile {
-            backend: BACKEND,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-        command.access_mode,
-    );
     let process = Process::spawn(
         command,
         &launch.project,
@@ -130,7 +106,7 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
         launch.wake.clone(),
         true,
     )?;
-    let (worker, metadata) = attach(process, caller, &id, command.access_mode)?;
+    let (worker, metadata) = attach(process, &id, command.access_mode)?;
     Ok((Box::new(worker), id, metadata))
 }
 
@@ -199,15 +175,12 @@ fn initialize(
 
 fn attach(
     mut process: Process,
-    caller: CallerIdentity,
     id: &str,
     access: HarnessAccessMode,
 ) -> Result<(ClaudeSession, MainSessionMetadata), String> {
     let metadata = initialize(&mut process, access)?;
-    caller.bind(id.to_owned());
     let worker = ClaudeSession {
         process,
-        caller,
         id: id.into(),
         events: Events::default(),
         active: false,
@@ -257,7 +230,6 @@ struct Interrupt {
 
 struct ClaudeSession {
     process: Process,
-    caller: CallerIdentity,
     id: String,
     events: Events,
     active: bool,
@@ -339,7 +311,6 @@ impl ClaudeSession {
         self.active = false;
         self.active_uuid = None;
         self.permissions.clear();
-        self.caller.set_activity(WorkerActivityState::Idle);
     }
 
     fn admit(&mut self, prompt: Prompt, mode: WorkerSendMode) -> Result<(), String> {
@@ -366,14 +337,7 @@ impl ClaudeSession {
             }
         };
         self.active_uuid = Some(active_uuid.clone());
-        self.caller.begin_execution(
-            prompt
-                .deliveries
-                .first()
-                .and_then(|delivery| delivery.submission_id.as_deref()),
-        );
         self.active = true;
-        self.caller.set_activity(WorkerActivityState::Working);
         self.dispatched.insert(
             active_uuid.clone(),
             DispatchedPrompt {
@@ -565,7 +529,6 @@ impl ClaudeSession {
     fn receive(&mut self, frame: StdoutMessage) -> Result<(), String> {
         if let StdoutMessage::SDKSystemMessage(init) = &frame {
             self.model = Some(init.model.clone());
-            self.caller.select_model(BACKEND.as_str(), &init.model);
             if let claude_sdk_types::Presence::Present(effort) = &init.effort {
                 self.effort = effort.as_ref().map(|effort| {
                     serde_json::to_value(effort)
@@ -864,7 +827,6 @@ impl WorkerSession for ClaudeSession {
         self.process
             .wait(json!({"subtype":"set_model", "model":model}))?;
         self.model = Some(model.into());
-        self.caller.select_model(provider, model);
         self.configuration_changed();
         Ok(())
     }
@@ -878,7 +840,6 @@ impl WorkerSession for ClaudeSession {
         }
         self.process
             .wait(json!({"subtype":"apply_flag_settings", "settings":{"effortLevel":effort}}))?;
-        self.caller.select_effort(effort);
         self.effort = Some(effort.into());
         Ok(())
     }

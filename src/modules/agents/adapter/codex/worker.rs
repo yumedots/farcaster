@@ -1,4 +1,3 @@
-use crate::agents::Backend;
 #[path = "commands.rs"]
 mod commands;
 
@@ -53,25 +52,6 @@ impl WorkerSessionFactory for CodexWorkerFactory {
         command.access_mode = launch.access_mode;
         command.app_proxy = launch.app_proxy.clone();
         let mut prepared = command.command(&launch.project)?;
-        let caller_identity = crate::modules::agents::core::CallerRegistry::shared()
-            .issue_as_with_access(
-                &launch.project,
-                crate::modules::agents::core::CallerProfile {
-                    backend: Backend::Codex,
-                    provider: launch.provider.clone(),
-                    model: launch.model.clone(),
-                    effort: launch.effort.clone(),
-                },
-                launch.worker_id.clone(),
-                launch.worker_name.clone(),
-                launch.parent_worker_id.clone(),
-                launch.access_mode,
-            )?;
-        let caller_identity = if launch.ephemeral {
-            caller_identity.without_session_persistence()
-        } else {
-            caller_identity
-        };
         configure_codex_app_server(&mut prepared, launch.access_mode);
         let mut child = prepared
             .stdin(Stdio::piped())
@@ -112,9 +92,7 @@ impl WorkerSessionFactory for CodexWorkerFactory {
             return Err(format!("read Codex worker events: {error}"));
         }
         let thread_id = thread.id;
-        caller_identity.bind(thread_id.clone());
         Ok(Box::new(CodexWorkerSession {
-            caller_identity,
             child,
             writer: Some(writer),
             incoming,
@@ -206,16 +184,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
     String,
 > {
     let mut prepared = command.command(&launch.project)?;
-    let caller_identity = crate::modules::agents::core::CallerRegistry::shared().issue_with_access(
-        &launch.project,
-        crate::modules::agents::core::CallerProfile {
-            backend: Backend::Codex,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-        command.access_mode,
-    );
     configure_codex_app_server(&mut prepared, command.access_mode);
     let mut child = prepared
         .stdin(Stdio::piped())
@@ -256,7 +224,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
             }
         })
         .map_err(|error| format!("read Codex main-session events: {error}"))?;
-    caller_identity.bind(thread_id.clone());
     let collaboration_modes = metadata
         .modes
         .iter()
@@ -268,7 +235,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
         })
         .collect();
     let session = CodexWorkerSession {
-        caller_identity,
         child,
         writer: Some(writer),
         incoming,
@@ -695,7 +661,6 @@ struct Handoff {
 }
 
 struct CodexWorkerSession {
-    caller_identity: crate::modules::agents::core::CallerIdentity,
     child: Child,
     writer: Option<ChildStdin>,
     incoming: mpsc::Receiver<Result<CodexInbound, String>>,
@@ -891,14 +856,12 @@ impl WorkerSession for CodexWorkerSession {
         self.wait_response(&id, "rename thread")
     }
 
-    fn select_model(&mut self, provider: &str, model: &str) -> Result<(), String> {
-        self.caller_identity.select_model(provider, model);
+    fn select_model(&mut self, _provider: &str, model: &str) -> Result<(), String> {
         self.model = Some(model.to_owned());
         Ok(())
     }
 
     fn select_effort(&mut self, effort: &str) -> Result<(), String> {
-        self.caller_identity.select_effort(effort);
         self.effort = Some(effort.to_owned());
         Ok(())
     }
@@ -1157,7 +1120,6 @@ impl WorkerSession for CodexWorkerSession {
                                 self.batch_deliveries.remove(&client_id);
                             }
                             self.abort_starting_turn = false;
-                            self.caller_identity.set_activity(WorkerActivityState::Idle);
                         }
                         Some(PendingRequest::Control {
                             operation,
@@ -1537,7 +1499,6 @@ impl WorkerSession for CodexWorkerSession {
                                 continue;
                             }
                             self.current_turn = None;
-                            self.caller_identity.set_activity(WorkerActivityState::Idle);
                             if self.handoff.as_ref().is_some_and(|handoff| {
                                 handoff.phase == HandoffPhase::Interrupting
                                     && handoff.target_turn.as_deref()
@@ -1977,11 +1938,6 @@ impl CodexWorkerSession {
             && let Some(client_id) = item.get("clientId").and_then(Value::as_str)
         {
             if let Some(deliveries) = self.batch_deliveries.remove(client_id) {
-                self.caller_identity.begin_execution(
-                    deliveries
-                        .first()
-                        .and_then(|entry| entry.delivery.submission_id.as_deref()),
-                );
                 let mut activities = deliveries
                     .into_iter()
                     .map(|entry| entry.delivery.activity());
@@ -1997,8 +1953,6 @@ impl CodexWorkerSession {
                 return first;
             }
             if let Some(input) = self.native_inputs.remove(client_id) {
-                self.caller_identity
-                    .begin_execution(input.delivery.submission_id.as_deref());
                 self.native_input_order.retain(|queued| queued != client_id);
                 self.client_submissions.remove(client_id);
                 if input.cancel_on_delivery
@@ -2137,8 +2091,6 @@ impl CodexWorkerSession {
     fn begin_turn(&mut self, turn_id: &str) -> bool {
         let is_new = self.current_turn.as_deref() != Some(turn_id);
         self.current_turn = Some(turn_id.to_owned());
-        self.caller_identity
-            .set_activity(WorkerActivityState::Working);
         if is_new {
             self.output.clear();
             self.reasoning_started = false;
@@ -2262,7 +2214,6 @@ impl CodexWorkerSession {
             "{NORMAL_CLIENT_ID_PREFIX}{}",
             self.next_id.saturating_add(1)
         );
-        self.caller_identity.begin_execution(submission_id);
         let id = self.submission_request(
             "turn/start",
             json!({
@@ -2286,8 +2237,6 @@ impl CodexWorkerSession {
             self.normal_start_clients.insert(id.clone(), client_id);
         }
         self.pending.insert(id, PendingRequest::StartTurn);
-        self.caller_identity
-            .set_activity(WorkerActivityState::Starting);
         Ok(())
     }
 

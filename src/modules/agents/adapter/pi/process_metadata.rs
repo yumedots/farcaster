@@ -9,7 +9,6 @@ pub(super) fn apply(
     worker: bool,
     identity: Option<&(String, String)>,
     parent_worker: Option<&str>,
-    parent_session: Option<&str>,
 ) {
     let (mode, resume, fork) = match launch {
         SessionLaunch::Catalog => ("catalog", None, None),
@@ -42,10 +41,6 @@ pub(super) fn apply(
         (
             "FARCASTER_PROCESS_PARENT_WORKER_ID",
             parent_worker.map(OsStr::new),
-        ),
-        (
-            "FARCASTER_PROCESS_PARENT_SESSION",
-            parent_session.map(OsStr::new),
         ),
         ("FARCASTER_PROCESS_RESUME_FILE", resume),
         ("FARCASTER_PROCESS_FORK_SOURCE", fork),

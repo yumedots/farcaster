@@ -1,4 +1,3 @@
-use crate::agents::Backend;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     process::Stdio,
@@ -20,9 +19,9 @@ use super::{
 };
 use crate::{
     agents::{
-        AgentLaunchConfig, TokenUsage, WorkerActivity, WorkerActivityState, WorkerContext,
-        WorkerEvent, WorkerInput, WorkerInputResponse, WorkerLaunch, WorkerSendMode, WorkerSession,
-        WorkerSessionFactory, WorkerUsage,
+        AgentLaunchConfig, TokenUsage, WorkerActivity, WorkerContext, WorkerEvent, WorkerInput,
+        WorkerInputResponse, WorkerLaunch, WorkerSendMode, WorkerSession, WorkerSessionFactory,
+        WorkerUsage,
     },
     modules::agents::adapter::{child_stderr, main_session},
 };
@@ -50,20 +49,6 @@ impl WorkerSessionFactory for OpenCodeWorkerFactory {
         command.access_mode = launch.access_mode;
         command.app_proxy = launch.app_proxy.clone();
         let mut prepared = command.command(&launch.project)?;
-        let caller_identity = crate::modules::agents::core::CallerRegistry::shared()
-            .issue_as_with_access(
-                &launch.project,
-                crate::modules::agents::core::CallerProfile {
-                    backend: Backend::OpenCode,
-                    provider: launch.provider.clone(),
-                    model: launch.model.clone(),
-                    effort: launch.effort.clone(),
-                },
-                launch.worker_id.clone(),
-                launch.worker_name.clone(),
-                launch.parent_worker_id.clone(),
-                launch.access_mode,
-            )?;
         let password = worker_password()?;
         configure_opencode_server(&mut prepared, launch.access_mode)?;
         let mut child = prepared
@@ -83,15 +68,7 @@ impl WorkerSessionFactory for OpenCodeWorkerFactory {
             .map(|(provider, model)| (provider, model, launch.effort.as_deref()));
         let session = match launch.context {
             WorkerContext::Fresh => {
-                let parent_id = launch.parent_worker_id.as_deref().and_then(|id| {
-                    crate::agents::CallerRegistry::shared()
-                        .native_parent_session(id, Backend::OpenCode)
-                });
-                client.create_session(
-                    &launch.project.to_string_lossy(),
-                    parent_id.as_deref(),
-                    selected_model,
-                )?
+                client.create_session(&launch.project.to_string_lossy(), None, selected_model)?
             }
             WorkerContext::Session { session_locator } => {
                 if session_locator != launch.parent_session {
@@ -112,9 +89,7 @@ impl WorkerSessionFactory for OpenCodeWorkerFactory {
         };
         let session_id = session.id;
         let incoming = start_event_reader(&server, &session_id, None)?;
-        caller_identity.bind(session_id.clone());
         Ok(Box::new(OpenCodeWorkerSession {
-            caller_identity,
             server,
             session_id: session_id.clone(),
             catalog_directory: None,
@@ -187,16 +162,6 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
     String,
 > {
     let mut prepared = command.command(&launch.project)?;
-    let caller_identity = crate::modules::agents::core::CallerRegistry::shared().issue_with_access(
-        &launch.project,
-        crate::modules::agents::core::CallerProfile {
-            backend: Backend::OpenCode,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-        command.access_mode,
-    );
     let password = worker_password()?;
     configure_opencode_server(&mut prepared, command.access_mode)?;
     let mut child = prepared
@@ -260,15 +225,9 @@ pub(in crate::modules::agents::adapter) fn spawn_main(
         .and_then(|model| model.get("contextWindow"))
         .and_then(Value::as_u64)
         .unwrap_or(0);
-    if let Some(selected) = &selection {
-        caller_identity.select_model(&selected.provider_id, &selected.id);
-        caller_identity.set_effort(selected.variant.as_deref());
-    }
     metadata.session_name = session.title;
-    caller_identity.bind(session_id.clone());
     Ok((
         Box::new(OpenCodeWorkerSession {
-            caller_identity,
             server,
             session_id: session_id.clone(),
             catalog_directory: Some(directory),
@@ -560,7 +519,6 @@ struct PendingOpenCodeDelivery {
 }
 
 struct OpenCodeWorkerSession {
-    caller_identity: crate::modules::agents::core::CallerIdentity,
     server: OpenCodeServerProcess,
     session_id: String,
     catalog_directory: Option<String>,
@@ -651,7 +609,6 @@ impl OpenCodeWorkerSession {
             .client()
             .select_model(&self.session_id, provider, model, effort)?;
         self.effort = effort.map(str::to_owned);
-        self.caller_identity.set_effort(effort);
         Ok(())
     }
 
@@ -701,10 +658,6 @@ impl OpenCodeWorkerSession {
             WorkerSendMode::Steer => super::contract::OpenCodeDelivery::Steer,
         };
         let clears_abort_barrier = self.ignore_execution_events;
-        if !self.turn_active {
-            self.caller_identity
-                .begin_execution(submission_id.as_deref());
-        }
         let pending = PendingOpenCodeDelivery {
             submission_id,
             order: self.generation,
@@ -765,8 +718,6 @@ impl OpenCodeWorkerSession {
             return Err("OpenCode returned an invalid prompt admission receipt".into());
         }
         self.pending_deliveries.insert(admission.id, delivery);
-        self.caller_identity
-            .set_activity(WorkerActivityState::Working);
         if !was_active {
             self.reasoning_started = false;
             self.clear_streams();
@@ -820,7 +771,6 @@ impl OpenCodeWorkerSession {
         self.turn_active = false;
         self.completions = None;
         self.clear_streams();
-        self.caller_identity.set_activity(WorkerActivityState::Idle);
     }
 
     fn finish_abort(&mut self) {
@@ -835,8 +785,6 @@ impl OpenCodeWorkerSession {
 
     fn delivered_input(&mut self, native_id: &str) -> Option<WorkerEvent> {
         let delivery = self.pending_deliveries.remove(native_id)?;
-        self.caller_identity
-            .begin_execution(delivery.submission_id.as_deref());
         self.delivered_awaiting_execution
             .insert(native_id.to_owned());
         if delivery.clears_abort_barrier {
@@ -976,8 +924,6 @@ impl OpenCodeWorkerSession {
                     self.delivered_awaiting_execution.clear();
                     if !self.turn_active {
                         self.turn_active = true;
-                        self.caller_identity
-                            .set_activity(WorkerActivityState::Working);
                         return Some(WorkerEvent::Started);
                     }
                 }
@@ -1647,8 +1593,6 @@ impl WorkerSession for OpenCodeWorkerSession {
             .copied()
             .unwrap_or(0);
         self.effort = variant;
-        self.caller_identity.select_model(provider, model);
-        self.caller_identity.set_effort(self.effort.as_deref());
         Ok(())
     }
 

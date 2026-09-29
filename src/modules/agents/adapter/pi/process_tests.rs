@@ -1,5 +1,4 @@
 use super::*;
-use crate::agents::Backend;
 use crate::agents::HarnessAccessMode;
 use crate::agents::WorkerSendMode;
 use std::{error::Error, fs};
@@ -1105,7 +1104,6 @@ fn process_omits_farcaster_mcp_environment() -> TestResult {
         false,
         None,
         None,
-        None,
     )?;
     assert!(
         !process
@@ -1211,13 +1209,6 @@ fn sandbox_adapter_detects_each_launch_and_blocks_failed_control() -> TestResult
         command.access_mode = requested;
         let mut process = PiRpcProcess::spawn(&command, temp.path(), None)?;
         assert_eq!(process.confirmed_sandbox_mode(), Some(expected));
-        process.caller_identity.bind("parent-session");
-        assert_eq!(
-            crate::agents::CallerRegistry::shared()
-                .resolve(process.caller_identity.token())?
-                .access_mode,
-            expected
-        );
         assert!(!temp.path().join("agent-prompts").exists());
         process.request_and_wait(SessionCommand::Prompt {
             mode: crate::protocol::PromptMode::Normal,
@@ -1245,7 +1236,7 @@ fn sandbox_adapter_detects_each_launch_and_blocks_failed_control() -> TestResult
 }
 
 #[test]
-fn missing_sandbox_registers_the_caller_as_full_access() -> TestResult {
+fn missing_sandbox_reports_full_access_mode() -> TestResult {
     let (temp, mut command) = fake("normal")?;
     command.access_mode = HarnessAccessMode::Auto;
     let mut process = PiRpcProcess::spawn(&command, temp.path(), None)?;
@@ -1253,13 +1244,6 @@ fn missing_sandbox_registers_the_caller_as_full_access() -> TestResult {
     assert_eq!(
         crate::agents::SessionTransport::sandbox_mode(&process),
         Some(HarnessAccessMode::Full)
-    );
-    process.caller_identity.bind("parent-session");
-    assert_eq!(
-        crate::agents::CallerRegistry::shared()
-            .resolve(process.caller_identity.token())?
-            .access_mode,
-        HarnessAccessMode::Full
     );
     process.terminate()?;
     Ok(())
@@ -1563,114 +1547,6 @@ fn terminate_reaps_graceful_and_term_ignoring_children() -> TestResult {
                 .is_some()
         );
     }
-    Ok(())
-}
-
-#[test]
-fn stamp_parent_session_rewrites_the_header_in_place() -> TestResult {
-    let temp = tempdir()?;
-    let path = temp.path().join("child.jsonl");
-    fs::write(
-        &path,
-        concat!(
-            r#"{"type":"session","version":3,"id":"child-1","cwd":"/project"}"#,
-            "\n",
-            r#"{"type":"message","id":"m1"}"#,
-            "\n",
-        ),
-    )?;
-    stamp_parent_session(&path, "/sessions/parent.jsonl")?;
-    let contents = fs::read_to_string(&path)?;
-    let header_line = contents.lines().next().ok_or("missing session header")?;
-    let header: serde_json::Value = serde_json::from_str(header_line)?;
-    assert_eq!(
-        header["parentSession"].as_str(),
-        Some("/sessions/parent.jsonl")
-    );
-    assert!(contents.contains(r#""id":"m1""#));
-    Ok(())
-}
-
-#[test]
-fn inherited_child_does_not_stamp_the_parent_before_forking() -> TestResult {
-    let (temp, command) = fake("deferred-session")?;
-    let path = temp.path().canonicalize()?.join("fake-session.jsonl");
-    let contents = "{\"type\":\"session\",\"version\":3,\"id\":\"parent\"}\n";
-    fs::write(&path, contents)?;
-    let registry = crate::agents::CallerRegistry::shared();
-    let parent = registry.issue(
-        temp.path(),
-        crate::modules::agents::core::CallerProfile {
-            backend: Backend::Pi,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-    );
-    let locator = path.to_string_lossy().into_owned();
-    parent.bind(locator.clone());
-    let parent_id = registry.resolve(parent.token())?.worker_id;
-    let mut rpc = PiRpcProcess::spawn_worker(
-        &command,
-        temp.path(),
-        SessionLaunch::Resume(&path),
-        "inherited-child".into(),
-        "review".into(),
-        Some((parent_id, locator.clone())),
-    )?;
-    assert_eq!(fs::read_to_string(&path)?, contents);
-    assert_eq!(rpc.parent_session.as_deref(), Some(locator.as_str()));
-    assert!(rpc.pending_parent_stamp.is_none());
-    rpc.terminate()?;
-    Ok(())
-}
-
-#[test]
-fn child_parent_stamp_retries_after_pi_reports_an_uncreated_session_file() -> TestResult {
-    let (temp, command) = fake("deferred-session")?;
-    let path = temp.path().canonicalize()?.join("fake-session.jsonl");
-    let registry = crate::agents::CallerRegistry::shared();
-    let parent = registry.issue(
-        temp.path(),
-        crate::modules::agents::core::CallerProfile {
-            backend: Backend::Pi,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-    );
-    parent.bind("/sessions/parent.jsonl");
-    let parent_id = registry.resolve(parent.token())?.worker_id;
-    let mut rpc = PiRpcProcess::spawn_worker(
-        &command,
-        temp.path(),
-        SessionLaunch::New,
-        "child-worker".into(),
-        "review".into(),
-        Some((parent_id, "/sessions/parent.jsonl".into())),
-    )?;
-    assert!(!path.exists());
-    assert_eq!(rpc.pending_parent_stamp.as_deref(), Some(path.as_path()));
-
-    fs::write(
-        &path,
-        r#"{"type":"session","version":3,"id":"child-1","cwd":"/project"}
-"#,
-    )?;
-    let _ = rpc.route(ReaderItem::Stderr(String::new()));
-
-    let header: serde_json::Value = serde_json::from_str(
-        fs::read_to_string(&path)?
-            .lines()
-            .next()
-            .ok_or("missing session header")?,
-    )?;
-    assert_eq!(
-        header["parentSession"].as_str(),
-        Some("/sessions/parent.jsonl")
-    );
-    assert!(rpc.pending_parent_stamp.is_none());
-    rpc.terminate()?;
     Ok(())
 }
 

@@ -156,19 +156,10 @@ fn setup() -> (tempfile::TempDir, AgentLaunchConfig) {
 }
 
 fn session(command: &AgentLaunchConfig, project: &Path) -> ClaudeSession {
-    let caller = CallerRegistry::shared().issue(
-        project,
-        CallerProfile {
-            backend: BACKEND,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-    );
     let id = TEST_SESSION_ID;
     let process = Process::spawn(command, project, id, false, None, true)
         .expect("test operation should succeed");
-    attach(process, caller, id, command.access_mode)
+    attach(process, id, command.access_mode)
         .expect("test operation should succeed")
         .0
 }

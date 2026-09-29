@@ -358,21 +358,8 @@ fn interactions_read_child_turn_status_and_discard_superseded_reads() {
 }
 
 fn test_session() -> CodexWorkerSession {
-    use crate::modules::agents::core::{CallerProfile, CallerRegistry};
-
-    let registry = CallerRegistry::default();
-    let caller_identity = registry.issue(
-        std::path::Path::new("/project"),
-        CallerProfile {
-            backend: Backend::Codex,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-    );
     let (_sender, incoming) = mpsc::channel();
     CodexWorkerSession {
-        caller_identity,
         child: std::process::Command::new("true")
             .spawn()
             .expect("test child"),
@@ -2757,7 +2744,7 @@ fn committed_original_steer_before_rpc_reply_is_never_replayed() {
 
 #[test]
 fn streamed_codex_deltas_merge_into_one_assistant_item() {
-    use crate::agents::{SessionEvent, SessionTransport, WorkerActivityState};
+    use crate::agents::{SessionEvent, SessionTransport};
     use crate::conversation::{ConversationState, TranscriptKind};
     use crate::modules::agents::adapter::main_session::{
         MainSessionMetadata, WorkerSessionTransport,
@@ -2768,9 +2755,6 @@ fn streamed_codex_deltas_merge_into_one_assistant_item() {
     session.incoming = receiver;
     session.current_turn = Some("turn-1".into());
     session.output = "hello ".into();
-    session
-        .caller_identity
-        .set_activity(WorkerActivityState::Working);
     session.events.extend([
         WorkerEvent::Started,
         WorkerEvent::Activity(WorkerActivity::TextDelta {

@@ -54,6 +54,7 @@ pub(crate) enum ExtensionEffect {
     Diagnostic(String),
 }
 
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DialogDismissal {
     NotFound,
@@ -224,6 +225,7 @@ impl ExtensionUiState {
             })
     }
 
+    #[cfg(test)]
     pub(crate) fn dismiss_dialog(&mut self, id: &str) -> DialogDismissal {
         if self.dialog.as_ref().and_then(ExtensionUiRequest::dialog_id) == Some(id) {
             self.take_dialog(id);

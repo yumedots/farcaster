@@ -183,10 +183,6 @@ pub(crate) enum RuntimeEvent {
         request: crate::protocol::ExtensionUiRequest,
         system_notification_target: Option<(PathBuf, PathBuf)>,
     },
-    ExtensionUiDismissed {
-        generation: u64,
-        id: String,
-    },
     PromptResult {
         submission_id: Option<String>,
         target: String,

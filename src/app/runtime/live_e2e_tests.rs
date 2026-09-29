@@ -154,7 +154,6 @@ impl RuntimeTrace {
             | RuntimeEvent::SessionMetadata(_)
             | RuntimeEvent::SessionUpdated(_)
             | RuntimeEvent::AgentActivityUpdated(_)
-            | RuntimeEvent::ExtensionUiDismissed { .. }
             | RuntimeEvent::SessionStatus { .. }
             | RuntimeEvent::ImportPreview { .. }
             | RuntimeEvent::ImportPreviewFailed { .. } => {}

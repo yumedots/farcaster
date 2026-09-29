@@ -780,18 +780,8 @@ fn steering_interruption_preserves_delivery_and_later_abort_settles() -> Result<
         .map_err(|error| error.to_string())?;
     let server = OpenCodeServerProcess::attach(child, "opencode", "test-password")?;
     let (sender, incoming) = mpsc::channel();
-    let caller_identity = crate::agents::CallerRegistry::shared().issue(
-        std::path::Path::new("/project"),
-        crate::modules::agents::core::CallerProfile {
-            backend: Backend::OpenCode,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-    );
     let mut worker = OpenCodeWorkerSession {
         catalog_directory: None,
-        caller_identity,
         server,
         session_id: "session-1".into(),
         provider: None,
@@ -964,18 +954,8 @@ fn cancelled_steering_is_requeued_instead_of_lost() -> Result<(), String> {
         .map_err(|error| error.to_string())?;
     let server = OpenCodeServerProcess::attach(child, "opencode", "test-password")?;
     let (sender, incoming) = mpsc::channel();
-    let caller_identity = crate::agents::CallerRegistry::shared().issue(
-        std::path::Path::new("/project"),
-        crate::modules::agents::core::CallerProfile {
-            backend: Backend::OpenCode,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-    );
     let mut worker = OpenCodeWorkerSession {
         catalog_directory: None,
-        caller_identity,
         server,
         session_id: "session-1".into(),
         provider: None,
@@ -1116,18 +1096,8 @@ fn abort_reinterrupts_a_delivery_that_wins_the_cancel_race() -> Result<(), Strin
         .map_err(|error| error.to_string())?;
     let server = OpenCodeServerProcess::attach(child, "opencode", "test-password")?;
     let (sender, incoming) = mpsc::channel();
-    let caller_identity = crate::agents::CallerRegistry::shared().issue(
-        std::path::Path::new("/project"),
-        crate::modules::agents::core::CallerProfile {
-            backend: Backend::OpenCode,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-    );
     let mut worker = OpenCodeWorkerSession {
         catalog_directory: None,
-        caller_identity,
         server,
         session_id: "session-1".into(),
         provider: None,
@@ -1265,18 +1235,8 @@ fn queued_prompt_during_stream_does_not_restart_visible_assistant_text() -> Resu
         .map_err(|error| error.to_string())?;
     let server = OpenCodeServerProcess::attach(child, "opencode", "test-password")?;
     let (sender, incoming) = mpsc::channel();
-    let caller_identity = crate::agents::CallerRegistry::shared().issue(
-        std::path::Path::new("/project"),
-        crate::modules::agents::core::CallerProfile {
-            backend: Backend::OpenCode,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-    );
     let mut worker = OpenCodeWorkerSession {
         catalog_directory: None,
-        caller_identity,
         server,
         session_id: "session-1".into(),
         provider: None,
@@ -1568,18 +1528,8 @@ fn http_sse_prompt_and_escape_flow_preserves_exact_delivery_and_liveness() -> Re
         .map_err(|error| error.to_string())?;
     let server = OpenCodeServerProcess::attach(child, "opencode", "test-password")?;
     let incoming = start_event_reader(&server, "session-1", None)?;
-    let caller_identity = crate::agents::CallerRegistry::shared().issue(
-        std::path::Path::new("/project"),
-        crate::modules::agents::core::CallerProfile {
-            backend: Backend::OpenCode,
-            provider: None,
-            model: None,
-            effort: None,
-        },
-    );
     let worker = OpenCodeWorkerSession {
         catalog_directory: None,
-        caller_identity,
         server,
         session_id: "session-1".into(),
         provider: None,
