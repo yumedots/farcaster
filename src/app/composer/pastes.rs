@@ -145,23 +145,6 @@ pub(in crate::app) fn append_pasted_files(message: &str, pastes: &[ComposerPaste
     }
 }
 
-pub(in crate::app) fn append_pasted_file_links(message: &str, pastes: &[ComposerPaste]) -> String {
-    if pastes.is_empty() {
-        return message.to_owned();
-    }
-    let links = pastes
-        .iter()
-        .map(|paste| format!("- [{}](<{}>)", paste.file_name(), paste.path.display()))
-        .collect::<Vec<_>>()
-        .join("\n");
-    let attachments = format!("Pasted text files:\n{links}");
-    if message.is_empty() {
-        attachments
-    } else {
-        format!("{message}\n\n{attachments}")
-    }
-}
-
 fn store_long_paste(text: &str) -> Result<Option<ComposerPaste>, String> {
     let Some((normalized, line_count)) = long_paste(text) else {
         return Ok(None);

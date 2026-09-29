@@ -9,9 +9,7 @@ use std::{
 
 use gpui::{Context, KeyDownEvent, Window};
 
-use super::{
-    ComposerImage, ComposerPaste, FarcasterApp, pastes as composer_pastes, prompt_fragments,
-};
+use super::{ComposerImage, ComposerPaste, FarcasterApp, pastes as composer_pastes};
 use crate::{
     app::composer::sessions::{ComposerSessions, ComposerSnapshot, session_target},
     app::composer::user_invocations,
@@ -80,17 +78,7 @@ impl FarcasterApp {
             .get(&target)
             .cloned()
             .unwrap_or_default();
-        let expansion = prompt_fragments::expand(&value);
-        let resolved = expansion
-            .as_ref()
-            .map_or(value.as_str(), |expansion| expansion.message.as_str());
-        let message = composer_pastes::append_pasted_files(resolved, &pastes);
-        let display_message = expansion.as_ref().map(|expansion| {
-            composer_pastes::append_pasted_file_links(&expansion.display, &pastes)
-        });
-        let invocation = expansion
-            .as_ref()
-            .map(|expansion| expansion.resolution.clone());
+        let message = composer_pastes::append_pasted_files(&value, &pastes);
         let inactive_session = inactive_session_for_target(
             &target,
             self.snapshot.selected_session.as_deref(),
@@ -102,8 +90,8 @@ impl FarcasterApp {
             target: target.clone(),
             mode,
             message: message.clone(),
-            display_message: display_message.clone(),
-            invocation: invocation.clone(),
+            display_message: None,
+            invocation: None,
             images,
             allow_while_running,
         }) {
@@ -152,24 +140,13 @@ impl FarcasterApp {
                 let index = snapshot.conversation.items.len();
                 let conversation = Arc::make_mut(&mut snapshot.conversation);
                 if let Some(transcript_images) = transcript_images {
-                    match (display_message, invocation) {
-                        (Some(display), Some(invocation)) => {
-                            conversation.push_local_user_with_images(
-                                display,
-                                transcript_images,
-                                Some(invocation),
-                            );
-                        }
-                        _ => {
-                            let invocation =
-                                user_invocations::contains_invocation(&value, &snapshot.commands);
-                            conversation.push_local_user_with_images(
-                                message,
-                                transcript_images,
-                                invocation.then(String::new),
-                            );
-                        }
-                    }
+                    let invocation =
+                        user_invocations::contains_invocation(&value, &snapshot.commands);
+                    conversation.push_local_user_with_images(
+                        message,
+                        transcript_images,
+                        invocation.then(String::new),
+                    );
                 }
                 conversation.running = true;
                 snapshot.status = "Working".into();

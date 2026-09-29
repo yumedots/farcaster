@@ -8,10 +8,22 @@ fn skill(name: &str) -> SlashCommand {
     }
 }
 
+fn prompt(name: &str) -> SlashCommand {
+    SlashCommand {
+        name: name.into(),
+        description: None,
+        source: SlashCommandSource::Prompt,
+    }
+}
+
 #[test]
 fn recognizes_complete_tokens_with_unicode_offsets_and_distinct_colors() {
     let text = "سلام $review,\n@src/main.rs $commit!";
-    let spans = decorations(text, &[skill("review")], &["src/main.rs".into()]);
+    let spans = decorations(
+        text,
+        &[skill("review"), prompt("commit")],
+        &["src/main.rs".into()],
+    );
     assert_eq!(
         spans
             .iter()

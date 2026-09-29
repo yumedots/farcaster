@@ -16,20 +16,3 @@ fn only_pastes_longer_than_1000_characters_become_files() -> Result<(), String> 
     );
     Ok(())
 }
-
-#[test]
-fn display_links_do_not_copy_pasted_contents() {
-    let paste = ComposerPaste {
-        path: PathBuf::from("/tmp/pasted.txt"),
-        content: "secret".into(),
-        line_count: 4,
-    };
-
-    let display = append_pasted_file_links("$commit", &[paste]);
-
-    assert_eq!(
-        display,
-        "$commit\n\nPasted text files:\n- [pasted.txt](</tmp/pasted.txt>)"
-    );
-    assert!(!display.contains("secret"));
-}

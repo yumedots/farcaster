@@ -29,6 +29,7 @@ fn skill_suggestions_match_gaps_and_case_and_prefer_exact_names() {
 #[test]
 fn dollar_suggestions_compose_prompts_and_skills() {
     let commands = vec![
+        command("commit", SlashCommandSource::Prompt),
         command("skill:review", SlashCommandSource::Skill),
         command("reload", SlashCommandSource::Extension),
     ];
@@ -38,7 +39,7 @@ fn dollar_suggestions_compose_prompts_and_skills() {
             .into_iter()
             .map(|suggestion| suggestion.name)
             .collect::<Vec<_>>(),
-        ["commit", "simplify", "simplify-commit", "show", "review"]
+        ["commit", "review"]
     );
     let suggestion = suggestions("please $com", &commands)
         .into_iter()
@@ -54,13 +55,17 @@ fn dollar_suggestions_compose_prompts_and_skills() {
         ),
         ("$simplify $commit later".into(), "$simplify $commit ".len())
     );
-    assert_eq!(suggestions("please $", &commands).len(), 5);
+    assert_eq!(suggestions("please $", &commands).len(), 2);
     assert!(suggestions("please$com", &commands).is_empty());
 }
 
 #[test]
 fn invocation_detection_uses_the_command_catalog() {
-    let commands = Vec::new();
+    let commands = vec![
+        command("simplify", SlashCommandSource::Prompt),
+        command("commit", SlashCommandSource::Prompt),
+        command("show", SlashCommandSource::Prompt),
+    ];
 
     assert!(contains_invocation("please $simplify this", &commands));
     assert!(contains_invocation("$commit.", &commands));

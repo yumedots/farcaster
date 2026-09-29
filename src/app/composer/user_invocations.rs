@@ -148,9 +148,8 @@ fn invocation_query(input: &str) -> Option<&str> {
 }
 
 fn invocable_commands(commands: &[SlashCommand]) -> Vec<SlashCommand> {
-    let owned = prompt_fragments::commands();
     let mut invocable = Vec::new();
-    for command in owned.iter().chain(commands).filter(|command| {
+    for command in commands.iter().filter(|command| {
         matches!(
             command.source,
             SlashCommandSource::Prompt | SlashCommandSource::Skill
