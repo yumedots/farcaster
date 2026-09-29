@@ -37,25 +37,9 @@ impl FarcasterApp {
             .unwrap_or(AppIcon::Pi)
     }
 
-    fn workspace_title(&self) -> SharedString {
-        self.snapshot
-            .selected_session
-            .as_deref()
-            .and_then(|path| {
-                self.sessions
-                    .all
-                    .iter()
-                    .find(|session| session.path == path)
-            })
-            .map(|session| session.title.clone())
-            .or_else(|| {
-                let selected = self.sessions.selected_draft.as_deref()?;
-                self.sessions
-                    .drafts
-                    .iter()
-                    .find(|draft| draft.id == selected)
-                    .and_then(|draft| draft.title.clone())
-            })
+    fn workspace_label(&self) -> SharedString {
+        self.active_harness()
+            .map(crate::agents::backend_display_name)
             .unwrap_or_else(|| "Chat".into())
             .into()
     }
@@ -113,7 +97,7 @@ impl FarcasterApp {
                             .overflow_x_scroll()
                             .child(workspace_tab(
                                 "workspace-tab-chat",
-                                self.workspace_title(),
+                                self.workspace_label(),
                                 app_icon(self.workspace_harness_icon(), AppIconSize::Inline)
                                     .into_any_element(),
                                 chat_hint.into(),
