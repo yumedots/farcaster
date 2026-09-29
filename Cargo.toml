@@ -14,9 +14,13 @@ license-file = "LICENSE"
 icons = [
     "assets/icons/app/Farcaster.icns",
     "assets/icons/app/icon_16x16.png",
+    "assets/icons/app/icon_16x16@2x.png",
     "assets/icons/app/icon_32x32.png",
+    "assets/icons/app/icon_32x32@2x.png",
     "assets/icons/app/icon_128x128.png",
+    "assets/icons/app/icon_128x128@2x.png",
     "assets/icons/app/icon_256x256.png",
+    "assets/icons/app/icon_256x256@2x.png",
     "assets/icons/app/icon_512x512.png",
     "assets/icons/app/icon_512x512@2x.png",
 ]
