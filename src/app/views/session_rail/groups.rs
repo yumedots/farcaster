@@ -17,14 +17,14 @@ pub(in crate::app) enum SessionRailKind {
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct SessionRailItem {
+pub(in crate::app::views) struct SessionRailItem {
     pub(super) session: SessionSummary,
     pub(super) kind: SessionRailKind,
 }
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
-pub(super) enum ActiveSessionItem {
+pub(in crate::app::views) enum ActiveSessionItem {
     Draft(DraftSession),
     Session(SessionRailItem),
 }

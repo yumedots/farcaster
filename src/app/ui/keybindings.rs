@@ -21,7 +21,7 @@ pub(crate) fn application_key(suffix: &str) -> String {
     format!("{}-{suffix}", platform_key("cmd", "ctrl"))
 }
 
-const fn platform_key(macos: &'static str, non_macos: &'static str) -> &'static str {
+pub(crate) const fn platform_key(macos: &'static str, non_macos: &'static str) -> &'static str {
     if cfg!(target_os = "macos") {
         macos
     } else {

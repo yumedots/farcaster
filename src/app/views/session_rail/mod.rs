@@ -74,7 +74,7 @@ pub(super) fn clamped_session_rail_width(width: f32) -> Pixels {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
-enum VisibleSessionTarget {
+pub(in crate::app::views) enum VisibleSessionTarget {
     Draft(DraftSession),
     Persisted(SessionSummary),
 }
@@ -87,14 +87,14 @@ impl VisibleSessionTarget {
         }
     }
 
-    fn from_item(item: &ActiveSessionItem) -> Option<Self> {
+    pub(in crate::app::views) fn from_item(item: &ActiveSessionItem) -> Option<Self> {
         match item {
             ActiveSessionItem::Draft(draft) => Some(Self::Draft(draft.clone())),
             ActiveSessionItem::Session(item) => Some(Self::Persisted(item.session.clone())),
         }
     }
 
-    fn app_session_id(&self) -> i64 {
+    pub(in crate::app::views) fn app_session_id(&self) -> i64 {
         match self {
             Self::Draft(draft) => draft.app_session_id,
             Self::Persisted(session) => session.app_session_id,
@@ -231,7 +231,7 @@ impl FarcasterApp {
         }
     }
 
-    fn selected_app_session_id(&self) -> Option<i64> {
+    pub(in crate::app::views) fn selected_app_session_id(&self) -> Option<i64> {
         self.sessions
             .selected_draft
             .as_deref()
@@ -305,7 +305,7 @@ impl FarcasterApp {
         }
     }
 
-    fn select_visible_session(
+    pub(in crate::app::views) fn select_visible_session(
         &mut self,
         target: VisibleSessionTarget,
         window: &mut gpui::Window,
@@ -339,7 +339,7 @@ impl FarcasterApp {
             .collect()
     }
 
-    fn visible_active_items(&self) -> Vec<ActiveSessionItem> {
+    pub(in crate::app::views) fn visible_active_items(&self) -> Vec<ActiveSessionItem> {
         session_rail_lists(
             &self.sessions.visible,
             &self.sessions.drafts,

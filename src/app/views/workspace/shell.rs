@@ -1,16 +1,18 @@
 use gpui::{
     InteractiveElement as _, IntoElement, ParentElement as _, StatefulInteractiveElement as _,
-    Styled as _, WeakEntity, div,
+    Styled as _, WeakEntity, div, prelude::FluentBuilder as _,
 };
 
 use crate::app::{
     FarcasterApp, PickerScope,
     ui::{
         assets::AppIcon,
+        keybindings::platform_key,
         layout::{LayoutMode, shows_left_inline, shows_right_inline},
         primitives::{AppTooltip as _, ButtonTone, icon_button},
         theme::theme,
     },
+    views::session_rail::VisibleSessionTarget,
 };
 
 impl FarcasterApp {
@@ -38,6 +40,7 @@ impl FarcasterApp {
             .items_center()
             .gap(theme().space.xs)
             .pr(theme().space.sm)
+            .child(self.render_session_numbers(entity))
             .child(icon_button(
                 "toggle-session-rail",
                 AppIcon::SidebarLeft,
@@ -78,55 +81,66 @@ impl FarcasterApp {
                     });
                 },
             ))
-            .child(self.render_folder_counts(entity))
     }
 
-    pub(in crate::app::views) fn render_folder_counts(
-        &self,
-        entity: WeakEntity<Self>,
-    ) -> impl IntoElement {
-        let live = self
-            .sessions
-            .visible
+    fn render_session_numbers(&self, entity: WeakEntity<Self>) -> impl IntoElement {
+        let selected = self.selected_app_session_id();
+        let items = self.visible_active_items();
+        let hint = format!(
+            "{} + number to switch between chats in this folder",
+            platform_key("⌘", "Alt")
+        );
+        let numbers = items
             .iter()
-            .filter(|session| !session.archived)
-            .map(|session| (session.app_session_id, session.project.as_path()))
+            .enumerate()
+            .filter_map(|(index, item)| {
+                let target = VisibleSessionTarget::from_item(item)?;
+                let current = selected == Some(target.app_session_id());
+                let key = match &target {
+                    VisibleSessionTarget::Draft(draft) => format!("draft:{}", draft.id),
+                    VisibleSessionTarget::Persisted(session) => format!("session:{}", session.id),
+                };
+                let number = index + 1;
+                let click = entity.clone();
+                Some(
+                    div()
+                        .id(format!("session-number-{key}"))
+                        .flex_none()
+                        .h(theme().size(20.0))
+                        .w(theme().size(20.0))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded_full()
+                        .when(current, |slot| slot.bg(theme().colors.highlight))
+                        .text_size(theme().type_scale.caption)
+                        .text_center()
+                        .text_color(if current {
+                            theme().colors.text
+                        } else {
+                            theme().colors.muted
+                        })
+                        .cursor_pointer()
+                        .hover(|slot| slot.bg(theme().colors.highlight))
+                        .app_tooltip(hint.clone())
+                        .on_click(move |_, window, cx| {
+                            let _ = click.update(cx, |this, cx| {
+                                this.select_visible_session(target.clone(), window, cx)
+                            });
+                        })
+                        .child(number.to_string()),
+                )
+            })
             .collect::<Vec<_>>();
         div()
             .flex_none()
             .flex()
             .items_center()
-            .gap(theme().space.xs)
-            .children(self.sessions.folders.folders.iter().map(|folder| {
-                let count = live
-                    .iter()
-                    .filter(|(id, project)| {
-                        self.sessions.folders.folder_for_session(*id, project) == Some(folder.id)
-                    })
-                    .count();
-                let tooltip = if count == 1 {
-                    format!("{} · 1 session", folder.name)
-                } else {
-                    format!("{} · {count} sessions", folder.name)
-                };
-                let folder_id = folder.id;
-                let click = entity.clone();
-                div()
-                    .id(format!("folder-count-{folder_id}"))
-                    .flex_none()
-                    .px(theme().space.xs)
-                    .rounded(theme().radius)
-                    .text_size(theme().type_scale.caption)
-                    .text_color(theme().colors.muted)
-                    .cursor_pointer()
-                    .hover(|chip| chip.bg(theme().colors.highlight))
-                    .app_tooltip(tooltip)
-                    .on_click(move |_, window, cx| {
-                        let _ = click.update(cx, |this, cx| {
-                            this.open_folder_sessions(folder_id, window, cx)
-                        });
-                    })
-                    .child(count.to_string())
-            }))
+            .gap(theme().space.sm)
+            .children(if numbers.len() > 1 {
+                numbers
+            } else {
+                Vec::new()
+            })
     }
 }

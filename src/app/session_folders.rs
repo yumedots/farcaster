@@ -169,55 +169,6 @@ impl FarcasterApp {
         self.save_session_folders(next, cx)
     }
 
-    pub(in crate::app) fn open_folder_sessions(
-        &mut self,
-        id: u64,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(folder) = self
-            .sessions
-            .folders
-            .folders
-            .iter()
-            .find(|folder| folder.id == id)
-            .cloned()
-        else {
-            return;
-        };
-        if let Some(project) = folder.project.clone()
-            && self.project.path != project
-        {
-            self.select_project(project, cx);
-        }
-        if folder.collapsed {
-            self.set_folder_collapsed(id, false, cx);
-        }
-        let newest = self
-            .sessions
-            .visible
-            .iter()
-            .filter(|session| !session.archived)
-            .filter(|session| {
-                self.sessions
-                    .folders
-                    .folder_for_session(session.app_session_id, &session.project)
-                    == Some(id)
-            })
-            .max_by_key(|session| session.app_session_id)
-            .cloned();
-        match newest {
-            Some(session) => {
-                let key = format!("session:{}", session.id);
-                self.select_session(session.path.clone(), session.project.clone(), window, cx);
-                self.reveal_active_session_row(key, cx);
-            }
-            None => {
-                self.reveal_active_session_row(format!("folder:{id}"), cx);
-            }
-        }
-    }
-
     pub(in crate::app) fn begin_folder_edit(
         &mut self,
         id: Option<u64>,
