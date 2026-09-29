@@ -1,7 +1,7 @@
 use gpui::{IntoElement, ParentElement as _, Styled as _, WeakEntity, div};
 
 use crate::app::{
-    FarcasterApp,
+    FarcasterApp, PickerScope,
     ui::{
         assets::AppIcon,
         layout::{LayoutMode, shows_left_inline, shows_right_inline},
@@ -27,7 +27,8 @@ impl FarcasterApp {
             self.overlays.view.run
         };
         let rail_toggle = entity.clone();
-        let panel_toggle = entity;
+        let panel_toggle = entity.clone();
+        let actions = entity;
         div()
             .flex_none()
             .flex()
@@ -60,6 +61,17 @@ impl FarcasterApp {
                 move |window, cx| {
                     let _ = panel_toggle.update(cx, |this, cx| {
                         this.toggle_source_control_from_top_bar(window, cx)
+                    });
+                },
+            ))
+            .child(icon_button(
+                "session-actions",
+                AppIcon::List,
+                "Actions",
+                ButtonTone::Quiet,
+                move |window, cx| {
+                    let _ = actions.update(cx, |this, cx| {
+                        this.open_picker(PickerScope::Actions, window, cx)
                     });
                 },
             ))

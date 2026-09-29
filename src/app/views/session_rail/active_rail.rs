@@ -107,7 +107,6 @@ impl FarcasterApp {
         session_list_rows: &RefCell<Vec<String>>,
     ) -> impl IntoElement {
         let new_entity = entity.clone();
-        let actions_entity = entity.clone();
         let cancel_drop_entity = entity.clone();
         let cancel_drop_out_entity = entity.clone();
         let active_drop_entity = entity.clone();
@@ -315,40 +314,25 @@ impl FarcasterApp {
                                         window.start_window_move()
                                     }),
                             )
-                            .child(
-                                div()
-                                    .flex()
-                                    .items_center()
-                                    .gap(theme().space.xs)
-                                    .child(icon_button(
-                                        "session-actions",
-                                        AppIcon::List,
-                                        "Actions",
-                                        ButtonTone::Quiet,
-                                        move |window, cx| {
-                                            let _ = actions_entity.update(cx, |this, cx| {
-                                                this.open_picker(PickerScope::Actions, window, cx);
-                                            });
-                                        },
-                                    ))
-                                    .child(icon_button(
-                                        "new-session",
-                                        AppIcon::Plus,
-                                        "New session",
-                                        ButtonTone::Quiet,
-                                        move |window, cx| {
-                                            let _ = new_entity.update(cx, |this, cx| {
-                                                this.open_picker(
-                                                    PickerScope::Projects(
-                                                        ProjectPickerIntent::NewSession,
-                                                    ),
-                                                    window,
-                                                    cx,
-                                                );
-                                            });
-                                        },
-                                    )),
-                            ),
+                            .child(div().flex().items_center().gap(theme().space.xs).child(
+                                icon_button(
+                                    "new-session",
+                                    AppIcon::Plus,
+                                    "New session",
+                                    ButtonTone::Quiet,
+                                    move |window, cx| {
+                                        let _ = new_entity.update(cx, |this, cx| {
+                                            this.open_picker(
+                                                PickerScope::Projects(
+                                                    ProjectPickerIntent::NewSession,
+                                                ),
+                                                window,
+                                                cx,
+                                            );
+                                        });
+                                    },
+                                ),
+                            )),
                     )
                     .child(
                         SearchField::new("session-search", &self.navigation.search)

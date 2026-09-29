@@ -252,8 +252,8 @@ impl FarcasterApp {
                 },
                 terminal: workspace::TerminalState {
                     view: None,
-                    project: None,
-                    project_terminals: HashMap::new(),
+                    terminals: HashMap::new(),
+                    active_target: None,
                 },
                 native_surface_snapshot: None,
                 native_surface_refresh: None,

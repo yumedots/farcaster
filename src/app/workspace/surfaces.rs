@@ -362,7 +362,10 @@ impl FarcasterApp {
         self.activate_chat_center(cx);
         match surface {
             AppSurface::Editor => self.activate_editor_for_project(project, window, cx),
-            AppSurface::Terminal => self.activate_terminal_for_project(project, window, cx),
+            AppSurface::Terminal => {
+                let target = self.composer.sessions.current_target().to_owned();
+                self.activate_terminal_for_target(target, project, window, cx);
+            }
             AppSurface::Chat | AppSurface::Diff => {}
         }
     }
@@ -378,6 +381,15 @@ impl FarcasterApp {
             self.workspace
                 .session_surfaces
                 .insert(to.to_owned(), surface);
+        }
+        if let Some(terminal) = self.workspace.terminal.terminals.remove(from) {
+            self.workspace
+                .terminal
+                .terminals
+                .insert(to.to_owned(), terminal);
+            if self.workspace.terminal.active_target.as_deref() == Some(from) {
+                self.workspace.terminal.active_target = Some(to.to_owned());
+            }
         }
     }
 

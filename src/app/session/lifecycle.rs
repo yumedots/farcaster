@@ -442,6 +442,7 @@ impl FarcasterApp {
         self.composer.images.remove(&target);
         self.composer.pastes.remove(&target);
         self.workspace.session_surfaces.remove(&target);
+        self.forget_terminal_for_target(&target);
         self.workspace.editor.session_tabs.remove(&target);
         self.sessions.drafts.retain(|draft| draft.id != id);
         self.sessions.draft_session_ids.remove(id);

@@ -33,8 +33,8 @@ pub(in crate::app) struct EditorState {
 
 pub(in crate::app) struct TerminalState {
     pub(in crate::app) view: Option<Entity<Terminal>>,
-    pub(in crate::app) project: Option<PathBuf>,
-    pub(in crate::app) project_terminals: HashMap<PathBuf, Entity<Terminal>>,
+    pub(in crate::app) terminals: HashMap<String, Entity<Terminal>>,
+    pub(in crate::app) active_target: Option<String>,
 }
 
 pub(in crate::app) struct SettingsState {

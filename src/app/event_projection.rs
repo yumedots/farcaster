@@ -402,6 +402,7 @@ impl FarcasterApp {
             self.workspace.editor.session_tabs.remove(&target);
             self.composer.sessions.remove(&target);
             self.workspace.session_surfaces.remove(&target);
+            self.forget_terminal_for_target(&target);
             self.composer.images.remove(&target);
             self.composer.pastes.remove(&target);
             self.composer
@@ -416,6 +417,7 @@ impl FarcasterApp {
             self.workspace.editor.session_tabs.remove(&target);
             self.composer.sessions.remove(&target);
             self.workspace.session_surfaces.remove(&target);
+            self.forget_terminal_for_target(&target);
             self.composer.images.remove(&target);
             self.composer.pastes.remove(&target);
             self.composer
