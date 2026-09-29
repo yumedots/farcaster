@@ -477,7 +477,8 @@ fn the_widest_line_of_each_side_measures_the_whole_file() {
             new: 28.0
         }
     );
-    assert_eq!(FileDiff::parse("").widest_sides(cells).widest(), 0.0);
+    let empty = FileDiff::parse("").widest_sides(cells);
+    assert_eq!(empty.old.max(empty.new), 0.0);
 }
 
 #[test]
@@ -493,7 +494,7 @@ fn the_widest_line_is_the_one_that_needs_the_most_room() {
             new: 20.0
         }
     );
-    assert_eq!(widths.widest(), 22.0);
+    assert_eq!(widths.old.max(widths.new), 22.0);
 }
 
 #[test]
@@ -501,8 +502,9 @@ fn the_note_about_a_missing_newline_is_measured_with_its_line() {
     let diff = FileDiff::parse(
         "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n\\ No newline at end of file\n+new\n\\ No newline at end of file\n",
     );
+    let widths = diff.widest_sides(cells);
     assert_eq!(
-        diff.widest_sides(cells).widest(),
+        widths.old.max(widths.new),
         NO_NEWLINE_NOTE.chars().count() as f32
     );
 }

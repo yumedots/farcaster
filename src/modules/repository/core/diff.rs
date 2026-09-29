@@ -23,12 +23,6 @@ pub(crate) struct SideWidths {
     pub(crate) new: f32,
 }
 
-impl SideWidths {
-    pub(crate) fn widest(self) -> f32 {
-        self.old.max(self.new)
-    }
-}
-
 pub(crate) const NO_NEWLINE_NOTE: &str = "\\ No newline at end of file";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
