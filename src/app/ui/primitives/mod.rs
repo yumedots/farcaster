@@ -33,7 +33,7 @@ pub(crate) use disclosure::{
 };
 pub(crate) use feedback::{FeedbackTone, feedback};
 pub(crate) use highlight::SyntaxKey;
-pub(crate) use icon::{AppIconSize, app_icon, icon_control};
+pub(crate) use icon::{AppIconSize, app_icon, icon_control, native_spinner};
 pub(crate) use indicator::{IndicatorEdge, line_indicator};
 pub(crate) use panel::Panel;
 pub(crate) use picker::{PickerDelegate, PickerRow};

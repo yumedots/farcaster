@@ -1,6 +1,6 @@
 use gpui::{
-    Animation, AnimationExt as _, AnyElement, IntoElement as _, ParentElement as _, Styled as _,
-    Transformation, WeakEntity, div, percentage, prelude::FluentBuilder as _,
+    AnyElement, IntoElement as _, ParentElement as _, Styled as _, WeakEntity, div,
+    prelude::FluentBuilder as _,
 };
 use gpui_component::{
     menu::{DropdownMenu as _, PopupMenuItem},
@@ -12,7 +12,9 @@ use crate::app::FarcasterApp;
 use crate::{
     agents::SandboxState,
     app::ui::assets::AppIcon,
-    app::ui::primitives::{AppIconSize, ButtonTone, app_icon, dropdown_content_button},
+    app::ui::primitives::{
+        AppIconSize, ButtonTone, app_icon, dropdown_content_button, native_spinner,
+    },
     app::ui::theme::{MONO_FONT_FAMILY, theme},
     runtime::{ConfigurationStatus, HarnessAccessMode},
 };
@@ -151,13 +153,11 @@ fn access_selector(
             this.child(app_icon(AppIcon::Hourglass, AppIconSize::Inline))
         })
         .when(state == SandboxState::Checking, |this| {
-            this.child(
-                app_icon(AppIcon::SpinnerGap, AppIconSize::Inline).with_animation(
-                    "sandbox-applying",
-                    Animation::new(std::time::Duration::from_millis(800)).repeat(),
-                    |icon, delta| icon.transform(Transformation::rotate(percentage(delta))),
-                ),
-            )
+            this.child(native_spinner(
+                "sandbox-applying",
+                AppIconSize::Inline,
+                theme().colors.muted,
+            ))
         });
     dropdown_content_button(
         "harness-access",

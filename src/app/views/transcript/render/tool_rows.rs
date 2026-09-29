@@ -1,9 +1,8 @@
 use std::{path::Path, sync::Arc};
 
 use gpui::{
-    Animation, AnimationExt as _, AnyElement, InteractiveElement as _, IntoElement as _,
-    ParentElement as _, StatefulInteractiveElement as _, Styled as _, Transformation, WeakEntity,
-    div, percentage, prelude::FluentBuilder as _, px,
+    AnyElement, InteractiveElement as _, IntoElement as _, ParentElement as _,
+    StatefulInteractiveElement as _, Styled as _, WeakEntity, div, prelude::FluentBuilder as _, px,
 };
 
 use crate::{
@@ -11,7 +10,7 @@ use crate::{
         FarcasterApp,
         ui::{
             assets::AppIcon,
-            primitives::{AppIconSize, app_icon},
+            primitives::{AppIconSize, app_icon, native_spinner},
             theme::{MONO_FONT_FAMILY, UI_FONT_FAMILY, theme},
         },
         views::transcript::tool_changes,
@@ -469,10 +468,10 @@ fn status_slot(status: Option<ToolStatus>, key: usize) -> AnyElement {
         .when_some(status, |slot, status| {
             let slot = slot.text_color(status.color());
             if status == ToolStatus::Running {
-                slot.child(app_icon(status.icon(), AppIconSize::Inline).with_animation(
+                slot.child(native_spinner(
                     ("tool-status-spin", key),
-                    Animation::new(std::time::Duration::from_millis(800)).repeat(),
-                    |icon, delta| icon.transform(Transformation::rotate(percentage(delta))),
+                    AppIconSize::Inline,
+                    status.color(),
                 ))
             } else {
                 slot.child(app_icon(status.icon(), AppIconSize::Inline))

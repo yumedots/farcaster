@@ -5,10 +5,10 @@ use std::{
 };
 
 use gpui::{
-    Animation, AnimationExt as _, AnyElement, App, AppContext as _, CursorStyle, Entity,
-    FontWeight, InteractiveElement as _, IntoElement, MouseButton, ParentElement as _, Pixels,
-    RenderOnce, Rgba, Role, StatefulInteractiveElement as _, Styled as _, Transformation,
-    WeakEntity, Window, div, percentage, prelude::FluentBuilder as _,
+    AnyElement, App, AppContext as _, CursorStyle, Entity, FontWeight, InteractiveElement as _,
+    IntoElement, MouseButton, ParentElement as _, Pixels, RenderOnce, Rgba, Role,
+    StatefulInteractiveElement as _, Styled as _, WeakEntity, Window, div,
+    prelude::FluentBuilder as _,
 };
 use gpui_component::{
     input::{Escape, Input, InputState},
@@ -25,7 +25,8 @@ use crate::{
     app::ui::assets::AppIcon,
     app::ui::primitives::{
         AppIconSize, AppTooltip as _, ContextMenuTrigger, DeleteButton, IndicatorEdge,
-        ReorderPosition, ReorderTargetExt as _, app_icon, line_indicator, number_slot,
+        ReorderPosition, ReorderTargetExt as _, app_icon, line_indicator, native_spinner,
+        number_slot,
     },
     app::ui::theme::theme,
     app::{FarcasterApp, PickerScope, ProjectPickerIntent},
@@ -645,13 +646,11 @@ pub(super) fn session_status_icon(app_session_id: i64, status: &str) -> Option<A
     let (icon, color) = status_visual(status)?;
     let tooltip = status.to_owned();
     let icon = if status == "Working" {
-        app_icon(icon, AppIconSize::Inline)
-            .with_animation(
-                format!("session-status-spin-{app_session_id}"),
-                Animation::new(Duration::from_millis(800)).repeat(),
-                |icon, delta| icon.transform(Transformation::rotate(percentage(delta))),
-            )
-            .into_any_element()
+        native_spinner(
+            format!("session-status-spin-{app_session_id}"),
+            AppIconSize::Inline,
+            color,
+        )
     } else {
         app_icon(icon, AppIconSize::Inline).into_any_element()
     };
