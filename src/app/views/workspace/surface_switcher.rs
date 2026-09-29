@@ -75,7 +75,6 @@ impl FarcasterApp {
         };
         let surface = self.workspace.surface;
         let active_diff = self.workspace.active_diff.as_ref();
-        let hover = entity.clone();
         div()
             .id("workspace-tabs")
             .flex_none()
@@ -103,11 +102,6 @@ impl FarcasterApp {
                     .h_full()
                     .flex()
                     .items_center()
-                    .on_hover(move |hovered, _, cx| {
-                        let _ = hover.update(cx, |app, cx| {
-                            app.set_workspace_bar_hovered(*hovered, cx);
-                        });
-                    })
                     .child(
                         div()
                             .id("workspace-tab-strip")

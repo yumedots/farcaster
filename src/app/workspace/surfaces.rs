@@ -410,7 +410,6 @@ impl FarcasterApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.workspace.bar_hovered = false;
         self.set_surface(surface, cx);
         if self.native_workspace_covered_by_overlay() {
             self.cover_native_workspace_surface(cx);
@@ -501,22 +500,9 @@ impl FarcasterApp {
 
     pub(in crate::app) fn native_surface_obscured(&self, window: &Window, cx: &gpui::App) -> bool {
         self.native_workspace_covered_by_overlay()
-            || self.workspace.bar_hovered
             || gpui_base::GlobalState::is_in_deferred_context(cx)
             || gpui_component::Root::tooltip_overlay(window, cx)
                 .is_some_and(|overlay| overlay.read(cx).is_visible())
-    }
-
-    pub(in crate::app) fn set_workspace_bar_hovered(
-        &mut self,
-        hovered: bool,
-        cx: &mut Context<Self>,
-    ) {
-        if self.workspace.bar_hovered == hovered {
-            return;
-        }
-        self.workspace.bar_hovered = hovered;
-        cx.notify();
     }
 
     pub(in crate::app) fn watch_tooltip_overlay(

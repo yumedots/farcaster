@@ -7,7 +7,6 @@ pub(in crate::app) struct WorkspaceState {
     pub(in crate::app) native_surface_covered: bool,
     pub(in crate::app) native_surface_refresh: Option<Task<()>>,
     pub(in crate::app) tooltip_watch: Option<Subscription>,
-    pub(in crate::app) bar_hovered: bool,
     pub(in crate::app) session_rail_hidden: bool,
     pub(in crate::app) run_panel_hidden: bool,
     pub(in crate::app) surface: AppSurface,

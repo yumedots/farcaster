@@ -100,7 +100,6 @@ impl FarcasterApp {
     }
 
     fn show_diff_center(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.workspace.bar_hovered = false;
         self.hide_native_workspace_surfaces(cx);
         if self.workspace.surface != AppSurface::Diff {
             self.workspace.diff_return = Some(self.workspace.surface);

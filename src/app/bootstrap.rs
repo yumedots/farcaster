@@ -259,7 +259,6 @@ impl FarcasterApp {
                 native_surface_refresh: None,
                 native_surface_covered: false,
                 tooltip_watch: None,
-                bar_hovered: false,
                 session_rail_hidden: persisted.panel_layout.session_rail_hidden,
                 run_panel_hidden: persisted.panel_layout.run_panel_hidden,
                 surface: AppSurface::Chat,
