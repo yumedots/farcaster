@@ -16,6 +16,7 @@ use gpui_base::{TooltipOverlay, TooltipRequest};
 /// How long the pointer must rest on a trigger. Mirrors the overlay's delay;
 /// the test would rather fail loudly than drift.
 const SHOW_DELAY: Duration = Duration::from_millis(800);
+const SWITCH_DELAY: Duration = Duration::from_millis(150);
 /// How long a tooltip stays up once the pointer leaves its trigger.
 const HIDE_DELAY: Duration = Duration::from_millis(600);
 
@@ -72,6 +73,14 @@ fn visible(cx: &mut VisualTestContext, overlay: &Entity<TooltipOverlay>) -> bool
     cx.update(|_, cx| overlay.read(cx).is_visible())
 }
 
+fn shown_bounds(
+    cx: &mut VisualTestContext,
+    overlay: &Entity<TooltipOverlay>,
+) -> Option<Bounds<Pixels>> {
+    let overlay = overlay.clone();
+    cx.update(|_, cx| overlay.read(cx).shown_bounds())
+}
+
 #[gpui::test]
 fn a_tooltip_waits_before_it_appears(cx: &mut TestAppContext) {
     let (overlay, cx) = cx.add_window_view(|_, _| TooltipOverlay::new());
@@ -91,20 +100,34 @@ fn a_tooltip_waits_before_it_appears(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn a_sibling_trigger_starts_its_own_countdown(cx: &mut TestAppContext) {
+fn a_sibling_trigger_switches_in_place(cx: &mut TestAppContext) {
     let (overlay, cx) = cx.add_window_view(|_, _| TooltipOverlay::new());
 
     show(cx, &overlay, 0.0, 0.0);
     pump(cx, SHOW_DELAY);
     assert!(visible(cx, &overlay));
 
-    // Sweeping onto the next row takes the previous tooltip down and waits,
-    // instead of flashing the new row's tooltip the moment the pointer arrives.
     show(cx, &overlay, 0.0, 40.0);
-    assert!(!visible(cx, &overlay));
+    assert!(
+        visible(cx, &overlay),
+        "moving to a sibling keeps the tooltip up instead of restarting it"
+    );
+    assert_eq!(
+        shown_bounds(cx, &overlay),
+        Some(bounds(0.0, 0.0)),
+        "the previous tooltip is still the one on screen"
+    );
 
-    pump(cx, SHOW_DELAY);
+    pump(cx, SWITCH_DELAY - Duration::from_millis(50));
+    assert!(visible(cx, &overlay), "the switch countdown never hides it");
+
+    pump(cx, Duration::from_millis(100));
     assert!(visible(cx, &overlay));
+    assert_eq!(
+        shown_bounds(cx, &overlay),
+        Some(bounds(0.0, 40.0)),
+        "the sibling's tooltip replaced it in place"
+    );
 }
 
 #[gpui::test]

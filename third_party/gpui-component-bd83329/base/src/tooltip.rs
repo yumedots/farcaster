@@ -15,6 +15,7 @@ const HIDE_DELAY: Duration = Duration::from_millis(600);
 // Every new trigger pays this, so sweeping down a list of rows does not flash
 // each row's tooltip on the way past.
 const SHOW_DELAY: Duration = Duration::from_millis(800);
+const SWITCH_DELAY: Duration = Duration::from_millis(150);
 
 type TooltipBuilder = Rc<dyn Fn(&mut Window, &mut App) -> AnyView>;
 type TooltipRenderer = Rc<dyn Fn(AnyView, TooltipTransition, &mut Window, &mut App) -> AnyElement>;
@@ -128,6 +129,10 @@ impl TooltipOverlay {
         self.content.is_some()
     }
 
+    pub fn shown_bounds(&self) -> Option<Bounds<Pixels>> {
+        self.content.as_ref().map(|content| content.trigger_bounds)
+    }
+
     pub fn render_with(
         mut self,
         renderer: impl Fn(AnyView, TooltipTransition, &mut Window, &mut App) -> AnyElement + 'static,
@@ -150,37 +155,40 @@ impl TooltipOverlay {
         self.hide_task = None;
         let trigger_bounds = content.trigger_bounds;
         if self.requested_bounds == Some(trigger_bounds) {
-            if self.content.is_some() {
-                // The same trigger asking again while its tooltip is up: a
-                // re-render, or the pointer moving inside it. Refresh the
-                // content in place rather than starting over.
+            if self
+                .content
+                .as_ref()
+                .is_some_and(|shown| shown.trigger_bounds == trigger_bounds)
+            {
                 self.content = Some(content);
                 cx.notify();
                 return;
             }
             if self.show_task.is_some() {
-                // Its countdown is already running; leave it alone.
                 return;
             }
-            // The tooltip has been and gone, so this is a fresh visit to the
-            // same trigger and it waits again, like any other trigger.
         }
 
-        // A different trigger replaces whatever is showing and waits its turn,
-        // so the tooltip reflects where the pointer stopped rather than where
-        // it passed.
+        let previous_bounds = self.content.as_ref().map(|shown| shown.trigger_bounds);
+        let delay = if previous_bounds.is_some() {
+            SWITCH_DELAY
+        } else {
+            SHOW_DELAY
+        };
         self.requested_bounds = Some(trigger_bounds);
-        self.content = None;
-        self.previous_bounds = None;
-        self.is_switching = false;
+        if previous_bounds.is_none() {
+            self.content = None;
+            self.previous_bounds = None;
+            self.is_switching = false;
+        }
         let epoch = self.next_epoch();
         self.show_task = Some(cx.spawn_in(window, async move |this, cx| {
-            cx.background_executor().timer(SHOW_DELAY).await;
+            cx.background_executor().timer(delay).await;
             let _ = this.update_in(cx, |this, _, cx| {
                 if this.epoch == epoch {
                     this.content = Some(content);
-                    this.previous_bounds = None;
-                    this.is_switching = false;
+                    this.previous_bounds = previous_bounds;
+                    this.is_switching = previous_bounds.is_some();
                     this.animation_epoch += 1;
                     cx.notify();
                 }
