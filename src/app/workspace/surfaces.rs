@@ -842,6 +842,24 @@ impl FarcasterApp {
         cx.notify();
     }
 
+    pub(in crate::app) fn toggle_settings_source_control_icon_only(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
+        let enabled = !self.settings.source_control_icon_only;
+        match crate::app::infrastructure::persistence::StateStore::open()
+            .and_then(|store| store.save_source_control_icon_only(enabled))
+        {
+            Ok(()) => {
+                self.settings.source_control_icon_only = enabled;
+                self.settings.source_control_error = None;
+                self.notify_run_panel(cx);
+            }
+            Err(error) => self.settings.source_control_error = Some(error),
+        }
+        cx.notify();
+    }
+
     pub(in crate::app) fn toggle_settings_hide_unchanged_lines(&mut self, cx: &mut Context<Self>) {
         let hidden = !self.settings.hide_unchanged_lines;
         match crate::app::infrastructure::persistence::StateStore::open()

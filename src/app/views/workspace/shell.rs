@@ -40,6 +40,7 @@ impl FarcasterApp {
                 self.project.repository.deletions,
             )
         });
+        let icon_only = self.settings.source_control_icon_only;
         let rail_toggle = entity.clone();
         let panel_toggle = entity.clone();
         let chip_toggle = entity.clone();
@@ -65,25 +66,30 @@ impl FarcasterApp {
                         .update(cx, |this, cx| this.toggle_sessions_from_top_bar(window, cx));
                 },
             ))
-            .when(changes.is_none() || source_control_visible, |row| {
-                row.child(icon_button(
-                    "toggle-run-panel",
-                    AppIcon::GitBranch,
-                    if source_control_visible {
-                        "Hide source control"
-                    } else {
-                        "Show source control"
-                    },
-                    ButtonTone::Quiet,
-                    move |window, cx| {
-                        let _ = panel_toggle.update(cx, |this, cx| {
-                            this.toggle_source_control_from_top_bar(window, cx)
-                        });
-                    },
-                ))
-            })
+            .when(
+                icon_only || changes.is_none() || source_control_visible,
+                |row| {
+                    row.child(icon_button(
+                        "toggle-run-panel",
+                        AppIcon::GitBranch,
+                        if source_control_visible {
+                            "Hide source control"
+                        } else {
+                            "Show source control"
+                        },
+                        ButtonTone::Quiet,
+                        move |window, cx| {
+                            let _ = panel_toggle.update(cx, |this, cx| {
+                                this.toggle_source_control_from_top_bar(window, cx)
+                            });
+                        },
+                    ))
+                },
+            )
             .when_some(
-                (!source_control_visible).then_some(changes).flatten(),
+                (!source_control_visible && !icon_only)
+                    .then_some(changes)
+                    .flatten(),
                 |row, (additions, deletions)| {
                     row.child(
                         div()

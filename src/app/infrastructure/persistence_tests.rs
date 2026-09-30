@@ -365,17 +365,20 @@ fn application_settings_survive_reopen() -> Result<(), Box<dyn std::error::Error
     assert!(store.load_stage_changes_like_vscode()?);
     assert!(!store.load_hide_unchanged_lines()?);
     assert!(!store.load_hide_split_borders()?);
+    assert!(!store.load_source_control_icon_only()?);
     assert_eq!(store.load_source_control_view()?, None);
     assert_eq!(store.load_source_control_sort()?, None);
     store.save_stage_changes_like_vscode(false)?;
     store.save_hide_unchanged_lines(true)?;
     store.save_hide_split_borders(true)?;
+    store.save_source_control_icon_only(true)?;
     store.save_source_control_view("list")?;
     store.save_source_control_sort("status")?;
     let reopened = StateStore::open_at(&database)?;
     assert!(!reopened.load_stage_changes_like_vscode()?);
     assert!(reopened.load_hide_unchanged_lines()?);
     assert!(reopened.load_hide_split_borders()?);
+    assert!(reopened.load_source_control_icon_only()?);
     assert_eq!(
         reopened.load_source_control_view()?.as_deref(),
         Some("list")
@@ -392,6 +395,8 @@ fn application_settings_survive_reopen() -> Result<(), Box<dyn std::error::Error
     assert!(!StateStore::open_at(&database)?.load_hide_unchanged_lines()?);
     store.save_hide_split_borders(false)?;
     assert!(!StateStore::open_at(&database)?.load_hide_split_borders()?);
+    store.save_source_control_icon_only(false)?;
+    assert!(!StateStore::open_at(&database)?.load_source_control_icon_only()?);
     assert_eq!(
         StateStore::open_at(&database)?
             .load_source_control_view()?

@@ -58,6 +58,7 @@ pub(in crate::app) struct SettingsState {
     pub(in crate::app) expand_transcript_folders: bool,
     pub(in crate::app) transcript_error: Option<String>,
     pub(in crate::app) stage_changes_like_vscode: bool,
+    pub(in crate::app) source_control_icon_only: bool,
     pub(in crate::app) hide_unchanged_lines: bool,
     pub(in crate::app) hide_split_borders: bool,
     pub(in crate::app) terminal_error: Option<String>,

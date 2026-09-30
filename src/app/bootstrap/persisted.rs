@@ -14,6 +14,7 @@ pub(super) struct PersistedState {
     pub(super) saved_proxy: Option<String>,
     pub(super) expand_transcript_folders: bool,
     pub(super) stage_changes_like_vscode: bool,
+    pub(super) source_control_icon_only: bool,
     pub(super) hide_unchanged_lines: bool,
     pub(super) hide_split_borders: bool,
     pub(super) source_control_view: crate::app::ui::change_tree::ChangeView,
@@ -132,6 +133,13 @@ pub(super) fn load(project: &Path) -> PersistedState {
             true
         });
 
+    let source_control_icon_only = crate::app::infrastructure::persistence::StateStore::open()
+        .and_then(|store| store.load_source_control_icon_only())
+        .unwrap_or_else(|load_error| {
+            error.get_or_insert(load_error);
+            false
+        });
+
     let hide_unchanged_lines = crate::app::infrastructure::persistence::StateStore::open()
         .and_then(|store| store.load_hide_unchanged_lines())
         .unwrap_or_else(|load_error| {
@@ -200,6 +208,7 @@ pub(super) fn load(project: &Path) -> PersistedState {
         saved_proxy,
         expand_transcript_folders,
         stage_changes_like_vscode,
+        source_control_icon_only,
         hide_unchanged_lines,
         hide_split_borders,
         source_control_view: crate::app::ui::change_tree::ChangeView::from_setting(

@@ -87,6 +87,14 @@ pub(in crate::app::views) fn render(
                             FarcasterApp::toggle_settings_stage_changes_like_vscode,
                         ))
                         .child(toggle_setting(
+                            "source-control-top-bar-toggle",
+                            "Show only the source control icon in the top bar",
+                            "Keep the plain branch icon in the top bar. Off shows the working-copy changes chip instead while source control is closed.",
+                            app.settings.source_control_icon_only,
+                            entity.clone(),
+                            FarcasterApp::toggle_settings_source_control_icon_only,
+                        ))
+                        .child(toggle_setting(
                             "source-control-unchanged-toggle",
                             "Hide unchanged lines in diffs",
                             "Open a diff on the changed blocks only, folding the lines between them away. Off shows the whole file, the way a diff editor does.",

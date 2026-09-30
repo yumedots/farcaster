@@ -48,6 +48,29 @@ impl StateStore {
             .map_err(|error| format!("save source control setting: {error}"))
     }
 
+    pub(crate) fn load_source_control_icon_only(&self) -> Result<bool, String> {
+        self.connection
+            .query_row(
+                "SELECT value FROM meta WHERE key='source_control_icon_only'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map(|value| value.as_deref() == Some("true"))
+            .map_err(|error| format!("load top bar setting: {error}"))
+    }
+
+    pub(crate) fn save_source_control_icon_only(&self, enabled: bool) -> Result<(), String> {
+        self.connection
+            .execute(
+                "INSERT INTO meta(key, value) VALUES('source_control_icon_only', ?1)
+             ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                [if enabled { "true" } else { "false" }],
+            )
+            .map(|_| ())
+            .map_err(|error| format!("save top bar setting: {error}"))
+    }
+
     pub(crate) fn load_hide_unchanged_lines(&self) -> Result<bool, String> {
         self.connection
             .query_row(
