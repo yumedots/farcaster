@@ -44,6 +44,7 @@ impl Render for FarcasterApp {
             window.viewport_size().height,
             self.composer_region_focused(window, cx),
             obscured,
+            cx.has_active_drag(),
         );
         let session_rail_width = self.views.session_rail.read(cx).width();
         let run_panel_width = self.views.run_panel.read(cx).width();

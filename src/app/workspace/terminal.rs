@@ -13,6 +13,45 @@ pub(in crate::app) enum TerminalSplitDirection {
     Down,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::app) enum TerminalDropSide {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+impl TerminalDropSide {
+    pub(in crate::app) fn label(self) -> &'static str {
+        match self {
+            TerminalDropSide::Left => "left",
+            TerminalDropSide::Right => "right",
+            TerminalDropSide::Up => "up",
+            TerminalDropSide::Down => "down",
+        }
+    }
+
+    pub(in crate::app) fn for_point(x: f32, y: f32, width: f32, height: f32) -> Self {
+        if width <= 0.0 || height <= 0.0 {
+            return TerminalDropSide::Right;
+        }
+        let left = x / width;
+        let right = 1.0 - left;
+        let top = y / height;
+        let bottom = 1.0 - top;
+        let nearest = left.min(right).min(top).min(bottom);
+        if nearest == left {
+            TerminalDropSide::Left
+        } else if nearest == right {
+            TerminalDropSide::Right
+        } else if nearest == top {
+            TerminalDropSide::Up
+        } else {
+            TerminalDropSide::Down
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(in crate::app) enum TerminalPane {
     Leaf(EntityId),
@@ -87,8 +126,27 @@ impl TerminalLayout {
         Self::leaf_ids_of(&self.root)
     }
 
-    pub(in crate::app) fn subtree_contains(pane: &TerminalPane, id: EntityId) -> bool {
-        Self::contains_pane(pane, id)
+    pub(in crate::app) fn move_pane(
+        &mut self,
+        from: EntityId,
+        to: EntityId,
+        side: TerminalDropSide,
+    ) -> bool {
+        if from == to || !self.contains(from) || !self.contains(to) {
+            return false;
+        }
+        let (direction, new_first) = match side {
+            TerminalDropSide::Left => (TerminalSplitDirection::Right, true),
+            TerminalDropSide::Right => (TerminalSplitDirection::Right, false),
+            TerminalDropSide::Up => (TerminalSplitDirection::Down, true),
+            TerminalDropSide::Down => (TerminalSplitDirection::Down, false),
+        };
+        let root = std::mem::replace(&mut self.root, TerminalPane::Leaf(from));
+        let Some(remaining) = Self::remove_at(root, from) else {
+            return false;
+        };
+        self.root = Self::insert_at(remaining, to, direction, from, new_first);
+        true
     }
 
     #[cfg(test)]
@@ -136,7 +194,7 @@ impl TerminalLayout {
             return;
         }
         let root = std::mem::replace(&mut self.root, TerminalPane::Leaf(self.focused));
-        self.root = Self::insert_at(root, self.focused, direction, id);
+        self.root = Self::insert_at(root, self.focused, direction, id, false);
         self.focused = id;
     }
 
@@ -162,14 +220,24 @@ impl TerminalLayout {
         target: EntityId,
         direction: TerminalSplitDirection,
         new: EntityId,
+        new_first: bool,
     ) -> TerminalPane {
         match pane {
-            TerminalPane::Leaf(id) if id == target => TerminalPane::Split {
-                direction,
-                ratio: 0.5,
-                first: Box::new(TerminalPane::Leaf(id)),
-                second: Box::new(TerminalPane::Leaf(new)),
-            },
+            TerminalPane::Leaf(id) if id == target => {
+                let existing = TerminalPane::Leaf(id);
+                let added = TerminalPane::Leaf(new);
+                let (first, second) = if new_first {
+                    (added, existing)
+                } else {
+                    (existing, added)
+                };
+                TerminalPane::Split {
+                    direction,
+                    ratio: 0.5,
+                    first: Box::new(first),
+                    second: Box::new(second),
+                }
+            }
             TerminalPane::Leaf(id) => TerminalPane::Leaf(id),
             TerminalPane::Split {
                 direction: existing,
@@ -179,8 +247,8 @@ impl TerminalLayout {
             } => TerminalPane::Split {
                 direction: existing,
                 ratio,
-                first: Box::new(Self::insert_at(*first, target, direction, new)),
-                second: Box::new(Self::insert_at(*second, target, direction, new)),
+                first: Box::new(Self::insert_at(*first, target, direction, new, new_first)),
+                second: Box::new(Self::insert_at(*second, target, direction, new, new_first)),
             },
         }
     }
@@ -529,6 +597,7 @@ impl FarcasterApp {
             .entry(target.clone())
             .or_insert_with(|| TerminalLayout::new(primary));
         layout.insert(direction, pane.clone());
+        self.mark_pane_appearing(pane.entity_id(), window, cx);
         self.monitor_split_terminal(target, pane, window, cx);
         cx.notify();
     }
@@ -671,6 +740,42 @@ impl FarcasterApp {
             terminal.update(cx, |terminal, cx| terminal.focus(window, cx));
         }
         cx.notify();
+    }
+
+    pub(in crate::app) fn move_terminal_pane(
+        &mut self,
+        from: EntityId,
+        to: EntityId,
+        side: TerminalDropSide,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(target) = self.workspace.terminal.active_target.clone() else {
+            return;
+        };
+        let Some(layout) = self.workspace.terminal.layouts.get_mut(&target) else {
+            return;
+        };
+        if !layout.move_pane(from, to, side) {
+            return;
+        }
+        self.mark_pane_appearing(from, window, cx);
+        self.focus_terminal_pane(from, window, cx);
+    }
+
+    fn mark_pane_appearing(&mut self, pane: EntityId, window: &mut Window, cx: &mut Context<Self>) {
+        self.workspace.terminal.appearing_pane = Some(pane);
+        cx.spawn_in(window, async move |weak, cx| {
+            cx.background_executor()
+                .timer(Duration::from_millis(400))
+                .await;
+            let _ = weak.update_in(cx, |this, _, _| {
+                if this.workspace.terminal.appearing_pane == Some(pane) {
+                    this.workspace.terminal.appearing_pane = None;
+                }
+            });
+        })
+        .detach();
     }
 
     pub(in crate::app) fn set_terminal_split_ratio(

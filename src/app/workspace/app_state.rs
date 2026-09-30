@@ -38,6 +38,13 @@ pub(in crate::app) struct TerminalState {
     pub(in crate::app) active_target: Option<String>,
     pub(in crate::app) layouts: HashMap<String, TerminalLayout>,
     pub(in crate::app) closing: Vec<Entity<Terminal>>,
+    pub(in crate::app) hovered_handle: Option<gpui::EntityId>,
+    pub(in crate::app) dragging_pane: Option<gpui::EntityId>,
+    pub(in crate::app) appearing_pane: Option<gpui::EntityId>,
+    pub(in crate::app) drop_side:
+        std::rc::Rc<std::cell::RefCell<Option<(gpui::EntityId, super::TerminalDropSide)>>>,
+    pub(in crate::app) pane_bounds:
+        std::rc::Rc<std::cell::RefCell<HashMap<gpui::EntityId, gpui::Bounds<gpui::Pixels>>>>,
 }
 
 pub(in crate::app) struct SettingsState {
