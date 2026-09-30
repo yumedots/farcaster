@@ -25,7 +25,7 @@ fn closing_a_session_keeps_its_visual_slot_when_possible() {
 }
 
 #[test]
-fn numbers_address_the_chats_of_one_folder_at_a_time() {
+fn numbers_address_the_chats_of_the_current_folder() {
     let mut first_draft =
         DraftSession::with_id(Some(Backend::Pi), "first".into(), PathBuf::from("/project"));
     first_draft.app_session_id = 12;
@@ -87,9 +87,15 @@ fn numbers_address_the_chats_of_one_folder_at_a_time() {
     );
     assert_eq!(
         all.iter()
-            .map(|(id, item)| (*id, item.app_session_id()))
+            .map(|(folder, item)| (*folder, item.app_session_id()))
             .collect::<Vec<_>>(),
-        [(1, 12), (1, 10), (1, 7), (2, 9)]
+        [
+            (Some(1), 12),
+            (None, 11),
+            (Some(1), 10),
+            (Some(2), 9),
+            (Some(1), 7)
+        ]
     );
     assert_eq!(
         first_only

@@ -12,7 +12,7 @@ use crate::app::{
         primitives::{AppTooltip as _, ButtonTone, icon_button},
         theme::theme,
     },
-    views::session_rail::VisibleSessionTarget,
+    views::session_rail::{VisibleSessionTarget, numbered_session_items},
 };
 
 impl FarcasterApp {
@@ -86,14 +86,21 @@ impl FarcasterApp {
     fn render_session_numbers(&self, entity: WeakEntity<Self>) -> impl IntoElement {
         let selected = self.selected_app_session_id();
         let items = self.visible_active_items();
+        let folder = self.current_folder_id();
+        let numbered = numbered_session_items(&items, &self.sessions.folders, folder);
         let hint = format!(
-            "{} + number to switch between chats in this folder",
-            platform_key("⌘", "Alt")
+            "{} + number to switch between {}",
+            platform_key("⌘", "Alt"),
+            if folder.is_some() {
+                "chats in this folder"
+            } else {
+                "open chats"
+            }
         );
-        let numbers = items
+        let numbers = numbered
             .iter()
             .enumerate()
-            .filter_map(|(index, item)| {
+            .filter_map(|(index, &(_, item))| {
                 let target = VisibleSessionTarget::from_item(item)?;
                 let current = selected == Some(target.app_session_id());
                 let key = match &target {

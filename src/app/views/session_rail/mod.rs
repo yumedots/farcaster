@@ -156,27 +156,22 @@ fn first_unsubmitted_draft(rows: &[ActiveSessionItem]) -> Option<&DraftSession> 
     })
 }
 
-fn numbered_session_items<'a>(
+pub(in crate::app) fn numbered_session_items<'a>(
     items: &'a [ActiveSessionItem],
     folders: &SessionFolders,
     only: Option<u64>,
-) -> Vec<(u64, &'a ActiveSessionItem)> {
-    let mut numbered = Vec::new();
-    for folder in &folders.folders {
-        if only.is_some_and(|only| only != folder.id) {
-            continue;
-        }
-        for item in items {
-            if numbered.len() == 10 {
-                return numbered;
-            }
-            if folders.folder_for_session(item.app_session_id(), item.project()) == Some(folder.id)
-            {
-                numbered.push((folder.id, item));
-            }
-        }
-    }
-    numbered
+) -> Vec<(Option<u64>, &'a ActiveSessionItem)> {
+    items
+        .iter()
+        .map(|item| {
+            (
+                folders.folder_for_session(item.app_session_id(), item.project()),
+                item,
+            )
+        })
+        .filter(|(folder, _)| only.is_none_or(|only| *folder == Some(only)))
+        .take(10)
+        .collect()
 }
 
 impl FarcasterApp {
@@ -187,28 +182,25 @@ impl FarcasterApp {
         cx: &mut gpui::Context<Self>,
     ) {
         let number = if number == 0 { 10 } else { number };
-        let Some((folder_id, target)) = self
-            .numbered_session_targets()
-            .get(number.saturating_sub(1))
-            .cloned()
-        else {
+        let items = self.visible_active_items();
+        let numbered = numbered_session_items(
+            &items,
+            &self.sessions.folders,
+            self.current_folder_id(),
+        );
+        let Some(&(folder_id, item)) = numbered.get(number.saturating_sub(1)) else {
             return;
         };
-        self.expand_folder(folder_id, cx);
+        let Some(target) = VisibleSessionTarget::from_item(item) else {
+            return;
+        };
+        if let Some(folder_id) = folder_id {
+            self.expand_folder(folder_id, cx);
+        }
         self.select_visible_session(target, window, cx);
     }
 
-    fn numbered_session_targets(&self) -> Vec<(u64, VisibleSessionTarget)> {
-        let items = self.visible_active_items();
-        numbered_session_items(&items, &self.sessions.folders, self.current_folder_id())
-            .into_iter()
-            .filter_map(|(id, item)| {
-                VisibleSessionTarget::from_item(item).map(|target| (id, target))
-            })
-            .collect()
-    }
-
-    fn current_folder_id(&self) -> Option<u64> {
+    pub(in crate::app) fn current_folder_id(&self) -> Option<u64> {
         let selected = self.selected_app_session_id()?;
         let items = self.visible_active_items();
         let item = items
