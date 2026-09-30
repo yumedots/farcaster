@@ -75,6 +75,8 @@ pub(crate) struct Colors {
     pub success: Rgba,
     pub backdrop: Rgba,
     pub indicator: Rgba,
+    pub separator: Rgba,
+    pub drop_highlight: Rgba,
 }
 
 macro_rules! color_keys {
@@ -183,12 +185,16 @@ color_keys!(
     danger,
     success,
     backdrop;
-    indicator
+    indicator,
+    separator,
+    drop_highlight
 );
 
 pub(crate) fn default_optional_color(colors: Colors, key: ColorKey) -> Rgba {
     match key {
         ColorKey::indicator => colors.muted,
+        ColorKey::separator => colors.border,
+        ColorKey::drop_highlight => colors.text,
         _ => colors.text,
     }
 }
