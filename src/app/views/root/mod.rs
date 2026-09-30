@@ -39,12 +39,17 @@ impl Render for FarcasterApp {
             NATIVE_INPUT_CONTEXT
         };
         let obscured = self.native_surface_obscured(window, cx);
+        let drag_active = cx.has_active_drag();
+        if !drag_active {
+            self.workspace.terminal.dragging_pane = None;
+            self.workspace.terminal.drop_side.borrow_mut().take();
+        }
         let main = self.render_workspace_main(
             entity.clone(),
             window.viewport_size().height,
             self.composer_region_focused(window, cx),
             obscured,
-            cx.has_active_drag(),
+            drag_active,
         );
         let session_rail_width = self.views.session_rail.read(cx).width();
         let run_panel_width = self.views.run_panel.read(cx).width();
@@ -70,6 +75,14 @@ impl Render for FarcasterApp {
                     return;
                 }
                 this.capture_chat_navigation(event, window, cx);
+            }))
+            .capture_any_mouse_up(cx.listener(|this, _event, _window, cx| {
+                if cx.has_active_drag()
+                    || this.workspace.terminal.dragging_pane.is_some()
+                    || this.workspace.terminal.drop_side.borrow().is_some()
+                {
+                    cx.notify();
+                }
             }))
             .on_key_down(cx.listener(|this, event, window, cx| {
                 if this.extensions.active.dialog.is_some()

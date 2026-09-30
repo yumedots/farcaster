@@ -4,17 +4,21 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use gpui::{
-    Animation, AnimationExt, AnyElement, App, AppContext as _, Bounds, CursorStyle, Div, Element,
-    ElementId, EmptyView, EntityId, GlobalElementId, InspectorElementId, InteractiveElement as _,
-    IntoElement, LayoutId, MouseButton, ParentElement as _, Pixels, Position,
-    StatefulInteractiveElement as _, Style, Styled as _, WeakEntity, Window, div,
+    Animation, AnimationExt, AnyElement, App, AppContext as _, Bounds, CursorStyle, Element,
+    ElementId, EmptyView, Entity, EntityId, GlobalElementId, InspectorElementId,
+    InteractiveElement as _, IntoElement, LayoutId, MouseButton, ParentElement as _, Pixels,
+    Position, Rgba, StatefulInteractiveElement as _, Style, Styled as _, WeakEntity, Window, div,
     prelude::FluentBuilder as _, px, relative,
 };
+use gpui_libghostty::Terminal;
 
 use crate::app::{
     FarcasterApp,
     ui::theme::theme,
-    workspace::{TerminalDropSide, TerminalLayout, TerminalPane, TerminalSplitDirection},
+    workspace::{
+        HANDLE_BAND, HANDLE_PILL_HEIGHT, HANDLE_PILL_WIDTH, TerminalDropSide, TerminalLayout,
+        TerminalPane, TerminalSplitDirection, handle_pill_bounds,
+    },
 };
 
 struct TerminalSplitResize {
@@ -34,7 +38,6 @@ struct HandleState {
     drag_active: bool,
     hide_borders: bool,
     handles: bool,
-    appearing: Option<EntityId>,
     drop_side: Rc<RefCell<Option<(EntityId, TerminalDropSide)>>>,
     pane_bounds: PaneBounds,
 }
@@ -46,10 +49,17 @@ impl FarcasterApp {
         drag_active: bool,
     ) -> AnyElement {
         let Some(layout) = self.active_terminal_layout() else {
+            let overlay = overlay_sync(
+                self.workspace.terminal.view.clone(),
+                self.workspace.terminal.pane_bounds.clone(),
+                None,
+                None,
+            );
             return div()
                 .size_full()
                 .min_h_0()
                 .children(self.workspace.terminal.view.clone())
+                .when_some(overlay, |root, overlay| root.child(overlay))
                 .into_any_element();
         };
         let state = HandleState {
@@ -58,10 +68,25 @@ impl FarcasterApp {
             drag_active,
             hide_borders: self.settings.hide_split_borders,
             handles: layout.leaf_count() > 1,
-            appearing: self.workspace.terminal.appearing_pane,
             drop_side: self.workspace.terminal.drop_side.clone(),
             pane_bounds: self.workspace.terminal.pane_bounds.clone(),
         };
+        let preview = if state.drag_active && state.dragging.is_some() {
+            *state.drop_side.borrow()
+        } else {
+            None
+        };
+        let pill = state.handles.then(|| {
+            state
+                .hovered
+                .or(state.drag_active.then_some(state.dragging).flatten())
+        });
+        let overlay = overlay_sync(
+            self.workspace.terminal.view.clone(),
+            state.pane_bounds.clone(),
+            preview,
+            pill.flatten(),
+        );
         div()
             .size_full()
             .min_h_0()
@@ -74,6 +99,7 @@ impl FarcasterApp {
                 &[],
                 &state,
             ))
+            .when_some(overlay, |root, overlay| root.child(overlay))
             .into_any_element()
     }
 }
@@ -117,8 +143,22 @@ fn terminal_pane_element(
                 .handles
                 .then(|| terminal_handle_strip(pane_id, visible, entity));
             let wrapper = div().flex_1().min_w_0().min_h_0().children(terminal);
-            let fill = || div().flex_none().bg(theme().colors.drop_highlight);
-            let preview = |fill: Div, side: TerminalDropSide| {
+            let fill = |side: TerminalDropSide| {
+                let fill = div().absolute().bg(theme().colors.drop_highlight);
+                let fill = match side {
+                    TerminalDropSide::Left => {
+                        fill.left(px(0.0)).top(px(0.0)).w(relative(0.5)).h_full()
+                    }
+                    TerminalDropSide::Right => {
+                        fill.right(px(0.0)).top(px(0.0)).w(relative(0.5)).h_full()
+                    }
+                    TerminalDropSide::Up => {
+                        fill.left(px(0.0)).top(px(0.0)).w_full().h(relative(0.5))
+                    }
+                    TerminalDropSide::Down => {
+                        fill.left(px(0.0)).bottom(px(0.0)).w_full().h(relative(0.5))
+                    }
+                };
                 fill.with_animation(
                     format!("terminal-drop-fill-{pane_id}-{}", side.label()),
                     Animation::new(Duration::from_millis(120))
@@ -126,35 +166,10 @@ fn terminal_pane_element(
                     |fill, progress| fill.opacity(progress),
                 )
             };
-            let pane = match indicator {
-                Some(TerminalDropSide::Up) => leaf
-                    .child(preview(fill().h(relative(0.5)), TerminalDropSide::Up))
-                    .children(strip)
-                    .child(wrapper),
-                Some(TerminalDropSide::Down) => leaf
-                    .children(strip)
-                    .child(wrapper)
-                    .child(preview(fill().h(relative(0.5)), TerminalDropSide::Down)),
-                Some(TerminalDropSide::Left) => leaf.children(strip).child(
-                    div()
-                        .flex()
-                        .flex_1()
-                        .min_w_0()
-                        .min_h_0()
-                        .child(preview(fill().w(relative(0.5)), TerminalDropSide::Left))
-                        .child(wrapper),
-                ),
-                Some(TerminalDropSide::Right) => leaf.children(strip).child(
-                    div()
-                        .flex()
-                        .flex_1()
-                        .min_w_0()
-                        .min_h_0()
-                        .child(wrapper)
-                        .child(preview(fill().w(relative(0.5)), TerminalDropSide::Right)),
-                ),
-                None => leaf.children(strip).child(wrapper),
-            };
+            let pane = leaf
+                .when_some(indicator, |pane, side| pane.child(fill(side)))
+                .child(wrapper)
+                .children(strip);
             let pane = pane.when(state.handles, |pane| {
                 pane.child(PaneBoundsProbe {
                     pane_id,
@@ -162,17 +177,7 @@ fn terminal_pane_element(
                 })
                 .child(terminal_drop_zone(pane_id, entity, &state.pane_bounds))
             });
-            if state.appearing == Some(pane_id) {
-                pane.with_animation(
-                    format!("terminal-appear-{pane_id}"),
-                    Animation::new(Duration::from_millis(300))
-                        .with_easing(|value| 1.0 - (1.0 - value).powi(3)),
-                    move |pane, progress| pane.flex_grow(grow * progress),
-                )
-                .into_any_element()
-            } else {
-                pane.into_any_element()
-            }
+            pane.into_any_element()
         }
         TerminalPane::Split {
             direction,
@@ -248,12 +253,15 @@ fn terminal_handle_strip(
     let drag_entity = entity.clone();
     let strip = div()
         .id(format!("terminal-pane-strip-{pane_id}"))
-        .flex_none()
-        .w_full()
-        .h(px(16.0))
+        .absolute()
+        .left(px(0.0))
+        .top(px(0.0))
+        .right(px(0.0))
+        .h(px(HANDLE_BAND))
         .flex()
         .items_center()
         .justify_center()
+        .block_mouse_except_scroll()
         .on_hover(move |hovered, _window, cx| {
             let _ = hover_entity.update(cx, |this, cx| {
                 let hovered_handle = &mut this.workspace.terminal.hovered_handle;
@@ -271,14 +279,14 @@ fn terminal_handle_strip(
     if !visible {
         return strip.into_any_element();
     }
-    let mut dots = div().flex().items_center().gap(px(3.0));
+    let mut dots = div().flex().items_center().justify_center().gap(px(3.0));
     for _ in 0..3 {
         dots = dots.child(div().size(px(4.0)).rounded_full().bg(theme().colors.muted));
     }
     let pill = dots
         .id(format!("terminal-pane-handle-{pane_id}"))
-        .px(px(6.0))
-        .py(px(2.0))
+        .w(px(HANDLE_PILL_WIDTH))
+        .h(px(HANDLE_PILL_HEIGHT))
         .rounded_full()
         .bg(theme().colors.surface)
         .border_1()
@@ -494,4 +502,127 @@ fn terminal_divider(
             },
         )
         .into_any_element()
+}
+
+struct OverlayColors {
+    preview: Rgba,
+    background: Rgba,
+    border: Rgba,
+    dot: Rgba,
+}
+
+struct OverlaySync {
+    terminal: Entity<Terminal>,
+    bounds: PaneBounds,
+    preview: Option<(EntityId, TerminalDropSide)>,
+    pill: Option<EntityId>,
+    colors: OverlayColors,
+}
+
+fn overlay_sync(
+    terminal: Option<Entity<Terminal>>,
+    bounds: PaneBounds,
+    preview: Option<(EntityId, TerminalDropSide)>,
+    pill: Option<EntityId>,
+) -> Option<OverlaySync> {
+    terminal.map(|terminal| OverlaySync {
+        terminal,
+        bounds,
+        preview,
+        pill,
+        colors: OverlayColors {
+            preview: theme().colors.drop_highlight,
+            background: theme().colors.surface,
+            border: theme().colors.border,
+            dot: theme().colors.muted,
+        },
+    })
+}
+
+impl IntoElement for OverlaySync {
+    type Element = Self;
+
+    fn into_element(self) -> Self {
+        self
+    }
+}
+
+impl Element for OverlaySync {
+    type RequestLayoutState = ();
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, Self::RequestLayoutState) {
+        let mut style = Style {
+            position: Position::Absolute,
+            ..Style::default()
+        };
+        style.size.width = relative(0.0).into();
+        style.size.height = relative(0.0).into();
+        (window.request_layout(style, [], cx), ())
+    }
+
+    fn prepaint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        _request_layout: &mut Self::RequestLayoutState,
+        _window: &mut Window,
+        _cx: &mut App,
+    ) -> Self::PrepaintState {
+    }
+
+    fn paint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        _request_layout: &mut Self::RequestLayoutState,
+        _prepaint: &mut Self::PrepaintState,
+        _window: &mut Window,
+        cx: &mut App,
+    ) {
+        let preview = self
+            .preview
+            .and_then(|(pane_id, side)| {
+                self.bounds
+                    .borrow()
+                    .get(&pane_id)
+                    .copied()
+                    .map(|bounds| side.drop_bounds(bounds))
+            })
+            .unwrap_or_default();
+        let pill = self
+            .pill
+            .and_then(|pane_id| {
+                self.bounds
+                    .borrow()
+                    .get(&pane_id)
+                    .copied()
+                    .map(handle_pill_bounds)
+            })
+            .unwrap_or_default();
+        let terminal = self.terminal.read(cx);
+        terminal.overlay_preview(preview, self.colors.preview);
+        terminal.overlay_pill(
+            pill,
+            self.colors.background,
+            self.colors.border,
+            self.colors.dot,
+        );
+    }
 }

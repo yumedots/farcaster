@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::time::Duration;
 
-use gpui::{Context, Entity, EntityId, Window};
+use gpui::{Bounds, Context, Entity, EntityId, Pixels, Window};
 use gpui_libghostty::Terminal;
 
 use super::{AppSurface, FarcasterApp, LoginBanner, spawn_workspace_terminal};
@@ -20,6 +20,10 @@ pub(in crate::app) enum TerminalDropSide {
     Up,
     Down,
 }
+
+pub(in crate::app) const HANDLE_BAND: f32 = 16.0;
+pub(in crate::app) const HANDLE_PILL_WIDTH: f32 = 32.0;
+pub(in crate::app) const HANDLE_PILL_HEIGHT: f32 = 10.0;
 
 impl TerminalDropSide {
     pub(in crate::app) fn label(self) -> &'static str {
@@ -50,6 +54,35 @@ impl TerminalDropSide {
             TerminalDropSide::Down
         }
     }
+
+    pub(in crate::app) fn drop_bounds(self, bounds: Bounds<Pixels>) -> Bounds<Pixels> {
+        let width = f32::from(bounds.size.width);
+        let height = f32::from(bounds.size.height);
+        let mut drop = bounds;
+        match self {
+            TerminalDropSide::Left => drop.size.width = Pixels::from(width / 2.0),
+            TerminalDropSide::Right => {
+                drop.origin.x = bounds.origin.x + Pixels::from(width / 2.0);
+                drop.size.width = Pixels::from(width / 2.0);
+            }
+            TerminalDropSide::Up => drop.size.height = Pixels::from(height / 2.0),
+            TerminalDropSide::Down => {
+                drop.origin.y = bounds.origin.y + Pixels::from(height / 2.0);
+                drop.size.height = Pixels::from(height / 2.0);
+            }
+        }
+        drop
+    }
+}
+
+pub(in crate::app) fn handle_pill_bounds(bounds: Bounds<Pixels>) -> Bounds<Pixels> {
+    let centered = (f32::from(bounds.size.width) - HANDLE_PILL_WIDTH) / 2.0;
+    let mut pill = bounds;
+    pill.origin.x = bounds.origin.x + Pixels::from(centered);
+    pill.origin.y = bounds.origin.y + Pixels::from((HANDLE_BAND - HANDLE_PILL_HEIGHT) / 2.0);
+    pill.size.width = Pixels::from(HANDLE_PILL_WIDTH);
+    pill.size.height = Pixels::from(HANDLE_PILL_HEIGHT);
+    pill
 }
 
 #[derive(Debug)]
@@ -597,7 +630,6 @@ impl FarcasterApp {
             .entry(target.clone())
             .or_insert_with(|| TerminalLayout::new(primary));
         layout.insert(direction, pane.clone());
-        self.mark_pane_appearing(pane.entity_id(), window, cx);
         self.monitor_split_terminal(target, pane, window, cx);
         cx.notify();
     }
@@ -759,23 +791,7 @@ impl FarcasterApp {
         if !layout.move_pane(from, to, side) {
             return;
         }
-        self.mark_pane_appearing(from, window, cx);
         self.focus_terminal_pane(from, window, cx);
-    }
-
-    fn mark_pane_appearing(&mut self, pane: EntityId, window: &mut Window, cx: &mut Context<Self>) {
-        self.workspace.terminal.appearing_pane = Some(pane);
-        cx.spawn_in(window, async move |weak, cx| {
-            cx.background_executor()
-                .timer(Duration::from_millis(400))
-                .await;
-            let _ = weak.update_in(cx, |this, _, _| {
-                if this.workspace.terminal.appearing_pane == Some(pane) {
-                    this.workspace.terminal.appearing_pane = None;
-                }
-            });
-        })
-        .detach();
     }
 
     pub(in crate::app) fn set_terminal_split_ratio(

@@ -1,6 +1,8 @@
-use gpui::EntityId;
+use gpui::{Bounds, EntityId, point, px, size};
 
-use super::{TerminalDropSide, TerminalLayout, TerminalPane, TerminalSplitDirection};
+use super::{
+    TerminalDropSide, TerminalLayout, TerminalPane, TerminalSplitDirection, handle_pill_bounds,
+};
 
 fn pane(id: u64) -> EntityId {
     EntityId::from(id)
@@ -231,4 +233,29 @@ fn leaf_ids_follow_render_order() {
     layout.insert_id(TerminalSplitDirection::Right, pane(2));
     layout.insert_id(TerminalSplitDirection::Down, pane(3));
     assert_eq!(layout.leaf_ids(), vec![pane(1), pane(2), pane(3)]);
+}
+
+#[test]
+fn drop_preview_covers_the_target_half_of_the_pane() {
+    let bounds = Bounds::new(point(px(10.0), px(20.0)), size(px(100.0), px(50.0)));
+    let left = TerminalDropSide::Left.drop_bounds(bounds);
+    assert_eq!(left.origin, point(px(10.0), px(20.0)));
+    assert_eq!(left.size, size(px(50.0), px(50.0)));
+    let right = TerminalDropSide::Right.drop_bounds(bounds);
+    assert_eq!(right.origin, point(px(60.0), px(20.0)));
+    assert_eq!(right.size, size(px(50.0), px(50.0)));
+    let up = TerminalDropSide::Up.drop_bounds(bounds);
+    assert_eq!(up.origin, point(px(10.0), px(20.0)));
+    assert_eq!(up.size, size(px(100.0), px(25.0)));
+    let down = TerminalDropSide::Down.drop_bounds(bounds);
+    assert_eq!(down.origin, point(px(10.0), px(45.0)));
+    assert_eq!(down.size, size(px(100.0), px(25.0)));
+}
+
+#[test]
+fn handle_pill_sits_centered_at_the_top_of_the_pane() {
+    let bounds = Bounds::new(point(px(10.0), px(20.0)), size(px(100.0), px(50.0)));
+    let pill = handle_pill_bounds(bounds);
+    assert_eq!(pill.origin, point(px(44.0), px(23.0)));
+    assert_eq!(pill.size, size(px(32.0), px(10.0)));
 }

@@ -22,7 +22,8 @@ pub(in crate::app) mod send_to_chat;
 mod surfaces;
 mod terminal;
 pub(in crate::app) use terminal::{
-    TerminalDropSide, TerminalLayout, TerminalPane, TerminalSplitDirection,
+    HANDLE_BAND, HANDLE_PILL_HEIGHT, HANDLE_PILL_WIDTH, TerminalDropSide, TerminalLayout,
+    TerminalPane, TerminalSplitDirection, handle_pill_bounds,
 };
 pub(in crate::app) mod theme_settings;
 

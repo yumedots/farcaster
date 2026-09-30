@@ -259,7 +259,6 @@ impl FarcasterApp {
                     closing: Vec::new(),
                     hovered_handle: None,
                     dragging_pane: None,
-                    appearing_pane: None,
                     drop_side: Default::default(),
                     pane_bounds: Default::default(),
                 },

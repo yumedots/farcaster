@@ -40,7 +40,6 @@ pub(in crate::app) struct TerminalState {
     pub(in crate::app) closing: Vec<Entity<Terminal>>,
     pub(in crate::app) hovered_handle: Option<gpui::EntityId>,
     pub(in crate::app) dragging_pane: Option<gpui::EntityId>,
-    pub(in crate::app) appearing_pane: Option<gpui::EntityId>,
     pub(in crate::app) drop_side:
         std::rc::Rc<std::cell::RefCell<Option<(gpui::EntityId, super::TerminalDropSide)>>>,
     pub(in crate::app) pane_bounds:
