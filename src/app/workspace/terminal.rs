@@ -92,6 +92,16 @@ pub(in crate::app) fn terminal_snapshots_cover_leaves<T>(
     leaves.len() == captured.len() && leaves.iter().all(|id| captured.contains_key(id))
 }
 
+pub(in crate::app) fn covered_terminal_leaf_ids(
+    layout: Option<&TerminalLayout>,
+    view: Option<EntityId>,
+) -> Vec<EntityId> {
+    if let Some(layout) = layout {
+        return layout.leaf_ids();
+    }
+    view.into_iter().collect()
+}
+
 #[derive(Debug)]
 pub(in crate::app) enum TerminalPane {
     Leaf(EntityId),

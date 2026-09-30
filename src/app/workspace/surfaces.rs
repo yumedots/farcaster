@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use gpui::{Context, FocusHandle, Focusable as _, Image, RenderImage, Window, actions};
 
 use super::covered_refresh::{CoveredRefresh, RefreshStep};
-use super::terminal::terminal_snapshots_cover_leaves;
+use super::terminal::{covered_terminal_leaf_ids, terminal_snapshots_cover_leaves};
 use super::{AppSurface, FarcasterApp, ImagePreview, PostRenderFocus};
 actions!(farcaster, [CycleWorkspaceForward, CycleWorkspaceBackward]);
 
@@ -237,17 +237,26 @@ impl FarcasterApp {
         &self,
         cx: &mut Context<Self>,
     ) -> HashMap<gpui::EntityId, Arc<RenderImage>> {
-        let Some(layout) = self.active_terminal_layout() else {
-            return HashMap::new();
-        };
-        layout
-            .leaf_ids()
-            .into_iter()
-            .filter_map(|id| {
-                let terminal = layout.terminal(id)?.clone();
-                let snapshot = terminal.update(cx, |terminal, _| terminal.snapshot()).ok()?;
-                Some((id, snapshot))
+        if let Some(layout) = self.active_terminal_layout() {
+            return layout
+                .leaf_ids()
+                .into_iter()
+                .filter_map(|id| {
+                    let terminal = layout.terminal(id)?.clone();
+                    let snapshot = terminal.update(cx, |terminal, _| terminal.snapshot()).ok()?;
+                    Some((id, snapshot))
+                })
+                .collect();
+        }
+        self.workspace
+            .terminal
+            .view
+            .as_ref()
+            .and_then(|view| {
+                let snapshot = view.update(cx, |terminal, _| terminal.snapshot()).ok()?;
+                Some((view.entity_id(), snapshot))
             })
+            .into_iter()
             .collect()
     }
 
@@ -255,9 +264,10 @@ impl FarcasterApp {
         if self.workspace.surface != AppSurface::Terminal {
             return;
         }
-        let Some(leaves) = self.active_terminal_layout().map(|layout| layout.leaf_ids()) else {
-            return;
-        };
+        let leaves = covered_terminal_leaf_ids(
+            self.active_terminal_layout(),
+            self.workspace.terminal.view.as_ref().map(|view| view.entity_id()),
+        );
         if terminal_snapshots_cover_leaves(&leaves, &self.workspace.terminal_snapshots) {
             return;
         }

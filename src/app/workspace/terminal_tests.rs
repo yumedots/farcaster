@@ -2,7 +2,7 @@ use gpui::{Bounds, EntityId, point, px, size};
 
 use super::{
     TerminalDropSide, TerminalLayout, TerminalPane, TerminalSplitDirection, handle_pill_bounds,
-    terminal_snapshots_cover_leaves,
+    covered_terminal_leaf_ids, terminal_snapshots_cover_leaves,
 };
 
 fn pane(id: u64) -> EntityId {
@@ -25,6 +25,21 @@ fn covered_snapshots_are_stale_until_every_leaf_is_captured() {
     assert!(!terminal_snapshots_cover_leaves(&[pane(1), pane(2)], &captured));
     assert!(!terminal_snapshots_cover_leaves(&[pane(2)], &captured));
     assert!(!terminal_snapshots_cover_leaves(&[], &captured));
+}
+
+#[test]
+fn covered_leaves_track_the_split_layout_or_fall_back_to_the_single_view() {
+    let mut split = layout(1);
+    split.insert_id(TerminalSplitDirection::Right, pane(2));
+    assert_eq!(
+        covered_terminal_leaf_ids(Some(&split), Some(pane(9))),
+        split.leaf_ids()
+    );
+    assert_eq!(
+        covered_terminal_leaf_ids(None, Some(pane(9))),
+        vec![pane(9)]
+    );
+    assert!(covered_terminal_leaf_ids(None, None).is_empty());
 }
 
 #[test]

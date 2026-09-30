@@ -114,12 +114,9 @@ impl FarcasterApp {
             return div()
                 .size_full()
                 .min_h_0()
-                .when_some(
-                    self.workspace.native_surface_snapshot.clone(),
-                    |root, snapshot| {
-                        root.child(img(snapshot).size_full().object_fit(ObjectFit::Fill))
-                    },
-                )
+                .when_some(self.covered_terminal_single_image(), |root, image| {
+                    root.child(img(image).size_full().object_fit(ObjectFit::Fill))
+                })
                 .into_any_element();
         };
         let state = HandleState {
@@ -145,6 +142,15 @@ impl FarcasterApp {
                 Some(&self.workspace.terminal_snapshots),
             ))
             .into_any_element()
+    }
+
+    fn covered_terminal_single_image(&self) -> Option<Arc<RenderImage>> {
+        self.workspace
+            .terminal
+            .view
+            .as_ref()
+            .and_then(|view| self.workspace.terminal_snapshots.get(&view.entity_id()).cloned())
+            .or_else(|| self.workspace.native_surface_snapshot.clone())
     }
 }
 
