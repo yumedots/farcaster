@@ -57,7 +57,7 @@ impl FarcasterApp {
             ))
             .child(icon_button(
                 "toggle-run-panel",
-                AppIcon::GitFork,
+                AppIcon::GitBranch,
                 if source_control_visible {
                     "Hide source control"
                 } else {

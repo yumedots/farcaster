@@ -77,6 +77,7 @@ fn asset_source_serves_only_themeable_icons() {
         AppIcon::Folder,
         AppIcon::FolderPlus,
         AppIcon::Ghostty,
+        AppIcon::GitBranch,
         AppIcon::GitFork,
         AppIcon::Helix,
         AppIcon::Hourglass,
