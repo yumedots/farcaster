@@ -1,7 +1,7 @@
 pub(crate) use crate::app::ui::change_tree;
 mod performance;
 mod repository;
-mod repository_controls;
+pub(in crate::app) mod repository_controls;
 mod repository_presentation;
 mod resize;
 pub(super) mod review;

@@ -1,6 +1,6 @@
 use gpui::{
     InteractiveElement as _, IntoElement, ParentElement as _, StatefulInteractiveElement as _,
-    Styled as _, WeakEntity, div, prelude::FluentBuilder as _,
+    Styled as _, WeakEntity, div, prelude::FluentBuilder as _, px,
 };
 
 use crate::app::{
@@ -12,7 +12,10 @@ use crate::app::{
         primitives::{AppTooltip as _, ButtonTone, icon_button},
         theme::theme,
     },
-    views::session_rail::{VisibleSessionTarget, numbered_session_items},
+    views::{
+        run_panel::repository_controls::working_copy_totals,
+        session_rail::{VisibleSessionTarget, numbered_session_items},
+    },
 };
 
 impl FarcasterApp {
@@ -31,6 +34,12 @@ impl FarcasterApp {
         } else {
             self.overlays.view.run
         };
+        let changes = self.project.repository.snapshot.is_some().then(|| {
+            (
+                self.project.repository.additions,
+                self.project.repository.deletions,
+            )
+        });
         let rail_toggle = entity.clone();
         let panel_toggle = entity.clone();
         let actions = entity.clone();
@@ -70,6 +79,25 @@ impl FarcasterApp {
                     });
                 },
             ))
+            .when_some(changes, |row, (additions, deletions)| {
+                row.child(
+                    div()
+                        .id("working-copy-changes")
+                        .flex_none()
+                        .flex()
+                        .items_center()
+                        .gap(theme().space.xs)
+                        .h(theme().size(20.0))
+                        .px(theme().space.sm)
+                        .rounded(px(4.0))
+                        .border(theme().border)
+                        .border_color(theme().colors.border)
+                        .bg(theme().colors.surface)
+                        .text_size(theme().type_scale.caption)
+                        .app_tooltip("Working copy changes")
+                        .child(working_copy_totals(additions, deletions)),
+                )
+            })
             .child(icon_button(
                 "session-actions",
                 AppIcon::List,

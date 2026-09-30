@@ -327,7 +327,10 @@ fn repository_actions(
         })
 }
 
-fn working_copy_totals(additions: Option<u64>, deletions: Option<u64>) -> AnyElement {
+pub(in crate::app) fn working_copy_totals(
+    additions: Option<u64>,
+    deletions: Option<u64>,
+) -> AnyElement {
     div()
         .flex_none()
         .flex()
