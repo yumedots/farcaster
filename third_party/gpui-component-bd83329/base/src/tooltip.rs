@@ -14,7 +14,7 @@ const HIDE_DELAY: Duration = Duration::from_millis(600);
 // How long the pointer has to rest on a trigger before its tooltip appears.
 // Every new trigger pays this, so sweeping down a list of rows does not flash
 // each row's tooltip on the way past.
-const SHOW_DELAY: Duration = Duration::from_millis(400);
+const SHOW_DELAY: Duration = Duration::from_millis(800);
 
 type TooltipBuilder = Rc<dyn Fn(&mut Window, &mut App) -> AnyView>;
 type TooltipRenderer = Rc<dyn Fn(AnyView, TooltipTransition, &mut Window, &mut App) -> AnyElement>;

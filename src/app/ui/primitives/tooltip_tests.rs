@@ -15,7 +15,7 @@ use gpui_base::{TooltipOverlay, TooltipRequest};
 
 /// How long the pointer must rest on a trigger. Mirrors the overlay's delay;
 /// the test would rather fail loudly than drift.
-const SHOW_DELAY: Duration = Duration::from_millis(400);
+const SHOW_DELAY: Duration = Duration::from_millis(800);
 /// How long a tooltip stays up once the pointer leaves its trigger.
 const HIDE_DELAY: Duration = Duration::from_millis(600);
 

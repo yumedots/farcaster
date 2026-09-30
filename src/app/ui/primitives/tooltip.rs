@@ -6,7 +6,7 @@ use gpui_component::{
     tooltip::{ManagedTooltipExt as _, Tooltip},
 };
 
-const PLACEMENT: Placement = Placement::Right;
+const PLACEMENT: Placement = Placement::Bottom;
 
 pub(crate) fn tooltip(
     label: impl Into<SharedString> + 'static,
