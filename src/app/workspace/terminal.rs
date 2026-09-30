@@ -512,7 +512,7 @@ impl FarcasterApp {
         let pane = match spawn_workspace_terminal(
             crate::app::infrastructure::shell_environment::terminal_login_shell_command(),
             project,
-            LoginBanner::Quiet,
+            LoginBanner::Visible,
             window,
             cx,
         ) {
