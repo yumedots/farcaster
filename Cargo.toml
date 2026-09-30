@@ -74,10 +74,6 @@ uzers = { version = "0.12.2", default-features = false }
 [dev-dependencies]
 gpui = { path = "third_party/gpui/crates/gpui", features = ["test-support"] }
 
-[[bench]]
-name = "transcript"
-harness = false
-
 [patch.crates-io]
 gpui = { path = "third_party/gpui/crates/gpui" }
 
