@@ -101,6 +101,21 @@ pub(in crate::app::views) fn render(
                                 FeedbackTone::Error,
                             ))
                         })
+                        .child(toggle_setting(
+                            "split-borders-toggle",
+                            "Hide terminal split borders",
+                            "Keep the gap between split panes but draw no divider lines. The drag area stays so you can still resize.",
+                            app.settings.hide_split_borders,
+                            entity.clone(),
+                            FarcasterApp::toggle_settings_hide_split_borders,
+                        ))
+                        .when_some(app.settings.terminal_error.clone(), |content, error| {
+                            content.child(feedback(
+                                "settings-terminal-error",
+                                error,
+                                FeedbackTone::Error,
+                            ))
+                        })
                         .child(editor::render(app, entity.clone()))
                         .child(
                             div()

@@ -364,15 +364,18 @@ fn application_settings_survive_reopen() -> Result<(), Box<dyn std::error::Error
     // the setting, including every database that predates it.
     assert!(store.load_stage_changes_like_vscode()?);
     assert!(!store.load_hide_unchanged_lines()?);
+    assert!(!store.load_hide_split_borders()?);
     assert_eq!(store.load_source_control_view()?, None);
     assert_eq!(store.load_source_control_sort()?, None);
     store.save_stage_changes_like_vscode(false)?;
     store.save_hide_unchanged_lines(true)?;
+    store.save_hide_split_borders(true)?;
     store.save_source_control_view("list")?;
     store.save_source_control_sort("status")?;
     let reopened = StateStore::open_at(&database)?;
     assert!(!reopened.load_stage_changes_like_vscode()?);
     assert!(reopened.load_hide_unchanged_lines()?);
+    assert!(reopened.load_hide_split_borders()?);
     assert_eq!(
         reopened.load_source_control_view()?.as_deref(),
         Some("list")
@@ -387,6 +390,8 @@ fn application_settings_survive_reopen() -> Result<(), Box<dyn std::error::Error
     store.save_source_control_sort("path")?;
     assert!(StateStore::open_at(&database)?.load_stage_changes_like_vscode()?);
     assert!(!StateStore::open_at(&database)?.load_hide_unchanged_lines()?);
+    store.save_hide_split_borders(false)?;
+    assert!(!StateStore::open_at(&database)?.load_hide_split_borders()?);
     assert_eq!(
         StateStore::open_at(&database)?
             .load_source_control_view()?

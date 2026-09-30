@@ -71,6 +71,29 @@ impl StateStore {
             .map_err(|error| format!("save diff setting: {error}"))
     }
 
+    pub(crate) fn load_hide_split_borders(&self) -> Result<bool, String> {
+        self.connection
+            .query_row(
+                "SELECT value FROM meta WHERE key='hide_split_borders'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map(|value| value.as_deref() == Some("true"))
+            .map_err(|error| format!("load terminal setting: {error}"))
+    }
+
+    pub(crate) fn save_hide_split_borders(&self, hidden: bool) -> Result<(), String> {
+        self.connection
+            .execute(
+                "INSERT INTO meta(key, value) VALUES('hide_split_borders', ?1)
+             ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                [if hidden { "true" } else { "false" }],
+            )
+            .map(|_| ())
+            .map_err(|error| format!("save terminal setting: {error}"))
+    }
+
     pub(crate) fn load_source_control_view(&self) -> Result<Option<String>, String> {
         self.optional_setting("source_control_view", "load source control view")
     }

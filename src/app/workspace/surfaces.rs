@@ -807,6 +807,20 @@ impl FarcasterApp {
         cx.notify();
     }
 
+    pub(in crate::app) fn toggle_settings_hide_split_borders(&mut self, cx: &mut Context<Self>) {
+        let hidden = !self.settings.hide_split_borders;
+        match crate::app::infrastructure::persistence::StateStore::open()
+            .and_then(|store| store.save_hide_split_borders(hidden))
+        {
+            Ok(()) => {
+                self.settings.hide_split_borders = hidden;
+                self.settings.terminal_error = None;
+            }
+            Err(error) => self.settings.terminal_error = Some(error),
+        }
+        cx.notify();
+    }
+
     pub(in crate::app) fn set_source_control_view(
         &mut self,
         view: crate::app::ui::change_tree::ChangeView,
