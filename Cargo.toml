@@ -115,9 +115,11 @@ opt-level = 3
 
 [profile.dev.package."gpui-base"]
 opt-level = 3
+incremental = true
 
 [profile.dev.package."gpui-component"]
-opt-level = 3
+opt-level = 1
+incremental = true
 
 [profile.dev.package.gpui_macos]
 opt-level = 3
@@ -127,6 +129,7 @@ opt-level = 3
 
 [profile.dev.package."gpui-libghostty"]
 opt-level = 3
+incremental = true
 
 [profile.dev.package.taffy]
 opt-level = 3
