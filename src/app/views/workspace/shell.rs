@@ -42,6 +42,7 @@ impl FarcasterApp {
         });
         let rail_toggle = entity.clone();
         let panel_toggle = entity.clone();
+        let chip_toggle = entity.clone();
         let actions = entity.clone();
         div()
             .flex_none()
@@ -64,40 +65,52 @@ impl FarcasterApp {
                         .update(cx, |this, cx| this.toggle_sessions_from_top_bar(window, cx));
                 },
             ))
-            .child(icon_button(
-                "toggle-run-panel",
-                AppIcon::GitBranch,
-                if source_control_visible {
-                    "Hide source control"
-                } else {
-                    "Show source control"
-                },
-                ButtonTone::Quiet,
-                move |window, cx| {
-                    let _ = panel_toggle.update(cx, |this, cx| {
-                        this.toggle_source_control_from_top_bar(window, cx)
-                    });
-                },
-            ))
-            .when_some(changes, |row, (additions, deletions)| {
-                row.child(
-                    div()
-                        .id("working-copy-changes")
-                        .flex_none()
-                        .flex()
-                        .items_center()
-                        .gap(theme().space.xs)
-                        .h(theme().size(20.0))
-                        .px(theme().space.sm)
-                        .rounded(px(4.0))
-                        .border(theme().border)
-                        .border_color(theme().colors.border)
-                        .bg(theme().colors.surface)
-                        .text_size(theme().type_scale.caption)
-                        .app_tooltip("Working copy changes")
-                        .child(working_copy_totals(additions, deletions)),
-                )
+            .when(changes.is_none() || source_control_visible, |row| {
+                row.child(icon_button(
+                    "toggle-run-panel",
+                    AppIcon::GitBranch,
+                    if source_control_visible {
+                        "Hide source control"
+                    } else {
+                        "Show source control"
+                    },
+                    ButtonTone::Quiet,
+                    move |window, cx| {
+                        let _ = panel_toggle.update(cx, |this, cx| {
+                            this.toggle_source_control_from_top_bar(window, cx)
+                        });
+                    },
+                ))
             })
+            .when_some(
+                (!source_control_visible).then_some(changes).flatten(),
+                |row, (additions, deletions)| {
+                    row.child(
+                        div()
+                            .id("working-copy-changes")
+                            .flex_none()
+                            .flex()
+                            .items_center()
+                            .gap(theme().space.xs)
+                            .h(theme().size(20.0))
+                            .px(theme().space.sm)
+                            .rounded(px(4.0))
+                            .border(theme().border)
+                            .border_color(theme().colors.border)
+                            .bg(theme().colors.surface)
+                            .text_size(theme().type_scale.caption)
+                            .cursor_pointer()
+                            .hover(|slot| slot.border_color(theme().colors.accent))
+                            .app_tooltip("Show source control")
+                            .on_click(move |_, window, cx| {
+                                let _ = chip_toggle.update(cx, |this, cx| {
+                                    this.toggle_source_control_from_top_bar(window, cx)
+                                });
+                            })
+                            .child(working_copy_totals(additions, deletions)),
+                    )
+                },
+            )
             .child(icon_button(
                 "session-actions",
                 AppIcon::List,
