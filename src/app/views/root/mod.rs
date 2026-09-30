@@ -6,6 +6,8 @@ mod lifecycle;
 mod overlays;
 mod shell;
 
+pub(in crate::app) use lifecycle::covered_terminal_uses_pane_snapshots;
+
 use gpui::{InteractiveElement as _, IntoElement, ParentElement as _, Render, Styled as _, div};
 
 use super::FarcasterApp;

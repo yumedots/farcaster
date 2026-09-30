@@ -1,14 +1,16 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use gpui::{
     Animation, AnimationExt, AnyElement, App, AppContext as _, Bounds, CursorStyle, Element,
     ElementId, EmptyView, Entity, EntityId, GlobalElementId, InspectorElementId,
-    InteractiveElement as _, IntoElement, LayoutId, MouseButton, ParentElement as _, Pixels,
-    Position, Rgba, StatefulInteractiveElement as _, Style, Styled as _, WeakEntity, Window, div,
-    prelude::FluentBuilder as _, px, relative,
+    InteractiveElement as _, IntoElement, LayoutId, MouseButton, ObjectFit, ParentElement as _,
+    Pixels, Position, Rgba, RenderImage, StatefulInteractiveElement as _, Styled as _,
+    StyledImage as _, Style, WeakEntity, Window, div, img, prelude::FluentBuilder as _, px,
+    relative,
 };
 use gpui_libghostty::Terminal;
 
@@ -98,8 +100,50 @@ impl FarcasterApp {
                 1.0,
                 &[],
                 &state,
+                None,
             ))
             .when_some(overlay, |root, overlay| root.child(overlay))
+            .into_any_element()
+    }
+
+    pub(in crate::app::views) fn render_covered_terminal_workspace(
+        &self,
+        entity: WeakEntity<Self>,
+    ) -> AnyElement {
+        let Some(layout) = self.active_terminal_layout() else {
+            return div()
+                .size_full()
+                .min_h_0()
+                .when_some(
+                    self.workspace.native_surface_snapshot.clone(),
+                    |root, snapshot| {
+                        root.child(img(snapshot).size_full().object_fit(ObjectFit::Fill))
+                    },
+                )
+                .into_any_element();
+        };
+        let state = HandleState {
+            hovered: None,
+            dragging: None,
+            drag_active: false,
+            hide_borders: self.settings.hide_split_borders,
+            handles: false,
+            drop_side: self.workspace.terminal.drop_side.clone(),
+            pane_bounds: self.workspace.terminal.pane_bounds.clone(),
+        };
+        div()
+            .size_full()
+            .min_h_0()
+            .flex()
+            .child(terminal_pane_element(
+                layout,
+                layout.root(),
+                &entity,
+                1.0,
+                &[],
+                &state,
+                Some(&self.workspace.terminal_snapshots),
+            ))
             .into_any_element()
     }
 }
@@ -111,6 +155,7 @@ fn terminal_pane_element(
     grow: f32,
     path: &[bool],
     state: &HandleState,
+    snapshots: Option<&HashMap<EntityId, Arc<RenderImage>>>,
 ) -> AnyElement {
     match pane {
         TerminalPane::Leaf(id) => {
@@ -142,7 +187,14 @@ fn terminal_pane_element(
             let strip = state
                 .handles
                 .then(|| terminal_handle_strip(pane_id, visible, entity));
-            let wrapper = div().flex_1().min_w_0().min_h_0().children(terminal);
+            let wrapper = match snapshots.and_then(|snapshots| snapshots.get(&pane_id)) {
+                Some(snapshot) => div()
+                    .flex_1()
+                    .min_w_0()
+                    .min_h_0()
+                    .child(img(snapshot.clone()).size_full().object_fit(ObjectFit::Fill)),
+                None => div().flex_1().min_w_0().min_h_0().children(terminal),
+            };
             let fill = |side: TerminalDropSide| {
                 let fill = div().absolute().bg(theme().colors.drop_highlight);
                 let fill = match side {
@@ -224,6 +276,7 @@ fn terminal_pane_element(
                     *ratio,
                     &first_path,
                     state,
+                    snapshots,
                 ))
                 .child(terminal_divider(
                     row,
@@ -238,6 +291,7 @@ fn terminal_pane_element(
                     1.0 - *ratio,
                     &second_path,
                     state,
+                    snapshots,
                 ))
                 .into_any_element()
         }

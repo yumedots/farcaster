@@ -17,6 +17,14 @@ fn final_external_dismissal_runs_focus_restore_instead_of_dialog_setup() {
 }
 
 #[test]
+fn a_covered_terminal_renders_its_pane_snapshots_instead_of_one_stretched_image() {
+    assert!(covered_terminal_uses_pane_snapshots(AppSurface::Terminal, 2));
+    assert!(!covered_terminal_uses_pane_snapshots(AppSurface::Terminal, 0));
+    assert!(!covered_terminal_uses_pane_snapshots(AppSurface::Editor, 4));
+    assert!(!covered_terminal_uses_pane_snapshots(AppSurface::Chat, 4));
+}
+
+#[test]
 fn overlays_cover_the_native_surface_hold_it_hidden_and_release_it_when_they_expire() {
     assert_eq!(
         native_surface_action(false, true, true),

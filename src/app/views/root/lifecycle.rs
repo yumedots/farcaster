@@ -39,6 +39,13 @@ fn native_surface_action(
     }
 }
 
+pub(in crate::app) fn covered_terminal_uses_pane_snapshots(
+    surface: AppSurface,
+    pane_snapshots: usize,
+) -> bool {
+    surface == AppSurface::Terminal && pane_snapshots > 0
+}
+
 impl FarcasterApp {
     pub(super) fn prepare_root_render(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.resolve_pending_submission(window, cx);
@@ -146,7 +153,10 @@ impl FarcasterApp {
             NativeSurfaceAction::Restore => {
                 self.restore_active_native_workspace_surface(window, cx);
             }
-            NativeSurfaceAction::Hold => self.hide_native_workspace_surfaces(cx),
+            NativeSurfaceAction::Hold => {
+                self.resync_covered_terminal_snapshots(cx);
+                self.hide_native_workspace_surfaces(cx);
+            }
             NativeSurfaceAction::None => {}
         }
         if let Some((generation, title)) = self.extensions.pending_title.take() {

@@ -13,6 +13,7 @@ use crate::app::{
         },
         theme::theme,
     },
+    views::root::covered_terminal_uses_pane_snapshots,
 };
 
 impl FarcasterApp {
@@ -80,16 +81,23 @@ impl FarcasterApp {
         let native_surface_covered =
             native_surface && self.workspace.native_surface_covered && obscured;
         let main = if native_surface_covered {
-            div()
-                .size_full()
-                .min_h_0()
-                .when_some(
-                    self.workspace.native_surface_snapshot.clone(),
-                    |surface, snapshot| {
-                        surface.child(img(snapshot).size_full().object_fit(ObjectFit::Fill))
-                    },
-                )
-                .into_any_element()
+            if covered_terminal_uses_pane_snapshots(
+                self.workspace.surface,
+                self.workspace.terminal_snapshots.len(),
+            ) {
+                self.render_covered_terminal_workspace(entity.clone())
+            } else {
+                div()
+                    .size_full()
+                    .min_h_0()
+                    .when_some(
+                        self.workspace.native_surface_snapshot.clone(),
+                        |surface, snapshot| {
+                            surface.child(img(snapshot).size_full().object_fit(ObjectFit::Fill))
+                        },
+                    )
+                    .into_any_element()
+            }
         } else {
             match self.workspace.surface {
                 AppSurface::Editor if self.workspace.editor.view.is_some() => {

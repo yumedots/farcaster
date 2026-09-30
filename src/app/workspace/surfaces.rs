@@ -1,8 +1,9 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use gpui::{Context, FocusHandle, Focusable as _, Image, RenderImage, Window, actions};
 
 use super::covered_refresh::{CoveredRefresh, RefreshStep};
+use super::terminal::terminal_snapshots_cover_leaves;
 use super::{AppSurface, FarcasterApp, ImagePreview, PostRenderFocus};
 actions!(farcaster, [CycleWorkspaceForward, CycleWorkspaceBackward]);
 
@@ -204,6 +205,9 @@ impl FarcasterApp {
             if self.workspace.native_surface_covered {
                 self.workspace.native_surface_snapshot =
                     self.capture_workspace_surface_snapshot(cx);
+                if self.workspace.surface == AppSurface::Terminal {
+                    self.workspace.terminal_snapshots = self.capture_terminal_snapshots(cx);
+                }
             }
         }
         self.hide_native_workspace_surfaces(cx);
@@ -227,6 +231,37 @@ impl FarcasterApp {
             }
             AppSurface::Chat | AppSurface::Diff => None,
         }
+    }
+
+    fn capture_terminal_snapshots(
+        &self,
+        cx: &mut Context<Self>,
+    ) -> HashMap<gpui::EntityId, Arc<RenderImage>> {
+        let Some(layout) = self.active_terminal_layout() else {
+            return HashMap::new();
+        };
+        layout
+            .leaf_ids()
+            .into_iter()
+            .filter_map(|id| {
+                let terminal = layout.terminal(id)?.clone();
+                let snapshot = terminal.update(cx, |terminal, _| terminal.snapshot()).ok()?;
+                Some((id, snapshot))
+            })
+            .collect()
+    }
+
+    pub(in crate::app) fn resync_covered_terminal_snapshots(&mut self, cx: &mut Context<Self>) {
+        if self.workspace.surface != AppSurface::Terminal {
+            return;
+        }
+        let Some(leaves) = self.active_terminal_layout().map(|layout| layout.leaf_ids()) else {
+            return;
+        };
+        if terminal_snapshots_cover_leaves(&leaves, &self.workspace.terminal_snapshots) {
+            return;
+        }
+        self.workspace.terminal_snapshots = self.capture_terminal_snapshots(cx);
     }
 
     /// Number of frames the covered native surface has drawn.
@@ -278,6 +313,11 @@ impl FarcasterApp {
                                 this.workspace.native_surface_snapshot = Some(snapshot);
                                 cx.notify();
                             }
+                            if this.workspace.surface == AppSurface::Terminal {
+                                this.workspace.terminal_snapshots =
+                                    this.capture_terminal_snapshots(cx);
+                                cx.notify();
+                            }
                             true
                         }
                     }
@@ -300,6 +340,9 @@ impl FarcasterApp {
             self.workspace.native_surface_covered = false;
             self.set_terminal_hidden_rendering(false, cx);
             if let Some(snapshot) = self.workspace.native_surface_snapshot.take() {
+                let _ = window.drop_image(snapshot);
+            }
+            for snapshot in std::mem::take(&mut self.workspace.terminal_snapshots).into_values() {
                 let _ = window.drop_image(snapshot);
             }
         }

@@ -85,6 +85,13 @@ pub(in crate::app) fn handle_pill_bounds(bounds: Bounds<Pixels>) -> Bounds<Pixel
     pill
 }
 
+pub(in crate::app) fn terminal_snapshots_cover_leaves<T>(
+    leaves: &[EntityId],
+    captured: &HashMap<EntityId, T>,
+) -> bool {
+    leaves.len() == captured.len() && leaves.iter().all(|id| captured.contains_key(id))
+}
+
 #[derive(Debug)]
 pub(in crate::app) enum TerminalPane {
     Leaf(EntityId),

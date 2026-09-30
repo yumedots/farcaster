@@ -263,6 +263,7 @@ impl FarcasterApp {
                     pane_bounds: Default::default(),
                 },
                 native_surface_snapshot: None,
+                terminal_snapshots: Default::default(),
                 native_surface_refresh: None,
                 native_surface_covered: false,
                 tooltip_watch: None,
