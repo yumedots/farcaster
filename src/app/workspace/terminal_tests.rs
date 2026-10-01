@@ -1,8 +1,8 @@
 use gpui::{Bounds, EntityId, point, px, size};
 
 use super::{
-    TerminalDropSide, TerminalLayout, TerminalPane, TerminalSplitDirection, handle_pill_bounds,
-    covered_terminal_leaf_ids, terminal_snapshots_cover_leaves,
+    TerminalDropSide, TerminalLayout, TerminalPane, TerminalSplitDirection,
+    covered_terminal_leaf_ids, handle_pill_bounds, terminal_snapshots_cover_leaves,
 };
 
 fn pane(id: u64) -> EntityId {
@@ -22,7 +22,10 @@ fn covered_snapshots_are_stale_until_every_leaf_is_captured() {
     let mut captured: std::collections::HashMap<EntityId, ()> = std::collections::HashMap::new();
     captured.insert(pane(1), ());
     assert!(terminal_snapshots_cover_leaves(&[pane(1)], &captured));
-    assert!(!terminal_snapshots_cover_leaves(&[pane(1), pane(2)], &captured));
+    assert!(!terminal_snapshots_cover_leaves(
+        &[pane(1), pane(2)],
+        &captured
+    ));
     assert!(!terminal_snapshots_cover_leaves(&[pane(2)], &captured));
     assert!(!terminal_snapshots_cover_leaves(&[], &captured));
 }

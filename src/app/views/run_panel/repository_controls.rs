@@ -15,7 +15,10 @@ use crate::{
             theme::{MONO_FONT_FAMILY, theme},
         },
     },
-    repository::{RepositoryEdit, RepositorySyncAction, WorkingCopySnapshot},
+    repository::{
+        BackendPreference, RepositoryBackend, RepositoryEdit, RepositoryKind, RepositorySyncAction,
+        SnapshotIdentity, WorkingCopySnapshot,
+    },
 };
 use gpui::{
     AnyElement, App, Div, ElementId, InteractiveElement as _, IntoElement, ParentElement as _,
@@ -253,6 +256,9 @@ fn repository_actions(
     let identity = snapshot.map(|snapshot| snapshot.identity.clone());
     let current_view = app.settings.source_control_view;
     let current_sort = app.settings.source_control_sort;
+    let kind = snapshot.map(|snapshot| snapshot.location.kind);
+    let (git, jj) = RepositoryBackend::available_backends();
+    let active = selected_backend(kind, app.project.repository.preference, git, jj);
     dropdown_button("repository-actions", "⋯", ButtonTone::Quiet, true)
         .dropdown_caret(false)
         .size(theme().controls.icon_button)
@@ -307,9 +313,12 @@ fn repository_actions(
                 RepositorySyncAction::Push,
             ] {
                 let entity = entity.clone();
-                let label = match action {
-                    RepositorySyncAction::PullOrFetch => "Pull repository",
-                    RepositorySyncAction::Push => "Push repository",
+                let label = match (kind, action) {
+                    (Some(RepositoryKind::Jujutsu), RepositorySyncAction::PullOrFetch) => {
+                        "Fetch repository"
+                    }
+                    (_, RepositorySyncAction::PullOrFetch) => "Pull repository",
+                    (_, RepositorySyncAction::Push) => "Push repository",
                 };
                 let available = enabled
                     && syncing.is_none()
@@ -323,8 +332,43 @@ fn repository_actions(
                     },
                 ));
             }
+            menu = menu.separator();
+            for (label, preference, available, kind) in [
+                ("Use Git", BackendPreference::Git, git, RepositoryKind::Git),
+                (
+                    "Use JJ",
+                    BackendPreference::Jujutsu,
+                    jj,
+                    RepositoryKind::Jujutsu,
+                ),
+            ] {
+                let entity = entity.clone();
+                menu = menu.item(
+                    PopupMenuItem::new(label)
+                        .checked(active == Some(kind))
+                        .disabled(!enabled || !available)
+                        .on_click(move |_, window, cx| {
+                            let _ = entity.update(cx, |this, cx| {
+                                this.set_repository_backend_preference(preference, window, cx)
+                            });
+                        }),
+                );
+            }
             menu
         })
+}
+
+pub(super) fn selected_backend(
+    discovered: Option<RepositoryKind>,
+    preference: BackendPreference,
+    git_available: bool,
+    jj_available: bool,
+) -> Option<RepositoryKind> {
+    discovered.or(match preference {
+        BackendPreference::Git if git_available => Some(RepositoryKind::Git),
+        BackendPreference::Jujutsu if jj_available => Some(RepositoryKind::Jujutsu),
+        BackendPreference::Auto | BackendPreference::Git | BackendPreference::Jujutsu => None,
+    })
 }
 
 pub(in crate::app) fn working_copy_totals(
@@ -350,5 +394,8 @@ pub(in crate::app) fn working_copy_totals(
 }
 
 fn repository_identity_label(snapshot: &WorkingCopySnapshot) -> String {
-    git_identity(&snapshot.identity)
+    match &snapshot.identity {
+        SnapshotIdentity::Git(identity) => git_identity(identity),
+        SnapshotIdentity::Jujutsu(identity) => identity.change_id.chars().take(8).collect(),
+    }
 }

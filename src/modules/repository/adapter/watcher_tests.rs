@@ -41,7 +41,7 @@ fn discovery_watches_project_and_ancestors_but_only_accepts_repository_markers()
     }));
     assert_eq!(
         discovery_event(Ok(
-            Event::new(EventKind::Create(CreateKind::Folder)).add_path(project.join(".git"))
+            Event::new(EventKind::Create(CreateKind::Folder)).add_path(project.join(".jj"))
         )),
         Some(RepositoryWatchEvent::Changed)
     );
@@ -64,6 +64,7 @@ fn nested_git_project_watches_project_and_repository_metadata() {
     let project = project.canonicalize().expect("project");
 
     let targets = watch_targets(&RepositoryLocation {
+        kind: RepositoryKind::Git,
         workspace_root: workspace.clone(),
         project_root: project.clone(),
     })
@@ -77,6 +78,105 @@ fn nested_git_project_watches_project_and_repository_metadata() {
         path: workspace.join(".git"),
         mode: RecursiveMode::Recursive,
     }));
+}
+
+#[test]
+fn jujutsu_refreshes_for_commits_but_not_snapshot_bookkeeping() {
+    let metadata = JujutsuMetadata {
+        repo: PathBuf::from("/workspace/.jj/repo"),
+        git: vec![WatchTarget {
+            path: PathBuf::from("/workspace/.git"),
+            mode: RecursiveMode::Recursive,
+        }],
+    };
+    for path in [
+        "/workspace/source.rs",
+        "/workspace/.jj/repo/op_heads/heads/abcdef0123",
+        "/workspace/.git/HEAD",
+        "/workspace/.git/refs/heads/main",
+        "/workspace/.git/packed-refs",
+    ] {
+        assert_eq!(
+            metadata.classify(Ok(
+                Event::new(EventKind::Create(CreateKind::File)).add_path(path.into())
+            )),
+            Some(RepositoryWatchEvent::Changed),
+            "{path}"
+        );
+    }
+    for path in [
+        "/workspace/.jj/working_copy/tree_state",
+        "/workspace/.jj/working_copy/lock",
+        "/workspace/.jj/repo/op_heads/lock",
+        "/workspace/.jj/repo/op_heads/heads/.tmp123",
+        "/workspace/.git/HEAD.lock",
+        "/workspace/.git/refs/heads/main.lock",
+        "/workspace/.git/index",
+        "/workspace/.git/index.lock",
+    ] {
+        assert_eq!(
+            metadata.classify(Ok(
+                Event::new(EventKind::Create(CreateKind::File)).add_path(path.into())
+            )),
+            None,
+            "{path}"
+        );
+    }
+    assert_eq!(
+        metadata
+            .classify(Ok(Event::new(EventKind::Access(AccessKind::Any))
+                .add_path("/workspace/.git/HEAD".into()))),
+        None
+    );
+}
+
+#[test]
+fn nested_jujutsu_project_observes_shared_operations_and_git_commits() {
+    use std::time::{Duration, Instant};
+
+    let temp = tempfile::tempdir().expect("tempdir");
+    // Match resolved watch targets, including macOS /var -> /private/var.
+    let root = temp.path().canonicalize().expect("canonical fixture root");
+    let workspace = root.join("workspace");
+    let project = workspace.join("app");
+    // The shared repository need not have a .jj component in its path.
+    let shared_repo = root.join("shared-repo");
+    fs::create_dir_all(shared_repo.join("op_heads/heads")).expect("test operation should succeed");
+    fs::create_dir_all(workspace.join(".jj")).expect("test operation should succeed");
+    fs::create_dir_all(workspace.join(".git/refs/heads")).expect("test operation should succeed");
+    fs::create_dir_all(&project).expect("test operation should succeed");
+    fs::write(workspace.join(".jj/repo"), "../../shared-repo")
+        .expect("test operation should succeed");
+    let location = RepositoryLocation {
+        kind: RepositoryKind::Jujutsu,
+        workspace_root: workspace
+            .canonicalize()
+            .expect("test operation should succeed"),
+        project_root: project
+            .canonicalize()
+            .expect("test operation should succeed"),
+    };
+    let metadata = JujutsuMetadata::resolve(&location).expect("test operation should succeed");
+    assert!(!metadata.changed(&shared_repo.join("op_heads/lock")));
+    let (_watcher, events) =
+        RepositoryWatcher::start(&location).expect("test operation should succeed");
+    for path in [
+        shared_repo.join("op_heads/heads/abcdef0123"),
+        workspace.join(".git/HEAD"),
+        workspace.join(".git/refs/heads/main"),
+    ] {
+        while events.try_recv().is_ok() {}
+        fs::write(&path, "commit").expect("test operation should succeed");
+        let deadline = Instant::now() + Duration::from_secs(3);
+        loop {
+            if let Ok(event) = events.try_recv() {
+                assert_eq!(event, RepositoryWatchEvent::Changed);
+                break;
+            }
+            assert!(Instant::now() < deadline, "missed {}", path.display());
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
 }
 
 #[test]
@@ -98,6 +198,7 @@ fn linked_worktree_watches_common_metadata_that_contains_private_state() {
     let common_dir = common_dir.canonicalize().expect("common metadata");
 
     let targets = watch_targets(&RepositoryLocation {
+        kind: RepositoryKind::Git,
         workspace_root: workspace.clone(),
         project_root: workspace,
     })

@@ -7,7 +7,7 @@ struct EditRepo {
 }
 
 impl EditRepo {
-    fn new() -> Self {
+    fn new(kind: RepositoryKind) -> Self {
         let temp = TestDirectory::new("edit");
         let root = temp.path().join("repo");
         let home = temp.path().join("home");
@@ -15,24 +15,33 @@ impl EditRepo {
         fs::create_dir_all(&root).expect("test operation should succeed");
         fs::create_dir_all(&home).expect("test operation should succeed");
         fs::create_dir_all(&config).expect("test operation should succeed");
-        run_git(&root, &home, &config, &["init"]);
-        run_git(
-            &root,
-            &home,
-            &config,
-            &["config", "user.name", "Review Test"],
-        );
-        run_git(
-            &root,
-            &home,
-            &config,
-            &["config", "user.email", "review@example.invalid"],
-        );
+        let preference = match kind {
+            RepositoryKind::Git => {
+                run_git(&root, &home, &config, &["init"]);
+                run_git(
+                    &root,
+                    &home,
+                    &config,
+                    &["config", "user.name", "Review Test"],
+                );
+                run_git(
+                    &root,
+                    &home,
+                    &config,
+                    &["config", "user.email", "review@example.invalid"],
+                );
+                BackendPreference::Git
+            }
+            RepositoryKind::Jujutsu => {
+                run_jj(&root, &home, &config, &["git", "init"]);
+                BackendPreference::Jujutsu
+            }
+        };
         let options = RepositoryOptions {
             environment: isolated_environment(&home, &config),
             ..RepositoryOptions::default()
         };
-        let backend = RepositoryBackend::discover_with_options(&root, options)
+        let backend = RepositoryBackend::discover_with_options(&root, preference, options)
             .expect("test operation should succeed")
             .expect("test operation should succeed");
         Self { temp, backend }
@@ -79,7 +88,9 @@ impl EditRepo {
     fn base(&self) {
         self.write("selected", "base\n");
         self.write("other", "base\n");
-        self.command(&["add", "."]);
+        if self.backend.location.kind == RepositoryKind::Git {
+            self.command(&["add", "."]);
+        }
         self.command(&["commit", "-m", "base"]);
     }
 
@@ -112,7 +123,7 @@ impl EditRepo {
 
 #[test]
 fn git_commit_selected_includes_working_contents_and_preserves_other_staging() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.write("selected", "staged\n");
     repo.write("other", "other staged\n");
@@ -137,7 +148,7 @@ fn git_commit_selected_includes_working_contents_and_preserves_other_staging() {
 
 #[test]
 fn git_review_rejects_same_status_binary_edits_and_empty_message() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.write("selected", b"\0one");
     let review = repo.review(&["selected"]);
@@ -171,7 +182,7 @@ fn git_review_rejects_same_status_binary_edits_and_empty_message() {
 
 #[test]
 fn git_discard_restores_both_layers_and_does_not_touch_other_files() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.write("selected", "staged\n");
     repo.command(&["add", "selected"]);
@@ -193,7 +204,7 @@ fn git_discard_restores_both_layers_and_does_not_touch_other_files() {
 
 #[test]
 fn git_discard_handles_renames_and_new_files() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.command(&["mv", "selected", "renamed"]);
     let review = repo.review(&["renamed"]);
@@ -217,7 +228,7 @@ fn git_discard_handles_renames_and_new_files() {
 
 #[test]
 fn git_stage_moves_every_kind_of_working_change_into_the_index() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.write("selected", "staged\n");
     repo.write("fresh", "new\n");
@@ -281,7 +292,7 @@ fn git_stage_moves_every_kind_of_working_change_into_the_index() {
 
 #[test]
 fn git_stage_collapses_a_file_that_is_staged_and_modified_again() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.write("selected", "first\n");
     repo.command(&["add", "selected"]);
@@ -312,7 +323,7 @@ fn git_stage_collapses_a_file_that_is_staged_and_modified_again() {
 
 #[test]
 fn git_unstage_drops_index_entries_before_the_first_commit() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.write("selected", "new\n");
     repo.command(&["add", "selected"]);
 
@@ -338,7 +349,7 @@ fn git_unstage_drops_index_entries_before_the_first_commit() {
 
 #[test]
 fn git_initial_commit_selects_only_chosen_new_file() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.write("selected", "new\n");
     repo.write("other", "keep\n");
     repo.command(&["add", "other"]);
@@ -361,7 +372,7 @@ fn git_initial_commit_selects_only_chosen_new_file() {
 
 #[test]
 fn git_index_commit_leaves_unstaged_edits_and_unrelated_files_alone() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.write("selected", "staged\n");
     repo.write("fresh", "new\n");
@@ -388,7 +399,7 @@ fn git_index_commit_leaves_unstaged_edits_and_unrelated_files_alone() {
 
 #[test]
 fn git_index_commit_fails_when_nothing_is_staged() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.write("selected", "working\n");
     let head = repo.command(&["rev-parse", "HEAD"]);
@@ -409,7 +420,7 @@ fn git_index_commit_fails_when_nothing_is_staged() {
 
 #[test]
 fn git_hunk_staging_moves_one_hunk_into_the_index() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.two_hunk_file("wide");
 
@@ -451,7 +462,7 @@ fn git_hunk_staging_moves_one_hunk_into_the_index() {
 
 #[test]
 fn git_file_diff_carries_the_unchanged_lines_between_its_hunks() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.two_hunk_file("wide");
 
@@ -505,7 +516,7 @@ fn git_file_diff_carries_the_unchanged_lines_between_its_hunks() {
 
 #[test]
 fn git_hunk_revert_restores_only_that_hunk_in_the_working_tree() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.two_hunk_file("wide");
 
@@ -530,7 +541,7 @@ fn git_hunk_revert_restores_only_that_hunk_in_the_working_tree() {
 
 #[test]
 fn git_hunk_patch_reports_an_index_that_moved_on() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.two_hunk_file("wide");
 
@@ -555,7 +566,7 @@ fn git_hunk_patch_reports_an_index_that_moved_on() {
 
 #[test]
 fn git_hunk_staging_covers_a_new_file() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.write("fresh", "one\ntwo\nthree\n");
 
@@ -574,7 +585,7 @@ fn git_hunk_staging_covers_a_new_file() {
 
 #[test]
 fn review_rejects_empty_selection_and_paths_outside_project() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     let snapshot = repo
         .backend
@@ -585,11 +596,59 @@ fn review_rejects_empty_selection_and_paths_outside_project() {
     }
 }
 
+#[test]
+fn jj_commit_selected_and_discard_keep_other_changes() {
+    if !jj_installed() {
+        return;
+    }
+    let repo = EditRepo::new(RepositoryKind::Jujutsu);
+    repo.base();
+    repo.write("selected", "chosen\n");
+    repo.write("other", "keep\n");
+    repo.write("a|b.txt", "literal\n");
+    let review = repo.review(&["selected", "a|b.txt"]);
+    repo.backend
+        .apply_edit(&review, RepositoryEdit::Commit, "chosen files")
+        .expect("test operation should succeed");
+    assert_eq!(
+        repo.command(&["file", "show", "-r", "@-", "selected"]),
+        "chosen\n"
+    );
+    assert_eq!(
+        repo.command(&["file", "show", "-r", "@-", "other"]),
+        "base\n"
+    );
+    assert_eq!(repo.read("other"), "keep\n");
+    repo.backend
+        .apply_edit(&repo.review(&["other"]), RepositoryEdit::Discard, "")
+        .expect("test operation should succeed");
+    assert_eq!(repo.read("other"), "base\n");
+    assert_eq!(repo.read("selected"), "chosen\n");
+}
+
+#[test]
+fn jj_review_rejects_changes_after_review() {
+    if !jj_installed() {
+        return;
+    }
+    let repo = EditRepo::new(RepositoryKind::Jujutsu);
+    repo.base();
+    repo.write("selected", "reviewed\n");
+    let review = repo.review(&["selected"]);
+    repo.write("selected", "later\n");
+    assert!(matches!(
+        repo.backend
+            .apply_edit(&review, RepositoryEdit::Discard, ""),
+        Err(RepositoryError::StaleSnapshot)
+    ));
+    assert_eq!(repo.read("selected"), "later\n");
+}
+
 #[cfg(unix)]
 #[test]
 fn git_failed_commit_preserves_contents_and_unrelated_index_entries() {
     use std::os::unix::fs::PermissionsExt as _;
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     repo.write("selected", "keep chosen\n");
     repo.write("new", "keep new\n");
@@ -617,7 +676,7 @@ fn git_failed_commit_preserves_contents_and_unrelated_index_entries() {
 
 #[test]
 fn scoped_commit_leaves_the_outside_end_of_a_rename_staged() {
-    let mut repo = EditRepo::new();
+    let mut repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     fs::create_dir(repo.root().join("nested")).expect("test operation should succeed");
     repo.command(&["mv", "selected", "nested/selected"]);
@@ -648,7 +707,7 @@ fn scoped_commit_leaves_the_outside_end_of_a_rename_staged() {
 #[cfg(unix)]
 #[test]
 fn symlink_discard_does_not_follow_the_target() {
-    let repo = EditRepo::new();
+    let repo = EditRepo::new(RepositoryKind::Git);
     repo.base();
     let outside = repo.temp.path().join("outside");
     fs::write(&outside, "keep outside\n").expect("test operation should succeed");

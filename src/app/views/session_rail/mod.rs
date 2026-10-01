@@ -183,11 +183,8 @@ impl FarcasterApp {
     ) {
         let number = if number == 0 { 10 } else { number };
         let items = self.visible_active_items();
-        let numbered = numbered_session_items(
-            &items,
-            &self.sessions.folders,
-            self.current_folder_id(),
-        );
+        let numbered =
+            numbered_session_items(&items, &self.sessions.folders, self.current_folder_id());
         let Some(&(folder_id, item)) = numbered.get(number.saturating_sub(1)) else {
             return;
         };

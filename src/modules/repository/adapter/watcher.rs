@@ -6,7 +6,7 @@ use std::{
 use async_channel::Receiver;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher as _};
 
-use super::super::RepositoryLocation;
+use super::super::{RepositoryKind, RepositoryLocation};
 
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum RepositoryWatchEvent {
@@ -33,8 +33,22 @@ impl RepositoryWatcher {
     pub(crate) fn start(
         location: &RepositoryLocation,
     ) -> Result<(Self, Receiver<RepositoryWatchEvent>), String> {
-        let targets = watch_targets(location)?;
-        Self::start_targets(targets, repository_event)
+        let mut targets = watch_targets(location)?;
+        match location.kind {
+            RepositoryKind::Git => Self::start_targets(targets, repository_event),
+            RepositoryKind::Jujutsu => {
+                let metadata = JujutsuMetadata::resolve(location)?;
+                add_existing_target(
+                    &mut targets,
+                    metadata.repo.join("op_heads"),
+                    RecursiveMode::Recursive,
+                )?;
+                for target in &metadata.git {
+                    add_target(&mut targets, target.path.clone(), target.mode);
+                }
+                Self::start_targets(targets, move |event| metadata.classify(event))
+            }
+        }
     }
 
     pub(crate) fn start_discovery(
@@ -82,13 +96,74 @@ fn repository_event(result: notify::Result<Event>) -> Option<RepositoryWatchEven
     }
 }
 
+struct JujutsuMetadata {
+    repo: PathBuf,
+    git: Vec<WatchTarget>,
+}
+
+impl JujutsuMetadata {
+    fn resolve(location: &RepositoryLocation) -> Result<Self, String> {
+        let directory = location.workspace_root.join(".jj");
+        let marker = directory.join("repo");
+        let repo = if marker.is_file() {
+            let value = fs::read_to_string(&marker)
+                .map_err(|error| format!("read {}: {error}", marker.display()))?;
+            resolve_relative(&directory, Path::new(value.trim()))?
+        } else {
+            resolve_relative(&directory, Path::new("repo"))?
+        };
+        let mut git = Vec::new();
+        if location.workspace_root.join(".git").exists() {
+            add_git_targets(&mut git, &location.workspace_root)?;
+        }
+        Ok(Self { repo, git })
+    }
+
+    fn classify(&self, result: notify::Result<Event>) -> Option<RepositoryWatchEvent> {
+        match result {
+            Ok(event) if !event.paths.iter().any(|path| self.changed(path)) => None,
+            result => repository_event(result),
+        }
+    }
+
+    fn changed(&self, path: &Path) -> bool {
+        if let Ok(relative) = path.strip_prefix(&self.repo) {
+            // Snapshot reads touch locks and tree state. Only published operations
+            // should cause another refresh.
+            return relative.starts_with("op_heads/heads")
+                && path.file_name().is_some_and(|name| {
+                    let name = name.to_string_lossy();
+                    !name.is_empty() && name.bytes().all(|byte| byte.is_ascii_hexdigit())
+                });
+        }
+        for target in &self.git {
+            if let Ok(relative) = path.strip_prefix(&target.path) {
+                return (relative == Path::new("HEAD")
+                    || relative == Path::new("packed-refs")
+                    || relative.starts_with("refs")
+                    || (relative.starts_with("worktrees")
+                        && relative.file_name().is_some_and(|name| name == "HEAD")))
+                    && relative
+                        .extension()
+                        .is_none_or(|extension| extension != "lock");
+            }
+        }
+        !path.components().any(|component| {
+            let component = component.as_os_str();
+            component == ".jj" || component == ".git"
+        })
+    }
+}
+
 fn discovery_event(result: notify::Result<Event>) -> Option<RepositoryWatchEvent> {
     match result {
         Ok(event) if matches!(event.kind, EventKind::Access(_)) => None,
         Ok(event)
             if event.paths.iter().any(|path| {
-                path.components()
-                    .any(|component| component.as_os_str() == ".git")
+                path.components().any(|component| {
+                    let component = component.as_os_str();
+                    component == ".git" || component == ".jj"
+                })
             }) =>
         {
             Some(RepositoryWatchEvent::Changed)
@@ -128,7 +203,9 @@ fn watch_targets(location: &RepositoryLocation) -> Result<Vec<WatchTarget>, Stri
         location.project_root.clone(),
         RecursiveMode::Recursive,
     );
-    add_git_targets(&mut targets, &location.workspace_root)?;
+    if location.kind == RepositoryKind::Git {
+        add_git_targets(&mut targets, &location.workspace_root)?;
+    }
     Ok(targets)
 }
 

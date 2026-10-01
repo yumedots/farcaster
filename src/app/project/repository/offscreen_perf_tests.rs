@@ -73,7 +73,7 @@ fn new_repository() -> tempfile::TempDir {
 /// What the app would see if it read the working copy right now, which is the
 /// number the remembered one has to keep up with.
 fn current_changes(project: &Path) -> usize {
-    let (_, scanned) = observe_project(project)
+    let (_, scanned) = observe_project(project, BackendPreference::default())
         .expect("scan the test repository")
         .expect("the test repository is discoverable");
     let (snapshot, _, _) = scanned.expect("snapshot the test repository");

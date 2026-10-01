@@ -5,7 +5,9 @@ use std::{
 
 use crate::{
     app::ui::{change_tree::ChangeSort, theme::theme},
-    repository::{ChangeKind, ChangeLayer, DiffTargetKey, GitIdentity, WorkingCopyChange},
+    repository::{
+        ChangeKind, ChangeLayer, DiffTargetKey, GitIdentity, SnapshotIdentity, WorkingCopyChange,
+    },
 };
 
 /// Ascending order for the list view; ties fall back to the relative path.
@@ -77,14 +79,26 @@ pub(super) fn git_identity(identity: &GitIdentity) -> String {
     }
 }
 
-pub(super) fn repository_sync_metadata(identity: &GitIdentity) -> String {
-    let metadata = identity
-        .upstream
-        .clone()
-        .or_else(|| identity.nearest_branch.clone())
-        .or_else(|| identity.branch.as_ref().map(|_| "No upstream".to_owned()))
-        .unwrap_or_else(|| "detached".to_owned());
-    with_ahead_behind(metadata, identity.ahead, identity.behind)
+pub(super) fn repository_sync_metadata(identity: &SnapshotIdentity) -> String {
+    match identity {
+        SnapshotIdentity::Git(identity) => {
+            let metadata = identity
+                .upstream
+                .clone()
+                .or_else(|| identity.nearest_branch.clone())
+                .or_else(|| identity.branch.as_ref().map(|_| "No upstream".to_owned()))
+                .unwrap_or_else(|| "detached".to_owned());
+            with_ahead_behind(metadata, identity.ahead, identity.behind)
+        }
+        SnapshotIdentity::Jujutsu(identity) => {
+            let metadata = bookmark_metadata(if identity.closest_bookmarks.is_empty() {
+                &identity.bookmarks
+            } else {
+                &identity.closest_bookmarks
+            });
+            with_ahead_behind(metadata, identity.ahead, 0)
+        }
+    }
 }
 
 fn with_ahead_behind(mut metadata: String, ahead: u64, behind: u64) -> String {
@@ -97,12 +111,21 @@ fn with_ahead_behind(mut metadata: String, ahead: u64, behind: u64) -> String {
     metadata
 }
 
+fn bookmark_metadata(bookmarks: &[String]) -> String {
+    match bookmarks {
+        [] => "No bookmark".to_owned(),
+        [bookmark] => bookmark.clone(),
+        [first, rest @ ..] => format!("{first} +{} bookmarks", rest.len()),
+    }
+}
+
 pub(super) const fn group_title(layer: ChangeLayer) -> &'static str {
     match layer {
         ChangeLayer::Index => "Staged",
         ChangeLayer::WorkingTree => "Working tree",
         ChangeLayer::Conflict => "Conflicts",
         ChangeLayer::Untracked => "Untracked",
+        ChangeLayer::JujutsuWorkingCopy => "Current change",
     }
 }
 
@@ -176,7 +199,11 @@ pub(super) const fn change_kind_label(kind: &ChangeKind) -> &'static str {
 }
 
 pub(super) fn change_status_label(change: &WorkingCopyChange) -> &str {
-    change.kind.status_label()
+    if change.layer == ChangeLayer::JujutsuWorkingCopy && change.kind == ChangeKind::Conflict {
+        "!"
+    } else {
+        change.kind.status_label()
+    }
 }
 
 pub(super) fn change_color(kind: &ChangeKind) -> gpui::Rgba {

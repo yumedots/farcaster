@@ -8,9 +8,8 @@ use gpui::{
     Animation, AnimationExt, AnyElement, App, AppContext as _, Bounds, CursorStyle, Element,
     ElementId, EmptyView, Entity, EntityId, GlobalElementId, InspectorElementId,
     InteractiveElement as _, IntoElement, LayoutId, MouseButton, ObjectFit, ParentElement as _,
-    Pixels, Position, Rgba, RenderImage, StatefulInteractiveElement as _, Styled as _,
-    StyledImage as _, Style, WeakEntity, Window, div, img, prelude::FluentBuilder as _, px,
-    relative,
+    Pixels, Position, RenderImage, Rgba, StatefulInteractiveElement as _, Style, Styled as _,
+    StyledImage as _, WeakEntity, Window, div, img, prelude::FluentBuilder as _, px, relative,
 };
 use gpui_libghostty::Terminal;
 
@@ -149,7 +148,12 @@ impl FarcasterApp {
             .terminal
             .view
             .as_ref()
-            .and_then(|view| self.workspace.terminal_snapshots.get(&view.entity_id()).cloned())
+            .and_then(|view| {
+                self.workspace
+                    .terminal_snapshots
+                    .get(&view.entity_id())
+                    .cloned()
+            })
             .or_else(|| self.workspace.native_surface_snapshot.clone())
     }
 }
@@ -194,11 +198,11 @@ fn terminal_pane_element(
                 .handles
                 .then(|| terminal_handle_strip(pane_id, visible, entity));
             let wrapper = match snapshots.and_then(|snapshots| snapshots.get(&pane_id)) {
-                Some(snapshot) => div()
-                    .flex_1()
-                    .min_w_0()
-                    .min_h_0()
-                    .child(img(snapshot.clone()).size_full().object_fit(ObjectFit::Fill)),
+                Some(snapshot) => div().flex_1().min_w_0().min_h_0().child(
+                    img(snapshot.clone())
+                        .size_full()
+                        .object_fit(ObjectFit::Fill),
+                ),
                 None => div().flex_1().min_w_0().min_h_0().children(terminal),
             };
             let fill = |side: TerminalDropSide| {

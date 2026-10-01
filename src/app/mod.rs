@@ -297,6 +297,7 @@ impl RepositoryDiff {
                 &[HunkApply::Stage, HunkApply::Revert]
             }
             ChangeLayer::Conflict => &[],
+            ChangeLayer::JujutsuWorkingCopy => &[],
         }
     }
 

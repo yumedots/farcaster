@@ -2,11 +2,11 @@ use super::*;
 
 #[test]
 fn git_sync_preserves_branch_and_upstream_mapping() {
-    let identity = GitIdentity {
+    let identity = SnapshotIdentity::Git(GitIdentity {
         branch: Some("feature/sidebar".into()),
         upstream: Some("origin/review/sidebar".into()),
         ..GitIdentity::default()
-    };
+    });
 
     assert_eq!(
         strings(&identity, RepositorySyncAction::PullOrFetch),
@@ -19,21 +19,42 @@ fn git_sync_preserves_branch_and_upstream_mapping() {
 }
 
 #[test]
-fn sync_is_unavailable_without_a_branch_or_upstream() {
-    let detached = GitIdentity {
-        branch: None,
-        ..GitIdentity::default()
-    };
-    assert!(!RepositorySyncAction::Push.is_available_for(&detached));
+fn jj_push_requires_one_exact_bookmark() {
+    let mut identity = jj_identity(vec!["feature/*".into()]);
+    assert_eq!(
+        strings(&identity, RepositorySyncAction::Push),
+        [
+            "--no-pager",
+            "--color=never",
+            "git",
+            "push",
+            "--bookmark",
+            "exact:feature/*"
+        ]
+    );
 
-    let unpublished = GitIdentity {
-        branch: Some("main".into()),
-        ..GitIdentity::default()
-    };
-    assert!(!RepositorySyncAction::Push.is_available_for(&unpublished));
+    identity = jj_identity(Vec::new());
+    assert!(!RepositorySyncAction::Push.is_available_for(&identity));
+    identity = jj_identity(vec!["first".into(), "second".into()]);
+    assert!(!RepositorySyncAction::Push.is_available_for(&identity));
 }
 
-fn strings(identity: &GitIdentity, action: RepositorySyncAction) -> Vec<String> {
+fn jj_identity(bookmarks: Vec<String>) -> SnapshotIdentity {
+    SnapshotIdentity::Jujutsu(JujutsuIdentity {
+        operation_id: "operation".into(),
+        commit_id: "commit".into(),
+        change_id: "change".into(),
+        description: String::new(),
+        bookmarks,
+        closest_bookmarks: Vec::new(),
+        ahead: 0,
+        conflicted_paths: Vec::new(),
+        conflicted: false,
+        empty: false,
+    })
+}
+
+fn strings(identity: &SnapshotIdentity, action: RepositorySyncAction) -> Vec<String> {
     arguments(identity, action)
         .expect("sync arguments")
         .into_iter()

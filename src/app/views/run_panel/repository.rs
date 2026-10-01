@@ -1,3 +1,5 @@
+#[cfg(test)]
+use super::repository_controls::selected_backend;
 use super::{
     super::super::FarcasterApp,
     repository_controls::{file_action, repository_header},
@@ -7,6 +9,8 @@ use super::{
         repository_row_id,
     },
 };
+#[cfg(test)]
+use crate::repository::BackendPreference;
 use crate::{
     app::ui::theme::theme,
     app::ui::{
@@ -17,7 +21,7 @@ use crate::{
             app_icon, section_heading,
         },
     },
-    repository::{RepositoryEdit, WorkingCopyChange, WorkingCopySnapshot},
+    repository::{RepositoryEdit, RepositoryKind, WorkingCopyChange, WorkingCopySnapshot},
 };
 use gpui::{
     Anchor, AnyElement, ClipboardItem, InteractiveElement as _, IntoElement, MouseButton,
@@ -72,6 +76,15 @@ impl FarcasterApp {
                             .text_color(theme().colors.accent)
                             .child("Reading working copy…"),
                     )
+                },
+            )
+            .when_some(
+                self.project.repository.preference_error.as_deref(),
+                |section, error| {
+                    section.child(repository_notice(
+                        &format!("Backend choice was not saved: {}", bounded_message(error)),
+                        theme().colors.warning,
+                    ))
                 },
             )
             .when_some(
@@ -197,7 +210,10 @@ impl FarcasterApp {
                 if !browser.query.trim().is_empty() {
                     "No matching files"
                 } else {
-                    "Working tree and index are clean"
+                    match snapshot.location.kind {
+                        RepositoryKind::Git => "Working tree and index are clean",
+                        RepositoryKind::Jujutsu => "Current change is empty",
+                    }
                 },
                 theme().colors.subtle,
             ))

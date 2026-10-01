@@ -2,7 +2,8 @@ use std::{ffi::OsString, path::PathBuf, sync::Arc, time::SystemTime};
 
 use super::super::{
     ChangeKind, ChangeLayer, DiffResult, DiffTarget, GitIdentity, HunkApply, RepositoryBackend,
-    RepositoryError, WorkingCopySnapshot, change, command_failed,
+    RepositoryError, RepositoryKind, SnapshotIdentity, SnapshotToken, WorkingCopySnapshot, change,
+    command_failed,
     core::port::{CommandOutput, RepositoryOperations},
     require_complete_stdout,
 };
@@ -66,7 +67,7 @@ pub(in crate::modules::repository) fn snapshot(
     backend: &RepositoryBackend,
 ) -> Result<WorkingCopySnapshot, RepositoryError> {
     let output = status_output(backend)?;
-    let token: Arc<[u8]> = Arc::from(output.stdout.clone());
+    let token = SnapshotToken::Git(Arc::from(output.stdout.clone()));
     let (identity, parsed) = parse_status(&output.stdout)?;
     let changes = parsed
         .into_iter()
@@ -83,7 +84,7 @@ pub(in crate::modules::repository) fn snapshot(
         .collect::<Result<Vec<_>, _>>()?;
     Ok(WorkingCopySnapshot {
         location: backend.location.clone(),
-        identity,
+        identity: SnapshotIdentity::Git(identity),
         changes,
         captured_at: SystemTime::now(),
     })
@@ -171,7 +172,11 @@ pub(in crate::modules::repository) fn load_diff_with_context(
     target: DiffTarget,
     context: Option<u32>,
 ) -> Result<DiffResult, RepositoryError> {
-    let expected_status = &target.token;
+    let SnapshotToken::Git(expected_status) = &target.token else {
+        return Err(RepositoryError::TargetMismatch(
+            "Jujutsu snapshot token used with Git".to_owned(),
+        ));
+    };
     let current = status_output(backend)?;
     if current.stdout.as_slice() != expected_status.as_ref() {
         return Err(RepositoryError::StaleSnapshot);
@@ -181,6 +186,11 @@ pub(in crate::modules::repository) fn load_diff_with_context(
         ChangeLayer::Index => diff_arguments(true, context),
         ChangeLayer::WorkingTree | ChangeLayer::Conflict => diff_arguments(false, context),
         ChangeLayer::Untracked => untracked_diff_arguments(context),
+        ChangeLayer::JujutsuWorkingCopy => {
+            return Err(RepositoryError::TargetMismatch(
+                "Jujutsu target used with Git".to_owned(),
+            ));
+        }
     };
     if let Some(original) = &target.original_relative_path {
         arguments.push(original.as_os_str().to_os_string());
@@ -460,6 +470,7 @@ fn path_from_bytes(bytes: &[u8]) -> PathBuf {
 
 fn invalid(detail: impl Into<String>) -> RepositoryError {
     RepositoryError::InvalidOutput {
+        backend: RepositoryKind::Git,
         detail: detail.into(),
     }
 }

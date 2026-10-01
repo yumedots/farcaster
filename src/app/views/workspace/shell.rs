@@ -34,12 +34,10 @@ impl FarcasterApp {
         } else {
             self.overlays.view.run
         };
-        let changes = self.project.repository.snapshot.is_some().then(|| {
-            (
-                self.project.repository.additions,
-                self.project.repository.deletions,
-            )
-        });
+        let changes = self.project.repository.snapshot.is_some().then_some((
+            self.project.repository.additions,
+            self.project.repository.deletions,
+        ));
         let icon_only = self.settings.source_control_icon_only;
         let rail_toggle = entity.clone();
         let panel_toggle = entity.clone();

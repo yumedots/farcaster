@@ -3,6 +3,7 @@ use std::{ffi::OsString, path::PathBuf};
 use super::super::command_failed;
 use crate::repository::{
     ChangeLayer, RepositoryBackend, RepositoryEdit, RepositoryEditReview, RepositoryError,
+    SnapshotIdentity,
 };
 
 pub(super) fn apply(
@@ -34,7 +35,7 @@ pub(super) fn apply(
         RepositoryEdit::Unstage => {
             // Without a commit there is nothing to restore the index from and the
             // entries are dropped instead.
-            let unborn = review.snapshot.identity.head_oid.is_none();
+            let unborn = matches!(&review.snapshot.identity, SnapshotIdentity::Git(identity) if identity.head_oid.is_none());
             let command: &[&str] = if unborn {
                 &["rm", "--cached", "-r"]
             } else {
@@ -50,7 +51,7 @@ pub(super) fn apply(
                 .cloned()
                 .collect::<Vec<_>>();
             if !tracked.is_empty() {
-                let unborn = review.snapshot.identity.head_oid.is_none();
+                let unborn = matches!(&review.snapshot.identity, SnapshotIdentity::Git(identity) if identity.head_oid.is_none());
                 let args: &[&str] = if unborn {
                     &["rm", "-f"]
                 } else {

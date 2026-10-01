@@ -1,6 +1,8 @@
 use super::*;
 use std::path::PathBuf;
 
+use crate::repository::JujutsuIdentity;
+
 #[test]
 fn sections_partition_every_change_layer() {
     for layer in [
@@ -93,18 +95,29 @@ fn unborn_and_detached_git_heads_are_explicit() {
 }
 
 #[test]
-fn sync_metadata_uses_the_nearest_branch_with_ahead_and_behind_counts() {
+fn sync_metadata_uses_nearest_git_branch_and_jj_ancestor_bookmark() {
     assert_eq!(
-        repository_sync_metadata(&GitIdentity {
+        repository_sync_metadata(&SnapshotIdentity::Git(GitIdentity {
             nearest_branch: Some("main".into()),
             ahead: 2,
             ..GitIdentity::default()
-        }),
+        })),
         "main · 2 ahead"
     );
     assert_eq!(
-        repository_sync_metadata(&GitIdentity::default()),
-        "detached"
+        repository_sync_metadata(&SnapshotIdentity::Jujutsu(JujutsuIdentity {
+            operation_id: String::new(),
+            commit_id: "commit".into(),
+            change_id: "change".into(),
+            description: String::new(),
+            bookmarks: Vec::new(),
+            closest_bookmarks: vec!["main".into()],
+            ahead: 2,
+            conflicted_paths: Vec::new(),
+            conflicted: false,
+            empty: true,
+        })),
+        "main · 2 ahead"
     );
 }
 
