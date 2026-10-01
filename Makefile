@@ -55,7 +55,7 @@ package:
 	test -n "$(FORMAT)" || (echo "usage: make package FORMAT=app|dmg|deb|pacman" >&2; exit 1)
 	BUNDLE_FORMATS="$(FORMAT)" ./scripts/bundle.sh
 app:
-	BUNDLE_FORMATS="app" ./scripts/bundle.sh && ./scripts/install-app.sh
+	if [ "$$(uname -s)" = Darwin ]; then BUNDLE_FORMATS="app" ./scripts/bundle.sh && ./scripts/install-app.sh; else ./scripts/install-app-linux.sh; fi
 dmg:
 	BUNDLE_FORMATS="dmg" ./scripts/bundle.sh
 logs:
