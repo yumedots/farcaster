@@ -24,7 +24,7 @@ CARGO_TARGETS := build run test e2e measure debug isolated release release-debug
 
 $(CARGO_TARGETS): | $(INCREMENTAL_STAMP) libcxx submodules
 submodules:
-	git submodule update --init third_party/gpui third_party/gpui-libghostty || git -C third_party/gpui-libghostty checkout -fq origin/main
+	test -f third_party/gpui/crates/gpui/Cargo.toml && test -f third_party/gpui-libghostty/crates/gpui-ghostty/Cargo.toml || git submodule update --init third_party/gpui third_party/gpui-libghostty || git -C third_party/gpui-libghostty checkout -fq origin/main
 libcxx:
 	printf 'int main(){}\n' | cc -x c++ - -o /dev/null -lc++ 2>/dev/null || (echo "libc++ is missing" >&2; exit 1)
 
