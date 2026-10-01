@@ -3,7 +3,8 @@ CREATE TABLE projects (
   id INTEGER PRIMARY KEY,
   path TEXT NOT NULL UNIQUE,
   added_ms INTEGER NOT NULL,
-  deleted_at INTEGER
+  deleted_at INTEGER,
+  repository_backend TEXT
 );
 CREATE TABLE sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
