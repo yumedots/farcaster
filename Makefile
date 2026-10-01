@@ -20,9 +20,11 @@ PRUNE = status=$$?; size=$$(du -sm "$(INCREMENTAL_DIR)" 2>/dev/null | cut -f1); 
 CARGO_TARGETS := build run test e2e measure debug isolated release release-debug release-preview release-publish bundle bundle-relaunch package app dmg clippy check
 
 .SILENT:
-.PHONY: $(CARGO_TARGETS) logs fmt clean prune-incremental libcxx
+.PHONY: $(CARGO_TARGETS) logs fmt clean prune-incremental libcxx submodules
 
-$(CARGO_TARGETS): | $(INCREMENTAL_STAMP) libcxx
+$(CARGO_TARGETS): | $(INCREMENTAL_STAMP) libcxx submodules
+submodules:
+	git submodule update --init third_party/gpui third_party/gpui-libghostty || git -C third_party/gpui-libghostty checkout -fq origin/main
 libcxx:
 	printf 'int main(){}\n' | cc -x c++ - -o /dev/null -lc++ 2>/dev/null || (echo "libc++ is missing" >&2; exit 1)
 
